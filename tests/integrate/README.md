@@ -94,6 +94,7 @@ _S4    four spin channels
 _GE    genelpa diagonalization method
 _HP    hpseps  diagonalization method
 _SC    scalapack diagonalization method
+_PE    pexsi "diagonalization" method
 
 _RE    relax calculation
 _CR    cell-relax calculation

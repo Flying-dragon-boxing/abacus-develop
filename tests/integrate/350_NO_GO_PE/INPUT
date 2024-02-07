@@ -1,0 +1,18 @@
+INPUT_PARAMETERS
+#Parameters     (General)
+suffix         autotest
+pseudo_dir                      ../../PP_ORB
+orbital_dir                     ../../PP_ORB
+calculation                     scf     
+nbands                          8
+#Parameters (Methos)
+basis_type                      lcao
+ks_solver                       pexsi
+symmetry                        0       
+#Parameters (Accuracy)
+ecutwfc                         50
+scf_thr                         1.0e-7  // about iteration
+scf_nmax			100
+#Parameters (File)
+out_chg                         1
+gamma_only                      1

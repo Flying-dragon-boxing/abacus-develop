@@ -28,7 +28,7 @@ ENV CMAKE_PREFIX_PATH=/opt/libtorch/share/cmake
 
 ADD https://api.github.com/repos/deepmodeling/abacus-develop/git/refs/heads/develop /dev/null
 
-RUN git clone https://github.com/Flying-dragon-boxing/abacus-develop.git --depth 1 && \
+RUN git clone https://github.com/deepmodeling/abacus-develop.git --depth 1 && \
     cd abacus-develop && \
     cmake -B build -DENABLE_DEEPKS=ON -DENABLE_LIBXC=ON -DENABLE_LIBRI=ON -DENABLE_PEXSI=ON && \
     cmake --build build -j`nproc` && \

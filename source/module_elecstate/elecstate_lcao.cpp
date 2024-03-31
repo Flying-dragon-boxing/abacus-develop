@@ -95,7 +95,7 @@ void ElecStateLCAO<std::complex<double>>::psiToRho(const psi::Psi<std::complex<d
     // this part for calculating DMK in 2d-block format, not used for charge now
     //    psi::Psi<std::complex<double>> dm_k_2d();
 
-    if (GlobalV::KS_SOLVER == "genelpa" || GlobalV::KS_SOLVER == "scalapack_gvx" || GlobalV::KS_SOLVER == "lapack" ||  GlobalV::KS_SOLVER == "pexsi"
+    if (GlobalV::KS_SOLVER == "genelpa" || GlobalV::KS_SOLVER == "scalapack_gvx" || GlobalV::KS_SOLVER == "lapack"
         || GlobalV::KS_SOLVER == "cusolver" || GlobalV::KS_SOLVER == "cg_in_lcao") // Peize Lin test 2019-05-15
     {
         //cal_dm(this->loc->ParaV, this->wg, psi, this->loc->dm_k);
@@ -267,11 +267,17 @@ void ElecStateLCAO<double>::dmToRho(std::vector<double*> pexsi_DM, std::vector<d
     }
 
     auto DM = this->get_DM();
-    this->pexsi_EDM.clear();
-    for (int is = 0; is < GlobalV::NSPIN; is++)
+    this->get_DM()->pexsi_EDM.clear();
+
+    int nspin = GlobalV::NSPIN;
+    if (GlobalV::NSPIN == 4)
+    {
+        nspin = 1;
+    }
+    for (int is = 0; is < nspin; is++)
     {
         this->DM->set_DMK_pointer(is, pexsi_DM[is]);
-        this->pexsi_EDM.push_back(pexsi_EDM[is]);
+        this->get_DM()->pexsi_EDM.push_back(pexsi_EDM[is]);
     }
     DM->cal_DMR();
     

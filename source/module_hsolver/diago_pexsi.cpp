@@ -1,11 +1,8 @@
 #include <mpi.h>
 #include <complex>
 #ifdef __PEXSI
-#include "c_pexsi_interface.h"
 #include "diago_pexsi.h"
 #include "module_base/global_variable.h"
-#include "module_base/lapack_connector.h"
-#include "module_base/timer.h"
 #include "module_base/tool_quit.h"
 #include "module_basis/module_ao/parallel_orbitals.h"
 #include "module_pexsi/pexsi_solver.h"
@@ -22,7 +19,6 @@ void DiagoPexsi<double>::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<double>& 
     matd h_mat, s_mat;
     phm_in->matrix(h_mat, s_mat);
     std::vector<double> eigen(GlobalV::NLOCAL, 0.0);
-    MPI_Comm COMM_DIAG = MPI_COMM_WORLD;
     int ik = psi.get_current_k();
     this->ps = new pexsi::PEXSI_Solver(this->ParaV->blacs_ctxt,
                                        this->ParaV->nb,

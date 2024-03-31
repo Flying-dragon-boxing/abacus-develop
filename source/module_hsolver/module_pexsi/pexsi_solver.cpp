@@ -4,13 +4,11 @@
 
 #include <mpi.h>
 #include <cstring>
-#include <vector>
 
 #include "module_base/global_variable.h"
 #include "simple_pexsi.h"
 
 extern MPI_Comm DIAG_WORLD;
-extern MPI_Comm GRID_WORLD;
 namespace pexsi
 {
 
@@ -128,6 +126,36 @@ const double PEXSI_Solver::get_totalEnergyS() const
 const double PEXSI_Solver::get_mu() const
 {
     return mu;
+}
+
+void PEXSI_Solver::set_pexsi_vars()
+{
+    pexsi_npole = 40;
+    pexsi_inertia = true;
+    pexsi_nmax = 80;
+    // pexsi_symbolic = 1;
+    pexsi_comm = true;
+    pexsi_storage = true;
+    pexsi_ordering = 0;
+    pexsi_row_ordering = 1;
+    pexsi_nproc = 1;
+    pexsi_symm = true;
+    pexsi_trans = false;
+    pexsi_method = 1;
+    pexsi_nproc_pole = 1;
+    // pexsi_spin = 2;
+    pexsi_temp = 0.015;
+    pexsi_gap = 0;
+    pexsi_delta_e = 20.0;
+    pexsi_mu_lower = -10;
+    pexsi_mu_upper = 10;
+    pexsi_mu = 0.0;
+    pexsi_mu_thr = 0.05;
+    pexsi_mu_expand = 0.3;
+    pexsi_mu_guard = 0.2;
+    pexsi_elec_thr = 0.001;
+    pexsi_zero_thr = 1e-10;
+    return;
 }
 
 } // namespace pexsi

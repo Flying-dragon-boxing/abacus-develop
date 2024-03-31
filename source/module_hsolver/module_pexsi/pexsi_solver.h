@@ -1,8 +1,6 @@
 #ifndef PEXSI_Solver_H
 #define PEXSI_Solver_H
 
-#include <vector>
-
 namespace pexsi
 {
 class PEXSI_Solver
@@ -24,6 +22,7 @@ class PEXSI_Solver
     const double get_totalEnergyH() const;
     const double get_totalEnergyS() const;
     const double get_mu() const;
+    static void set_pexsi_vars();
 
     //==========================================================
     // PEXSI related variables

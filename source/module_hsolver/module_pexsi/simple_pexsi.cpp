@@ -9,18 +9,14 @@
 #include <cmath>
 #include <cstring>
 #include <fstream>
-#include <iostream>
-#include <memory>
 
 #include "c_pexsi_interface.h"
 #include "dist_bcd_matrix.h"
 #include "dist_ccs_matrix.h"
 #include "dist_matrix_transformer.h"
-#include "module_base/lapack_connector.h"
 #include "module_base/timer.h"
-#include "module_base/tool_quit.h"
-#include "module_base/global_variable.h"
-#include "module_hsolver/diago_pexsi.h"
+#include "module_base/global_variable.h" // only for GlobalV::NSPIN
+#include "pexsi_solver.h"
 
 namespace pexsi
 {
@@ -48,7 +44,7 @@ inline void setDefaultOption(int* int_para, double* double_para)
     int_para[11] = 0;
     int_para[12] = 0;
     int_para[14] = 2;
-    int_para[15] = 1;
+    int_para[15] = 2;
 }
 
 int loadPEXSIOption(MPI_Comm comm,
@@ -350,15 +346,11 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     DistMatrixTransformer::transformCCStoBCD(DST_Matrix, DMnzvalLocal, EDMnzvalLocal, SRC_Matrix, DM, EDM);
     ModuleBase::timer::tick("Diago_LCAO_Matrix", "TransMAT22D");
     // LiuXh modify 2021-04-29, add DONE(ofs_running,"xx") for test
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
     delete[] DMnzvalLocal;
     delete[] EDMnzvalLocal;
     delete[] FDMnzvalLocal;
     delete[] HnzvalLocal;
     delete[] SnzvalLocal;
-    MPI_Barrier(MPI_COMM_WORLD);
     return 0;
 }
 } // namespace pexsi

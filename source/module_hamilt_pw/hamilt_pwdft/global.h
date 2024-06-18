@@ -4,9 +4,11 @@
 #include "module_base/global_function.h"
 #include "module_base/global_variable.h"
 #include "module_elecstate/module_charge/charge_mixing.h"
+#include "module_esolver/esolver_ks_pw.h"
 #include "module_hamilt_pw/hamilt_pwdft/VNL_in_pw.h"
 #include "module_io/restart.h"
 #include "module_relax/relax_driver.h"
+#include <vector>
 #ifdef __EXX
 #include "module_ri/exx_lip.h"
 #include "module_hamilt_general/module_xc/exx_info.h"
@@ -279,9 +281,28 @@ static const char *_hipfftGetErrorString(hipfftResult_t error)
 //==========================================================
 namespace GlobalC
 {
+class Exx_Helper
+{
+	public:
+	ModuleBase::matrix wg;
+	std::vector<double> exx_energy;
+	bool exx_after_converge(double energy_in)
+    {
+        if (first_iter)
+        {
+            first_iter = false;
+            return false;
+        }
+        return true;
+    }
+
+    bool first_iter = true;
+};
+
 #ifdef __EXX
 extern Exx_Info exx_info;
 extern Exx_Lip exx_lip;
+extern Exx_Helper exx_helper;
 #endif
 extern pseudopot_cell_vnl ppcell;
 } // namespace GlobalC
@@ -289,6 +310,7 @@ extern pseudopot_cell_vnl ppcell;
 #include "module_cell/parallel_kpoints.h"
 #include "module_cell/unitcell.h"
 #include "module_hamilt_pw/hamilt_pwdft/parallel_grid.h"
+#include "module_base/matrix.h"
 namespace GlobalC
 {
 extern UnitCell ucell;

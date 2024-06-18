@@ -9,6 +9,7 @@
 #include "operator_pw/ekinetic_pw.h"
 #include "operator_pw/meta_pw.h"
 #include "operator_pw/nonlocal_pw.h"
+#include "operator_pw/op_exx_pw.h"
 
 #ifdef USE_PAW
 #include "module_cell/module_paw/paw_cell.h"
@@ -109,6 +110,18 @@ HamiltPW<T, Device>::HamiltPW(elecstate::Potential* pot_in, ModulePW::PW_Basis_K
             this->ops->add(nonlocal);
         }
     }
+    if (GlobalC::exx_info.info_global.cal_exx)
+    {
+        Operator<T, Device>* exx = new OperatorEXXPW<T, Device>(isk, wfc_basis, pot_in->get_rho_basis(), pkv);
+        if (this->ops == nullptr)
+        {
+            this->ops = exx;
+        }
+        else
+        {
+            this->ops->add(exx);
+        }
+    }
     return;
 }
 
@@ -185,6 +198,17 @@ HamiltPW<T, Device>::HamiltPW(const HamiltPW<T_in, Device_in> *hamilt)
             }
             else {
                 this->ops->add(meta);
+            }
+        }
+        else if (node->classname == "OperatorEXXPW") {
+            Operator<T, Device>* exx =
+                    new OperatorEXXPW<T, Device>(
+                            reinterpret_cast<const OperatorEXXPW<T_in, Device_in>*>(node));
+            if(this->ops == nullptr) {
+                this->ops = exx;
+            }
+            else {
+                this->ops->add(exx);
             }
         }
         else {

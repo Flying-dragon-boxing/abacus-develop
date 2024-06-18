@@ -7,6 +7,7 @@
 #include "module_base/parallel_global.h"
 #include "module_io/parse_args.h"
 #include "fftw3.h"
+#include <unistd.h>
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -34,6 +35,8 @@ int main(int argc, char** argv)
     /*
     main program for doing electronic structure calculations.
     */
+
+    sleep(10);
     Driver DD;
     DD.init();
 

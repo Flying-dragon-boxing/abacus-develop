@@ -98,6 +98,8 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
 
         virtual void after_scf(const int istep) override;
 
+        virtual bool do_after_converge(int& iter) override;
+
         virtual void others(const int istep)override;
 
         //temporary, this will be removed in the future;

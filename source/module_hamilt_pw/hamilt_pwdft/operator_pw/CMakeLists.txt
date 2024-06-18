@@ -5,6 +5,7 @@ list(APPEND operator_ks_pw_srcs
     nonlocal_pw.cpp
     meta_pw.cpp
     velocity_pw.cpp
+    op_exx_pw.cpp
 )
 
 add_library(

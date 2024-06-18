@@ -1,4 +1,5 @@
 #include "operator.h"
+#include "module_hamilt_pw/hamilt_pwdft/operator_pw/op_exx_pw.h"
 
 #include "module_base/timer.h"
 
@@ -63,6 +64,14 @@ typename Operator<T, Device>::hpsi_info Operator<T, Device>::hPsi(hpsi_info& inp
     auto call_act = [&, this](const Operator* op) -> void {
         // a "psi" with the bands of needed range
         psi::Psi<T, Device> psi_wrapper(const_cast<T*>(tmpsi_in), 1, nbands, psi_input->get_nbasis());
+        
+        // judge node type for exx to inject psi
+        if (op->cal_type == calculation_type::pw_exx)
+        {
+            auto op_exx = (dynamic_cast<const OperatorEXXPW<T, Device>*>(op));
+            op_exx->set_psi(psi_input);
+        }
+        
         switch (op->get_act_type())
         {
         case 2:

@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "module_base/complexmatrix.h"
+#include "module_basis/module_pw/pw_basis.h"
 #include "module_hamilt_pw/hamilt_pwdft/VNL_in_pw.h"
 #include "module_hamilt_pw/hamilt_pwdft/structure_factor.h"
 #include "pot_base.h"
@@ -167,6 +168,10 @@ class Potential : public PotBase
     const double* get_fixed_v() const
     {
         return this->v_effective_fixed.data();
+    }
+    const ModulePW::PW_Basis *get_rho_basis() const
+    {
+        return this->rho_basis_;
     }
 
   private:

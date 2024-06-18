@@ -6,6 +6,7 @@ list(APPEND objects
     operator_pw/veff_pw.cpp
     operator_pw/nonlocal_pw.cpp
     operator_pw/meta_pw.cpp
+    operator_pw/op_exx_pw.cpp
     operator_pw/velocity_pw.cpp
     operator_pw/operator_pw.cpp
     forces.cpp

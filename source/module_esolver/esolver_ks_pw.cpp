@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+#include "module_base/global_variable.h"
+#include "module_hamilt_general/module_xc/xc_functional.h"
 #include "module_io/nscf_band.h"
 #include "module_io/write_dos_pw.h"
 #include "module_io/write_istate_info.h"
@@ -243,6 +245,35 @@ void ESolver_KS_PW<T, Device>::before_all_runners(Input& inp, UnitCell& ucell)
                                                             this->pw_rho,
                                                             this->pw_big);
     }
+
+#ifdef __EXX
+    // 7) initialize exx
+    // PLEASE simplify the Exx_Global interface
+    if (GlobalV::CALCULATION == "scf" 
+        || GlobalV::CALCULATION == "relax" 
+        || GlobalV::CALCULATION == "cell-relax"
+        || GlobalV::CALCULATION == "md")
+    {
+        if (GlobalC::exx_info.info_global.cal_exx)
+        {
+            /* In the special "two-level" calculation case,
+            first scf iteration only calculate the functional without exact exchange.
+            but in "nscf" calculation, there is no need of "two-level" method. */
+            if (ucell.atoms[0].ncpp.xc_func == "HF" 
+             || ucell.atoms[0].ncpp.xc_func == "PBE0" 
+             || ucell.atoms[0].ncpp.xc_func == "HSE")
+            {
+                XC_Functional::set_xc_type("pbe");
+            }
+            else if (ucell.atoms[0].ncpp.xc_func == "SCAN0")
+            {
+                XC_Functional::set_xc_type("scan");
+            }
+
+
+        }
+    }
+#endif    
 
     //! Inititlize the charge density.
     this->pelec->charge->allocate(GlobalV::NSPIN);
@@ -791,6 +822,12 @@ void ESolver_KS_PW<T, Device>::hamilt2density(
 		const double ethr)
 {
     ModuleBase::timer::tick("ESolver_KS_PW", "hamilt2density");
+    
+    // exx in pw: set up the occupation number
+    if (GlobalC::exx_info.info_global.cal_exx)
+    {
+        GlobalC::exx_helper.wg = this->pelec->wg;
+    }
 
     if (this->phsol != nullptr)
     {
@@ -866,10 +903,25 @@ void ESolver_KS_PW<T, Device>::hamilt2density(
         ModuleBase::WARNING_QUIT("ESolver_KS_PW", "HSolver has not been initialed!");
     }
     // add exx
-#ifdef __LCAO
 #ifdef __EXX
+#ifdef __LCAO
+if (GlobalV::BASIS_TYPE == "lcao_in_pw")
+{
     this->pelec->set_exx(GlobalC::exx_lip.get_exx_energy()); // Peize Lin add 2019-03-09
+}
+else if (GlobalV::BASIS_TYPE == "pw")
 #endif
+{
+    // sum over ik in GlobalC::Exx_Helper
+    double en = GlobalC::exx_lip.get_exx_energy();
+    this->pelec->set_exx(en); // Peize Lin add 2019-03-09
+    // for (int ik = 0; ik < this->pw_wfc->nks; ik++)
+    // {
+    //     en += GlobalC::exx_helper.exx_energy[ik];
+    // }
+    std::cout << "EXX energy: " << en * GlobalC::exx_info.info_global.hybrid_alpha << std::endl;
+    // this->pelec->set_exx(en); // Peize Lin add 2019-03-09
+}
 #endif
 
     // calculate the delta_harris energy
@@ -967,6 +1019,14 @@ void ESolver_KS_PW<T, Device>::iter_finish(const int iter)
             // ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running,"write wave functions into file WAVEFUNC.dat");
         }
     }
+
+// #ifdef __EXX
+//     if (GlobalV::BASIS_TYPE == "pw")
+//     {
+//         GlobalC::exx_lip.set_exx_energy(0);
+//         std::cout << "EXX energy: set to 0" << std::endl;
+//     }
+// #endif
 }
 
 
@@ -1123,6 +1183,20 @@ void ESolver_KS_PW<T, Device>::after_scf(const int istep)
     }
 }
 
+template <typename T, typename Device>
+bool ESolver_KS_PW<T, Device>::do_after_converge(int& iter)
+{
+    ModuleBase::TITLE("ESolver_KS_PW","do_after_converge");
+#ifdef __EXX
+    if (GlobalC::exx_info.info_global.cal_exx)
+    {
+        return GlobalC::exx_helper.exx_after_converge(cal_energy());
+    }
+#endif // __EXX
+
+    return true;
+
+}
 
 template <typename T, typename Device>
 double ESolver_KS_PW<T, Device>::cal_energy()

@@ -101,7 +101,7 @@ int loadPEXSIOption(MPI_Comm comm,
     int_para[1] = pexsi::PEXSI_Solver::pexsi_inertia;
     int_para[2] = pexsi::PEXSI_Solver::pexsi_nmax;
     int_para[3] = 0;
-    int_para[4] = 1; // pexsi::PEXSI_Solver::pexsi_symbolic;
+    int_para[4] = pexsi::PEXSI_Solver::pexsi_symbolic;
     int_para[5] = pexsi::PEXSI_Solver::pexsi_comm;
     int_para[6] = 0;
     int_para[7] = pexsi::PEXSI_Solver::pexsi_storage;
@@ -349,7 +349,7 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
                                         &info);
         }
         // clean PEXSI
-        PPEXSIPlanFinalize(plan, &info);
+        // PPEXSIPlanFinalize(plan, &info);
     }
 
     // transform Density Matrix and Energy Density Matrix from compressed column sparse matrix

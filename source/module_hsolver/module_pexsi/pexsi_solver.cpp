@@ -17,7 +17,7 @@ namespace pexsi
 int PEXSI_Solver::pexsi_npole = 0;
 bool PEXSI_Solver::pexsi_inertia = 0;
 int PEXSI_Solver::pexsi_nmax = 0;
-// int PEXSI_Solver::pexsi_symbolic = 0;
+int PEXSI_Solver::pexsi_symbolic = 0;
 bool PEXSI_Solver::pexsi_comm = 0;
 bool PEXSI_Solver::pexsi_storage = 0;
 int PEXSI_Solver::pexsi_ordering = 0;
@@ -42,6 +42,7 @@ double PEXSI_Solver::pexsi_zero_thr = 0.0;
 
 PEXSI_Solver::PEXSI_Solver()
 {
+    first_call = true;
     MPI_Comm_rank(DIAG_WORLD, &myid);
     MPI_Comm_size(DIAG_WORLD, &grid_np);
     MPI_Comm_group(DIAG_WORLD, &world_group);
@@ -89,6 +90,7 @@ void PEXSI_Solver::prepare(const int blacs_text,
 
 int PEXSI_Solver::solve(double mu0)
 {
+    pexsi_symbolic = first_call? 1 : 0;
     simplePEXSI(DIAG_WORLD,
                 DIAG_WORLD,
                 grid_group,
@@ -110,6 +112,11 @@ int PEXSI_Solver::solve(double mu0)
                 mu,
                 mu0,
                 plan);
+
+    if (first_call) 
+    { 
+        first_call = false;
+    }
     return 0;
 }
 

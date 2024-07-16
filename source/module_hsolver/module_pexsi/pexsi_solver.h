@@ -41,6 +41,11 @@ class PEXSI_Solver
      * @brief  Maximum number of PEXSI iterations after each inertia counting procedure.
      */ 
     static int pexsi_nmax;
+    /**
+     * @brief Whether to use symbolic factorization in the current iteration.
+     * 
+     */
+    static int pexsi_symbolic;
     /** 
      * @brief  Whether to construct PSelInv communication pattern.
      */ 
@@ -150,6 +155,9 @@ class PEXSI_Solver
 
     // pexsi plan
     PPEXSIPlan plan;
+
+    // first call
+    bool first_call;
 };
 } // namespace pexsi
 #endif // PEXSI_Solver_H

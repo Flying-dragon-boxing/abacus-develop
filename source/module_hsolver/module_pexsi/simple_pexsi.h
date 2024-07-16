@@ -2,6 +2,8 @@
 #define SIMPLE_PEXSI_H
 
 #include <mpi.h>
+#include <c_pexsi_interface.h>
+#include <string>
 // a simple interface for calling pexsi with 2D block cyclic distributed matrix
 namespace pexsi
 {
@@ -24,6 +26,10 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
                 double& totalEnergyS,
                 double& totalFreeEnergy,
                 double& mu,
-                double mu0);
+                double mu0,
+                PPEXSIPlan plan);
+
+PPEXSIPlan setup_pexsi_plan(MPI_Comm comm_PEXSI, MPI_Comm comm_2D);
+
 }
 #endif // SIMPLE_PEXSI_H

@@ -2,6 +2,8 @@
 #define PEXSI_Solver_H
 
 #include <vector>
+#include <mpi.h>
+#include <c_pexsi_interface.h>
 
 namespace pexsi
 {
@@ -21,6 +23,8 @@ class PEXSI_Solver
     const double get_totalEnergyH() const;
     const double get_totalEnergyS() const;
     const double get_mu() const;
+    PEXSI_Solver();
+    ~PEXSI_Solver();
 
     //==========================================================
     // PEXSI related variables
@@ -138,6 +142,14 @@ class PEXSI_Solver
     double totalEnergyS;
     double totalFreeEnergy;
     double mu;
+
+    // parallel environment
+    MPI_Group grid_group;
+    int myid, grid_np;
+    MPI_Group world_group;
+
+    // pexsi plan
+    PPEXSIPlan plan;
 };
 } // namespace pexsi
 #endif // PEXSI_Solver_H

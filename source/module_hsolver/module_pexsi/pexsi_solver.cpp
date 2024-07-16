@@ -40,6 +40,31 @@ double PEXSI_Solver::pexsi_mu_guard = 0.0;
 double PEXSI_Solver::pexsi_elec_thr = 0.0;
 double PEXSI_Solver::pexsi_zero_thr = 0.0;
 
+PEXSI_Solver::PEXSI_Solver()
+{
+    MPI_Comm_rank(DIAG_WORLD, &myid);
+    MPI_Comm_size(DIAG_WORLD, &grid_np);
+    MPI_Comm_group(DIAG_WORLD, &world_group);
+
+    int grid_proc_range[3]={0, (GlobalV::NPROC/grid_np)*grid_np-1, GlobalV::NPROC/grid_np};
+    MPI_Group_range_incl(world_group, 1, &grid_proc_range, &grid_group);
+
+    plan = setup_pexsi_plan(DIAG_WORLD, DIAG_WORLD);
+}
+
+PEXSI_Solver::~PEXSI_Solver()
+{
+    MPI_Group_free(&grid_group);
+    MPI_Group_free(&world_group);
+
+    MPI_Comm comm_PEXSI = DIAG_WORLD;
+    if (comm_PEXSI != MPI_COMM_NULL)
+    {
+        int info = 0;
+        PPEXSIPlanFinalize(plan, &info);
+    }
+}
+
 void PEXSI_Solver::prepare(const int blacs_text,
                            const int nb,
                            const int nrow,
@@ -64,16 +89,6 @@ void PEXSI_Solver::prepare(const int blacs_text,
 
 int PEXSI_Solver::solve(double mu0)
 {
-    MPI_Group grid_group;
-    int myid, grid_np;
-    MPI_Group world_group;
-    MPI_Comm_rank(DIAG_WORLD, &myid);
-    MPI_Comm_size(DIAG_WORLD, &grid_np);
-    MPI_Comm_group(DIAG_WORLD, &world_group);
-
-    int grid_proc_range[3]={0, (GlobalV::NPROC/grid_np)*grid_np-1, GlobalV::NPROC/grid_np};
-    MPI_Group_range_incl(world_group, 1, &grid_proc_range, &grid_group);
-
     simplePEXSI(DIAG_WORLD,
                 DIAG_WORLD,
                 grid_group,
@@ -93,7 +108,8 @@ int PEXSI_Solver::solve(double mu0)
                 this->totalEnergyS,
                 this->totalFreeEnergy,
                 mu,
-                mu0);
+                mu0,
+                plan);
     return 0;
 }
 

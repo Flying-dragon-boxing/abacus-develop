@@ -2,6 +2,7 @@
 // the H and S matrices are given by 2D block cyclic distribution
 // the Density Matrix and Energy Density Matrix calculated by PEXSI are transformed to 2D block cyclic distribution
 // #include "mpi.h"
+#include "module_hsolver/module_pexsi/pexsi_solver.h"
 #ifdef __PEXSI
 #include <mpi.h>
 
@@ -110,8 +111,8 @@ int loadPEXSIOption(MPI_Comm comm,
     int_para[11] = pexsi::PEXSI_Solver::pexsi_symm;
     int_para[12] = pexsi::PEXSI_Solver::pexsi_trans;
     int_para[13] = pexsi::PEXSI_Solver::pexsi_method;
-    int_para[14] = 2;
-    int_para[15] = 0;
+    int_para[14] = 1;
+    int_para[15] = 2;
     int_para[16] = pexsi::PEXSI_Solver::pexsi_nproc_pole;
 
     double_para[0] = GlobalV::NSPIN; // pexsi::PEXSI_Solver::pexsi_spin;
@@ -193,6 +194,46 @@ void splitNProc2NProwNPcol(const int NPROC, int& nprow, int& npcol)
     }
 }
 
+PPEXSIPlan setup_pexsi_plan(MPI_Comm comm_PEXSI,
+                            MPI_Comm comm_2D)
+{
+    int numProcessPerPole = pexsi::PEXSI_Solver::pexsi_nproc_pole;
+    if (comm_2D == MPI_COMM_NULL && comm_PEXSI == MPI_COMM_NULL)
+        return 0;
+    int myid;
+    std::ofstream f_log;
+    if (comm_PEXSI != MPI_COMM_NULL)
+    {
+        MPI_Comm_rank(comm_PEXSI, &myid);
+    }
+
+    //  set up PEXSI parameter
+    PPEXSIOptions options;
+    PPEXSISetDefaultOptions(&options);
+    double ZERO_Limit;
+
+    ModuleBase::timer::tick("Diago_LCAO_Matrix", "setup_PEXSI_plan");
+    PPEXSIPlan plan;
+    int outputFileIndex;
+    int pexsi_prow, pexsi_pcol;
+    ModuleBase::timer::tick("Diago_LCAO_Matrix", "splitNProc2NProwNPcol");
+    splitNProc2NProwNPcol(numProcessPerPole, pexsi_prow, pexsi_pcol);
+    ModuleBase::timer::tick("Diago_LCAO_Matrix", "splitNProc2NProwNPcol");
+
+    outputFileIndex = 0;
+    ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIPlanInit");
+    if (comm_PEXSI != MPI_COMM_NULL)
+    {
+        int info = 0;
+        plan = PPEXSIPlanInitialize(comm_PEXSI, pexsi_prow, pexsi_pcol, outputFileIndex, &info);
+    }
+    ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIPlanInit");
+    
+    ModuleBase::timer::tick("Diago_LCAO_Matrix", "setup_PEXSI_plan");
+
+    return plan;
+}
+
 int simplePEXSI(MPI_Comm comm_PEXSI,
                 MPI_Comm comm_2D,
                 MPI_Group group_2D,
@@ -212,45 +253,14 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
                 double& totalEnergyS,
                 double& totalFreeEnergy, // output energy
                 double& mu,
-                double mu0)
+                double mu0,
+                PPEXSIPlan plan)
 {
-
-    if (comm_2D == MPI_COMM_NULL && comm_PEXSI == MPI_COMM_NULL)
-        return 0;
-    int myid;
-    std::ofstream f_log;
-    if (comm_PEXSI != MPI_COMM_NULL)
-    {
-        MPI_Comm_rank(comm_PEXSI, &myid);
-    }
-
-    //  set up PEXSI parameter
+    int numProcessPerPole = pexsi::PEXSI_Solver::pexsi_nproc_pole;
+    double ZERO_Limit = 1e-10;
     PPEXSIOptions options;
     PPEXSISetDefaultOptions(&options);
-    int numProcessPerPole;
-    double ZERO_Limit;
-    loadPEXSIOption(comm_PEXSI, PexsiOptionFile, options, numProcessPerPole, ZERO_Limit);
-    options.mu0 = mu0;
-
-    ModuleBase::timer::tick("Diago_LCAO_Matrix", "setup_PEXSI_plan");
-    PPEXSIPlan plan;
-    int info;
-    int outputFileIndex;
-    int pexsi_prow, pexsi_pcol;
-    ModuleBase::timer::tick("Diago_LCAO_Matrix", "splitNProc2NProwNPcol");
-    splitNProc2NProwNPcol(numProcessPerPole, pexsi_prow, pexsi_pcol);
-    ModuleBase::timer::tick("Diago_LCAO_Matrix", "splitNProc2NProwNPcol");
-
-    outputFileIndex = -1;
-    ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIPlanInit");
-    if (comm_PEXSI != MPI_COMM_NULL)
-    {
-        plan = PPEXSIPlanInitialize(comm_PEXSI, pexsi_prow, pexsi_pcol, outputFileIndex, &info);
-    }
-    ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIPlanInit");
-    
-    ModuleBase::timer::tick("Diago_LCAO_Matrix", "setup_PEXSI_plan");
-
+    loadPEXSIOption(comm_PEXSI, "", options, numProcessPerPole, ZERO_Limit);
     // create compressed column storage distribution matrix parameter
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     // DONE(ofs_running,"create compressed column storage distribution matrix parameter, begin");
@@ -270,12 +280,12 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     double* FDMnzvalLocal = nullptr;
     // transform H and S from 2D block cyclic distribution to compressed column sparse matrix
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
-    DistMatrixTransformer::transformBCDtoCCS(SRC_Matrix, H, S, ZERO_Limit, DST_Matrix, HnzvalLocal, SnzvalLocal);
+    DistMatrixTransformer::transformBCDtoCCS(SRC_Matrix, H, S, pexsi::PEXSI_Solver::pexsi_zero_thr, DST_Matrix, HnzvalLocal, SnzvalLocal);
     // MPI_Barrier(MPI_COMM_WORLD);
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     if (comm_PEXSI != MPI_COMM_NULL)
     {
-
+        int info = 0;
         // Load H and S to PEXSI
         int isSIdentity = 0;
         PPEXSILoadRealHSMatrix(plan,
@@ -321,6 +331,12 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
         DMnzvalLocal = new double[DST_Matrix.get_nnzlocal()];
         EDMnzvalLocal = new double[DST_Matrix.get_nnzlocal()];
         FDMnzvalLocal = new double[DST_Matrix.get_nnzlocal()];
+
+        int myid = 0;
+        if (comm_PEXSI != MPI_COMM_NULL)
+        {
+            MPI_Comm_rank(comm_PEXSI, &myid);
+        }
         if (myid < numProcessPerPole)
         {
             PPEXSIRetrieveRealDFTMatrix(plan,

@@ -363,8 +363,8 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
         // clean PEXSI
         // PPEXSIPlanFinalize(plan, &info);
 
-        // pexsi::PEXSI_Solver::pexsi_mu_lower = muMinInertia;
-        // pexsi::PEXSI_Solver::pexsi_mu_upper = muMaxInertia;
+        pexsi::PEXSI_Solver::pexsi_mu_lower = muMinInertia;
+        pexsi::PEXSI_Solver::pexsi_mu_upper = muMaxInertia;
     }
 
     // transform Density Matrix and Energy Density Matrix from compressed column sparse matrix

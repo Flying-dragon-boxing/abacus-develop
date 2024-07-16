@@ -259,7 +259,7 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     int numProcessPerPole = pexsi::PEXSI_Solver::pexsi_nproc_pole;
     double ZERO_Limit = 1e-10;
     PPEXSIOptions options;
-    PPEXSISetDefaultOptions(&options);
+    // PPEXSISetDefaultOptions(&options);
     loadPEXSIOption(comm_PEXSI, "", options, numProcessPerPole, ZERO_Limit);
     // create compressed column storage distribution matrix parameter
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
@@ -318,8 +318,20 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
                         &numTotalInertiaIter, // Number of total inertia[out]
                         &numTotalPEXSIIter,   // number of total pexsi evaluation procedure[out]
                         &info);               // 0: successful; otherwise: unsuccessful
+        // PPEXSIDFTDriver2(plan,                // PEXSI plan[in]
+        //                  &options,            // PEXSI Options[in]
+        //                  numElectronExact,    // exact electron number[in]
+        //                  &mu,                 // chemical potential[out]
+        //                  &nelec,              // number of electrons[out]
+        //                  &numTotalInertiaIter, // Number of total inertia[out]
+        //                  &info);               // 0: successful; otherwise: unsuccessful
         // LiuXh modify 2021-04-29, add DONE(ofs_running,"xx") for test
         ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIDFT");
+
+        std::cout << "inertia iteration: " << numTotalInertiaIter << std::endl;
+        std::cout << "PEXSI iteration: " << numTotalPEXSIIter << std::endl;
+        std::cout << "totalfreeEnergy: " << totalFreeEnergy << std::endl;
+        std::cout << "nelec: " << nelec << std::endl;
 
         // retrieve the results from the plan
         if (DMnzvalLocal != nullptr)
@@ -350,6 +362,9 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
         }
         // clean PEXSI
         // PPEXSIPlanFinalize(plan, &info);
+
+        // pexsi::PEXSI_Solver::pexsi_mu_lower = muMinInertia;
+        // pexsi::PEXSI_Solver::pexsi_mu_upper = muMaxInertia;
     }
 
     // transform Density Matrix and Energy Density Matrix from compressed column sparse matrix

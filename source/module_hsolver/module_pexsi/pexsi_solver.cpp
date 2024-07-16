@@ -90,7 +90,16 @@ void PEXSI_Solver::prepare(const int blacs_text,
 
 int PEXSI_Solver::solve(double mu0)
 {
-    pexsi_symbolic = first_call? 1 : 0;
+    if (!first_call) 
+    {
+        pexsi_symbolic = 0;
+        pexsi_inertia = false;
+    }
+    else
+    {
+        pexsi_symbolic = 1;
+        pexsi_inertia = true;
+    }
     simplePEXSI(DIAG_WORLD,
                 DIAG_WORLD,
                 grid_group,

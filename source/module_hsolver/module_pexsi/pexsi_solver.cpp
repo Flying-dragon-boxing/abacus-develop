@@ -95,7 +95,8 @@ int PEXSI_Solver::solve(double mu0)
     {
         color = MPI_UNDEFINED;
     }
-    MPI_Comm_split(MPI_COMM_WORLD, color, myid, &comm_PEXSI);
+    // MPI_Comm_split(MPI_COMM_WORLD, color, myid, &comm_PEXSI);
+    comm_PEXSI = MPI_COMM_WORLD;
     // if (comm_PEXSI != MPI_COMM_NULL)
     // {
     //     MPI_Comm_group(comm_PEXSI, &grid_group);

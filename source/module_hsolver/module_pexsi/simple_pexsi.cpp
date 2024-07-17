@@ -242,7 +242,10 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     splitNProc2NProwNPcol(numProcessPerPole, pexsi_prow, pexsi_pcol);
     ModuleBase::timer::tick("Diago_LCAO_Matrix", "splitNProc2NProwNPcol");
 
-    outputFileIndex = 0;
+    // outputFileIndex = -1;
+    int numProcess;
+    MPI_Comm_size(comm_PEXSI, &numProcess);
+    outputFileIndex = numProcess;
     ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIPlanInit");
     if (comm_PEXSI != MPI_COMM_NULL)
     {
@@ -256,7 +259,8 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     // create compressed column storage distribution matrix parameter
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     // DONE(ofs_running,"create compressed column storage distribution matrix parameter, begin");
-    DistCCSMatrix DST_Matrix(comm_PEXSI, numProcessPerPole, size);
+    
+    DistCCSMatrix DST_Matrix(comm_PEXSI, numProcess, size);
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     // DONE(ofs_running,"create compressed column storage distribution matrix parameter, finish");
 
@@ -276,7 +280,7 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     // transform H and S from 2D block cyclic distribution to compressed column sparse matrix
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     DistMatrixTransformer::transformBCDtoCCS(SRC_Matrix, H, S, ZERO_Limit, DST_Matrix, HnzvalLocal, SnzvalLocal);
-    // printf("%d\n", DST_Matrix.get_nnzlocal());
+    printf("%d\n", DST_Matrix.get_nnzlocal());
     MPI_Barrier(MPI_COMM_WORLD);
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     if (comm_PEXSI != MPI_COMM_NULL)
@@ -296,7 +300,7 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
                                isSIdentity,
                                SnzvalLocal,
                                &info);
-        std::cout << info << std::endl;
+        printf("info = %d\n", info);
         double nelec;
         double muMinInertia;
         double muMaxInertia;

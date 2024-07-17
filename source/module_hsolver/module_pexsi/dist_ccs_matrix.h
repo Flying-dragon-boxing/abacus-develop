@@ -19,6 +19,7 @@ class DistCCSMatrix
     int globalCol(int localCol);
     int localCol(int globalCol, int& mypcol);
     void setnnz(int nnzLocal);
+    void group_broadcast(double *, double *);
 
     const MPI_Comm get_comm() const
     {
@@ -55,6 +56,10 @@ class DistCCSMatrix
     int* get_rowind_local() const
     {
         return rowindLocal;
+    };
+    int get_nproc_data() const
+    {
+        return nproc_data;
     };
 
     ~DistCCSMatrix();

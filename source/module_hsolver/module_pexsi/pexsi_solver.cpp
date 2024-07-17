@@ -65,16 +65,47 @@ void PEXSI_Solver::prepare(const int blacs_text,
 int PEXSI_Solver::solve(double mu0)
 {
     MPI_Group grid_group;
-    int myid, grid_np;
-    MPI_Group world_group;
-    MPI_Comm_rank(DIAG_WORLD, &myid);
-    MPI_Comm_size(DIAG_WORLD, &grid_np);
-    MPI_Comm_group(DIAG_WORLD, &world_group);
+    MPI_Comm comm_PEXSI;
+    // int myid, grid_np;
+    // MPI_Group world_group;
+    // MPI_Comm_rank(DIAG_WORLD, &myid);
+    // MPI_Comm_size(DIAG_WORLD, &grid_np);
+    MPI_Comm_group(DIAG_WORLD, &grid_group);
 
-    int grid_proc_range[3]={0, (GlobalV::NPROC/grid_np)*grid_np-1, GlobalV::NPROC/grid_np};
-    MPI_Group_range_incl(world_group, 1, &grid_proc_range, &grid_group);
+    // int grid_proc_range[3]={0, (GlobalV::NPROC/grid_np)*grid_np-1, GlobalV::NPROC/grid_np};
+    // MPI_Group_range_incl(world_group, 1, &grid_proc_range, &grid_group);
 
-    simplePEXSI(DIAG_WORLD,
+        // set up the communicator
+    int myid, world_np, grid_np = pexsi_nproc_pole;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+    MPI_Comm_size(MPI_COMM_WORLD, &world_np);
+
+    // int grid_proc_range[3]={0, (GlobalV::NPROC/grid_np)*grid_np-1, GlobalV::NPROC/grid_np};
+    // MPI_Group_range_incl(world_group, 1, &grid_proc_range, &grid_group);
+
+    int average = world_np / grid_np;
+    int pexsi_comm_size = grid_np * average;
+    int color;
+    if (myid < pexsi_comm_size)
+    {
+        color = myid / grid_np;
+        // color = 0;
+    }
+    else
+    {
+        color = MPI_UNDEFINED;
+    }
+    MPI_Comm_split(MPI_COMM_WORLD, color, myid, &comm_PEXSI);
+    // if (comm_PEXSI != MPI_COMM_NULL)
+    // {
+    //     MPI_Comm_group(comm_PEXSI, &grid_group);
+    // }
+    // else
+    // {
+    //     grid_group = MPI_GROUP_NULL;
+    // }
+
+    simplePEXSI(comm_PEXSI, // DIAG_WORLD,
                 DIAG_WORLD,
                 grid_group,
                 this->blacs_text,

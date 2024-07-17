@@ -2,6 +2,7 @@
 // the H and S matrices are given by 2D block cyclic distribution
 // the Density Matrix and Energy Density Matrix calculated by PEXSI are transformed to 2D block cyclic distribution
 // #include "mpi.h"
+#include <cstdio>
 #ifdef __PEXSI
 #include <mpi.h>
 
@@ -110,7 +111,7 @@ int loadPEXSIOption(MPI_Comm comm,
     int_para[11] = pexsi::PEXSI_Solver::pexsi_symm;
     int_para[12] = pexsi::PEXSI_Solver::pexsi_trans;
     int_para[13] = pexsi::PEXSI_Solver::pexsi_method;
-    int_para[14] = 2;
+    int_para[14] = 1;
     int_para[15] = 0;
     int_para[16] = pexsi::PEXSI_Solver::pexsi_nproc_pole;
 
@@ -241,10 +242,11 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     splitNProc2NProwNPcol(numProcessPerPole, pexsi_prow, pexsi_pcol);
     ModuleBase::timer::tick("Diago_LCAO_Matrix", "splitNProc2NProwNPcol");
 
-    outputFileIndex = -1;
+    outputFileIndex = 0;
     ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIPlanInit");
     if (comm_PEXSI != MPI_COMM_NULL)
     {
+        std::cout << "pexsi_prow = " << pexsi_prow << ", pexsi_pcol = " << pexsi_pcol << std::endl;
         plan = PPEXSIPlanInitialize(comm_PEXSI, pexsi_prow, pexsi_pcol, outputFileIndex, &info);
     }
     ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIPlanInit");
@@ -261,6 +263,9 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
 
     // create block cyclic distribution matrix parameter
     DistBCDMatrix SRC_Matrix(comm_2D, group_2D, blacs_ctxt, size, nblk, nrow, ncol, layout);
+    int srcsize = 0;
+    MPI_Comm_size(comm_2D, &srcsize);
+    printf("srcsize = %d\n", srcsize);
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     // DONE(ofs_running,"create block cyclic distribution matrix parameter, finish");
     double* HnzvalLocal = nullptr;
@@ -271,7 +276,8 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     // transform H and S from 2D block cyclic distribution to compressed column sparse matrix
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     DistMatrixTransformer::transformBCDtoCCS(SRC_Matrix, H, S, ZERO_Limit, DST_Matrix, HnzvalLocal, SnzvalLocal);
-    // MPI_Barrier(MPI_COMM_WORLD);
+    printf("%d\n", DST_Matrix.get_nnzlocal());
+    MPI_Barrier(MPI_COMM_WORLD);
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     if (comm_PEXSI != MPI_COMM_NULL)
     {
@@ -290,7 +296,7 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
                                isSIdentity,
                                SnzvalLocal,
                                &info);
-
+        std::cout << info << std::endl;
         double nelec;
         double muMinInertia;
         double muMaxInertia;
@@ -307,10 +313,19 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
                         &muMaxInertia,        // Upper bound for mu after the last inertia[out]
                         &numTotalInertiaIter, // Number of total inertia[out]
                         &numTotalPEXSIIter,   // number of total pexsi evaluation procedure[out]
-                        &info);               // 0: successful; otherwise: unsuccessful
+                        &info);               // 0: successful; otherwise: unsuccessful        
+        // PPEXSIDFTDriver2(plan,                 // PEXSI plan[in]
+        //                 &options,              // PEXSI Options[in]
+        //                 numElectronExact,     // exact electron number[in]
+        //                 &mu,                  // chemical potential[out]
+        //                 &nelec,               // number of electrons[out]
+        //                 &numTotalInertiaIter, // Number of total inertia[out]
+        //                 &info);               // 0: successful; otherwise: unsuccessful
+        
         // LiuXh modify 2021-04-29, add DONE(ofs_running,"xx") for test
+        // MPI_Abort(MPI_COMM_WORLD, 0);
         ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIDFT");
-
+        std::cout << "PEXSI done" << std::endl;
         // retrieve the results from the plan
         if (DMnzvalLocal != nullptr)
             delete[] DMnzvalLocal;
@@ -335,7 +350,6 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
         // clean PEXSI
         PPEXSIPlanFinalize(plan, &info);
     }
-
     // transform Density Matrix and Energy Density Matrix from compressed column sparse matrix
     // back to 2D block cyclic distribution if neccessary
     if (comm_2D != MPI_COMM_NULL)

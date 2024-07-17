@@ -17,4 +17,5 @@ scf_nmax	      20
 
 ks_solver   pexsi
 
-pexsi_npole  40
+pexsi_npole  20
+pexsi_nproc_pole 1

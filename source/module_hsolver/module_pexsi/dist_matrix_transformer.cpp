@@ -1,3 +1,6 @@
+#include "module_base/parallel_reduce.h"
+#include <cstdio>
+#include <sstream>
 #ifdef __PEXSI
 #include "dist_matrix_transformer.h"
 
@@ -147,7 +150,7 @@ inline void DistMatrixTransformer::countMatrixDistribution(int N, double* A, std
     for (int i = 0; i < N; ++i)
     {
         int key;
-        if (fabs(A[i] < 1e-31))
+        if (fabs(A[i]) < 1e-31)
             key = -100;
         else
             key = floor(log10(fabs(A[i])));
@@ -227,6 +230,7 @@ int DistMatrixTransformer::buildTransformParameter(DistBCDMatrix& SRC_Matrix,
 {
     int myproc;
     MPI_Comm_rank(MPI_COMM_WORLD, &myproc);
+    // MPI_Comm_rank(COMM_TRANS, &myproc);
     sender_size = nnz;
     std::fill(sender_size_process.begin(), sender_size_process.end(), 0);
     // create process id map from group_data to group_trans
@@ -236,6 +240,7 @@ int DistMatrixTransformer::buildTransformParameter(DistBCDMatrix& SRC_Matrix,
     {
         MPI_Group_size(DST_Matrix.get_group_data(), &nproc_data);
         MPI_Bcast(&nproc_data, 1, MPI_INT, 0, COMM_TRANS);
+        // printf("nproc_data: %d\n", nproc_data);
         proc_map_data_trans.resize(nproc_data, 0);
         for (int i = 0; i < nproc_data; ++i)
         {
@@ -249,6 +254,8 @@ int DistMatrixTransformer::buildTransformParameter(DistBCDMatrix& SRC_Matrix,
         proc_map_data_trans.resize(nproc_data, 0);
         MPI_Bcast(&proc_map_data_trans[0], nproc_data, MPI_INT, 0, COMM_TRANS);
     }
+
+    // printf("nproc_data: %d\n", nproc_data);
 
     for (int i = 0; i < nnz; ++i)
     {
@@ -323,17 +330,18 @@ int DistMatrixTransformer::newGroupCommTrans(DistBCDMatrix& SRC_Matrix,
     // build transfortram communicator which contains both processes of BCD processors and
     // CCS processors with nonzero elements
     MPI_Group_union(DST_Matrix.get_group_data(), SRC_Matrix.get_group(), &GROUP_TRANS);
-    MPI_Comm_create(MPI_COMM_WORLD, GROUP_TRANS, &COMM_TRANS);
+    // MPI_Comm_create(MPI_COMM_WORLD, GROUP_TRANS, &COMM_TRANS);
+    COMM_TRANS = MPI_COMM_WORLD;
     return 0;
 }
 
 int DistMatrixTransformer::deleteGroupCommTrans(MPI_Group& GROUP_TRANS, MPI_Comm& COMM_TRANS)
 {
     MPI_Group_free(&GROUP_TRANS);
-    if (COMM_TRANS != MPI_COMM_NULL)
-    {
-        MPI_Comm_free(&COMM_TRANS);
-    }
+    // if (COMM_TRANS != MPI_COMM_NULL)
+    // {
+    //     MPI_Comm_free(&COMM_TRANS);
+    // }
     return 0;
 }
 
@@ -352,6 +360,9 @@ int DistMatrixTransformer::transformBCDtoCCS(DistBCDMatrix& SRC_Matrix,
     MPI_Group GROUP_TRANS;
     MPI_Comm COMM_TRANS = MPI_COMM_NULL;
     newGroupCommTrans(SRC_Matrix, DST_Matrix, GROUP_TRANS, COMM_TRANS);
+    int transsize;
+    MPI_Comm_size(COMM_TRANS, &transsize);
+    // printf("transsize: %d\n", transsize);
     if (COMM_TRANS != MPI_COMM_NULL)
     {
         // set up sender and receiver=
@@ -400,6 +411,10 @@ int DistMatrixTransformer::transformBCDtoCCS(DistBCDMatrix& SRC_Matrix,
 // Do transformation
         std::vector<double> sender_buffer(sender_size);
         std::vector<double> receiver_buffer(receiver_size);
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        std::stringstream ss; ss << sender_buffer.size() << " " << receiver_buffer.size() << " rank=" << rank << std::endl;
+        
         // put H to sender buffer
         if (SRC_Matrix.get_layout() == 'R' || SRC_Matrix.get_layout() == 'r')
         {
@@ -428,8 +443,8 @@ int DistMatrixTransformer::transformBCDtoCCS(DistBCDMatrix& SRC_Matrix,
 // collect H from receiver buffer
         delete[] H_ccs;
         H_ccs = new double[receiver_size];
-        buffer2CCSvalue(receiver_size, &buffer2ccsIndex[0], &receiver_buffer[0], H_ccs);
-
+        if (rank < DST_Matrix.get_nproc_data()) buffer2CCSvalue(receiver_size, &buffer2ccsIndex[0], &receiver_buffer[0], H_ccs);
+        // printf("%s", ss.str().c_str());
         // put S to sender buffer
         if (SRC_Matrix.get_layout() == 'R' || SRC_Matrix.get_layout() == 'r')
         {
@@ -458,7 +473,10 @@ int DistMatrixTransformer::transformBCDtoCCS(DistBCDMatrix& SRC_Matrix,
 // collect S from receiver buffer
         delete[] S_ccs;
         S_ccs = new double[receiver_size];
-        buffer2CCSvalue(receiver_size, &buffer2ccsIndex[0], &receiver_buffer[0], S_ccs);
+        if (rank < DST_Matrix.get_nproc_data()) buffer2CCSvalue(receiver_size, &buffer2ccsIndex[0], &receiver_buffer[0], S_ccs);
+    
+        // now data is only on the first DST_Matrix.get_nproc_data processes, so broadcast the data!
+        DST_Matrix.group_broadcast(H_ccs, S_ccs);
     }
     // clear and return
     deleteGroupCommTrans(GROUP_TRANS, COMM_TRANS);

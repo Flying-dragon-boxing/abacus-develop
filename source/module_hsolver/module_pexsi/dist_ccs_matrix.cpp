@@ -56,7 +56,7 @@ DistCCSMatrix::DistCCSMatrix(MPI_Comm comm_in, int nproc_data_in, int size_in)
     MPI_Comm_create(this->comm, this->group_data, &this->comm_data);
     int identical = 0;
     MPI_Comm_compare(comm_in, this->comm_data, &identical);
-    printf("identical = %d\n", identical);
+    // printf("identical = %d\n", identical);
     this->size = size_in;
     this->nnz = 0;
     this->nnzLocal = 0;
@@ -115,7 +115,7 @@ void DistCCSMatrix::setnnz(int nnzLocal_in)
     }
 }
 
-void DistCCSMatrix::group_broadcast(double *H, double *S)
+void DistCCSMatrix::group_broadcast(double *&H, double *&S)
 {
     // Broadcast all data of DistCCSMatrix across MPI_COMM_WORLD, source are the first nproc_data processes
     // from i < nproc_data, the process i will send data to process i+j*nproc_data
@@ -176,7 +176,6 @@ void DistCCSMatrix::group_broadcast(double *H, double *S)
 
     MPI_Group_free(&world_group);
     MPI_Group_free(&same_rank_group);
-    printf("Broadcast done, H[0] = %f, S[0] = %f\n", H[0], S[0]);
 }
 
 DistCCSMatrix::~DistCCSMatrix()

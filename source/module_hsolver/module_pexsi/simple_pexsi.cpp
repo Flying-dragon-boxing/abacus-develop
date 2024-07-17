@@ -265,7 +265,7 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     DistBCDMatrix SRC_Matrix(comm_2D, group_2D, blacs_ctxt, size, nblk, nrow, ncol, layout);
     int srcsize = 0;
     MPI_Comm_size(comm_2D, &srcsize);
-    printf("srcsize = %d\n", srcsize);
+    // printf("srcsize = %d\n", srcsize);
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     // DONE(ofs_running,"create block cyclic distribution matrix parameter, finish");
     double* HnzvalLocal = nullptr;
@@ -276,7 +276,7 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     // transform H and S from 2D block cyclic distribution to compressed column sparse matrix
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     DistMatrixTransformer::transformBCDtoCCS(SRC_Matrix, H, S, ZERO_Limit, DST_Matrix, HnzvalLocal, SnzvalLocal);
-    printf("%d\n", DST_Matrix.get_nnzlocal());
+    // printf("%d\n", DST_Matrix.get_nnzlocal());
     MPI_Barrier(MPI_COMM_WORLD);
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     if (comm_PEXSI != MPI_COMM_NULL)

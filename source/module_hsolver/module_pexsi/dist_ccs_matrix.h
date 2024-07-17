@@ -19,7 +19,7 @@ class DistCCSMatrix
     int globalCol(int localCol);
     int localCol(int globalCol, int& mypcol);
     void setnnz(int nnzLocal);
-    void group_broadcast(double *, double *);
+    void group_broadcast(double *&, double *&);
 
     const MPI_Comm get_comm() const
     {

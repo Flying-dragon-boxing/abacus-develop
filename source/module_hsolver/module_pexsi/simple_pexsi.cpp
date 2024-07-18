@@ -281,6 +281,7 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     // transform H and S from 2D block cyclic distribution to compressed column sparse matrix
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     DistMatrixTransformer::transformBCDtoCCS(SRC_Matrix, H, S, pexsi::PEXSI_Solver::pexsi_zero_thr, DST_Matrix, HnzvalLocal, SnzvalLocal);
+    MPI_Barrier(comm_PEXSI);
     std::cout << "NNZ ratio: " << (double)DST_Matrix.get_nnz() / size / size << std::endl;
     // MPI_Barrier(MPI_COMM_WORLD);
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
@@ -307,6 +308,7 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
         double muMaxInertia;
         int numTotalPEXSIIter;
         int numTotalInertiaIter; // Number of total inertia[out]
+        MPI_Barrier(comm_PEXSI);
         // LiuXh modify 2021-04-29, add DONE(ofs_running,"xx") for test
         ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIDFT");
         // PPEXSIDFTDriver(plan,                 // PEXSI plan[in]
@@ -327,10 +329,11 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
                          &numTotalInertiaIter, // Number of total inertia[out]
                          &info);               // 0: successful; otherwise: unsuccessful
         // LiuXh modify 2021-04-29, add DONE(ofs_running,"xx") for test
+        MPI_Barrier(comm_PEXSI);
         ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIDFT");
 
         std::cout << "inertia iteration: " << numTotalInertiaIter << std::endl;
-        std::cout << "PEXSI iteration: " << numTotalPEXSIIter << std::endl;
+        // std::cout << "PEXSI iteration: " << numTotalPEXSIIter << std::endl;
         std::cout << "totalfreeEnergy: " << totalFreeEnergy << std::endl;
         std::cout << "nelec: " << nelec << std::endl;
 
@@ -363,6 +366,7 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
         }
         // clean PEXSI
         // PPEXSIPlanFinalize(plan, &info);
+        MPI_Barrier(comm_PEXSI);
 
         pexsi::PEXSI_Solver::pexsi_mu_lower = muMinInertia;
         pexsi::PEXSI_Solver::pexsi_mu_upper = muMaxInertia;

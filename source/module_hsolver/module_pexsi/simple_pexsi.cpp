@@ -115,7 +115,7 @@ int loadPEXSIOption(MPI_Comm comm,
     int_para[15] = 2;
     int_para[16] = pexsi::PEXSI_Solver::pexsi_nproc_pole;
 
-    double_para[0] = GlobalV::NSPIN; // pexsi::PEXSI_Solver::pexsi_spin;
+    double_para[0] = 2;//GlobalV::NSPIN; // pexsi::PEXSI_Solver::pexsi_spin;
     double_para[1] = pexsi::PEXSI_Solver::pexsi_temp;
     double_para[2] = pexsi::PEXSI_Solver::pexsi_gap;
     double_para[3] = pexsi::PEXSI_Solver::pexsi_delta_e;
@@ -281,6 +281,7 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     // transform H and S from 2D block cyclic distribution to compressed column sparse matrix
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     DistMatrixTransformer::transformBCDtoCCS(SRC_Matrix, H, S, pexsi::PEXSI_Solver::pexsi_zero_thr, DST_Matrix, HnzvalLocal, SnzvalLocal);
+    std::cout << "NNZ ratio: " << (double)DST_Matrix.get_nnz() / size / size << std::endl;
     // MPI_Barrier(MPI_COMM_WORLD);
     // LiuXh modify 2021-03-30, add DONE(ofs_running,"xx") for test
     if (comm_PEXSI != MPI_COMM_NULL)
@@ -308,23 +309,23 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
         int numTotalInertiaIter; // Number of total inertia[out]
         // LiuXh modify 2021-04-29, add DONE(ofs_running,"xx") for test
         ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIDFT");
-        PPEXSIDFTDriver(plan,                 // PEXSI plan[in]
-                        options,              // PEXSI Options[in]
-                        numElectronExact,     // exact electron number[in]
-                        &mu,                  // chemical potential[out]
-                        &nelec,               // number of electrons[out]
-                        &muMinInertia,        // Lower bound for mu after the last inertia[out]
-                        &muMaxInertia,        // Upper bound for mu after the last inertia[out]
-                        &numTotalInertiaIter, // Number of total inertia[out]
-                        &numTotalPEXSIIter,   // number of total pexsi evaluation procedure[out]
-                        &info);               // 0: successful; otherwise: unsuccessful
-        // PPEXSIDFTDriver2(plan,                // PEXSI plan[in]
-        //                  &options,            // PEXSI Options[in]
-        //                  numElectronExact,    // exact electron number[in]
-        //                  &mu,                 // chemical potential[out]
-        //                  &nelec,              // number of electrons[out]
-        //                  &numTotalInertiaIter, // Number of total inertia[out]
-        //                  &info);               // 0: successful; otherwise: unsuccessful
+        // PPEXSIDFTDriver(plan,                 // PEXSI plan[in]
+        //                 options,              // PEXSI Options[in]
+        //                 numElectronExact,     // exact electron number[in]
+        //                 &mu,                  // chemical potential[out]
+        //                 &nelec,               // number of electrons[out]
+        //                 &muMinInertia,        // Lower bound for mu after the last inertia[out]
+        //                 &muMaxInertia,        // Upper bound for mu after the last inertia[out]
+        //                 &numTotalInertiaIter, // Number of total inertia[out]
+        //                 &numTotalPEXSIIter,   // number of total pexsi evaluation procedure[out]
+        //                 &info);               // 0: successful; otherwise: unsuccessful
+        PPEXSIDFTDriver2(plan,                // PEXSI plan[in]
+                         &options,            // PEXSI Options[in]
+                         numElectronExact,    // exact electron number[in]
+                         &mu,                 // chemical potential[out]
+                         &nelec,              // number of electrons[out]
+                         &numTotalInertiaIter, // Number of total inertia[out]
+                         &info);               // 0: successful; otherwise: unsuccessful
         // LiuXh modify 2021-04-29, add DONE(ofs_running,"xx") for test
         ModuleBase::timer::tick("Diago_LCAO_Matrix", "PEXSIDFT");
 

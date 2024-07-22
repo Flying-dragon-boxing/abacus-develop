@@ -19,6 +19,8 @@
 #include "module_cell/module_paw/paw_cell.h"
 #endif
 
+#include "charge_mixing.h"
+
 void Charge::init_rho(elecstate::efermi& eferm_iout, const ModuleBase::ComplexMatrix& strucFac, const int& nbz, const int& bz)
 {
     ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "init_chg", GlobalV::init_chg);
@@ -40,6 +42,41 @@ void Charge::init_rho(elecstate::efermi& eferm_iout, const ModuleBase::ComplexMa
             {
                 rhopw->recip2real(rhog[is], rho[is]);
             }
+
+            // also read from abacus type file, and compare with the binary file
+            for (int is = 0; is < GlobalV::NSPIN; ++is)
+            {
+                std::stringstream ssc;
+                ssc << GlobalV::global_readin_dir << "SPIN" << is + 1 << "_CHG.cube";
+                double& ef_tmp = eferm_iout.get_ef(is);
+                if (ModuleIO::read_rho(
+#ifdef __MPI
+                        &(GlobalC::Pgrid),
+#endif
+                        GlobalV::MY_RANK,
+                        GlobalV::ESOLVER_TYPE,
+                        GlobalV::RANK_IN_STOGROUP,
+                        is,
+                        GlobalV::ofs_running,
+                        GlobalV::NSPIN,
+                        ssc.str(),
+                        this->rho_save[is],
+                        this->rhopw->nx,
+                        this->rhopw->ny,
+                        this->rhopw->nz,
+                        ef_tmp,
+                        &(GlobalC::ucell),
+                        this->prenspin))
+                {
+                    GlobalV::ofs_running << " Read in the charge density: " << ssc.str() << std::endl;
+                }
+                
+            }
+
+            // compare the two charge density
+            Charge_Mixing chm;
+            chm.set_rhopw(rhopw, rhopw);
+            std::cout << chm.get_drho(this, GlobalV::nelec) << std::endl;
         }
         else
         {

@@ -136,6 +136,10 @@ class ElecState
     double get_deepks_E_delta_band();
 #endif
 
+#ifdef __EXX
+    double get_exx_energy(); // only for pw basis
+#endif
+
     fenergy f_en;                                  ///< energies contribute to the total free energy
     efermi eferm;                                  ///< fermi energies
 

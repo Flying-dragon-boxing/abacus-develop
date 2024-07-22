@@ -620,7 +620,7 @@ ModuleIO::Output_Rho ESolver_KS<T, Device>::create_Output_Rho(
 		int iter, 
 		const std::string& prefix)
 {
-	const int precision = 3;
+	const int precision = 8;
 	std::string tag = "CHG";
 	return ModuleIO::Output_Rho(this->pw_big,
 			this->pw_rhod,

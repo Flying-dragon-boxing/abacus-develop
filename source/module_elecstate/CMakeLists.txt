@@ -8,6 +8,7 @@ list(APPEND objects
     elecstate_pw.cpp
     elecstate_pw_sdft.cpp
     potentials/gatefield.cpp
+    # potentials/e_exx.cpp
     potentials/efield.cpp
     potentials/H_Hartree_pw.cpp
     potentials/pot_xc.cpp

@@ -17,6 +17,7 @@ enum calculation_type
     pw_nonlocal,
     pw_veff,
     pw_meta,
+    pw_exx,
     lcao_overlap,
     lcao_fixed,
     lcao_gint,
@@ -78,6 +79,7 @@ class Operator
     /// type 2: use the `Psi`class 
     ///         act(const Psi& psi_in, Psi& psi_out)
     int get_act_type() const { return this->act_type; }
+    enum calculation_type get_cal_type() const { return this->cal_type; }
 protected:
     int ik = 0;
     int act_type = 1;   ///< determine which act() interface would be called in hPsi()

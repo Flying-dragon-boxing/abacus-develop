@@ -35,12 +35,20 @@ class HamiltPW : public Hamilt<T, Device>
               const int nbands // number of bands
     ) const override;
 
+#ifdef __EXX
+    void set_exx_psi(psi::Psi<T, Device>& psi_in);
+#endif
+
   private:
     // used in sPhi, which are calculated in hPsi or sPhi
     const pseudopot_cell_vnl* ppcell = nullptr;
     mutable T* vkb = nullptr;
     Real* qq_nt = nullptr;
     T* qq_so = nullptr;
+
+#ifdef __EXX
+    psi::Psi<T, Device> psi;
+#endif
 
   protected:
     Device* ctx = {};

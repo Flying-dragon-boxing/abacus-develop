@@ -1,6 +1,7 @@
 #include "hsolver_pw.h"
 
 #include <algorithm>
+#include <iostream>
 
 #include "diago_bpcg.h"
 #include "diago_cg.h"
@@ -670,6 +671,155 @@ void HSolverPW<T, Device>::hamiltSolvePsiK(hamilt::Hamilt<T, Device>* hm, psi::P
     cg->diag(hpsi_func, spsi_func, psi_tensor, eigen_tensor, prec_tensor);
     // TODO: Double check tensormap's potential problem
     ct::TensorMap(psi.get_pointer(), psi_tensor, {psi.get_nbands(), psi.get_nbasis()}).sync(psi_tensor);
+
+    // allocate psi2 tensor
+    T* psi2_ptr = new T[psi.get_nbands() * psi.get_nbasis()];
+    ct::TensorMap psi2_tensor(psi2_ptr,
+                              ct::DataTypeToEnum<T>::value,
+                              ct::DeviceTypeToEnum<ct_Device>::value,
+                              ct::TensorShape({psi.get_nbands()-1, psi.get_nbasis()}));
+    // psi2 = psi * 2
+    T* psi_ptr = reinterpret_cast<T*>(psi_tensor.data());
+    #pragma omp parallel for
+    for (int i = 0; i < psi.get_nbands() * psi.get_nbasis(); i++)
+    {
+        psi2_ptr[i] = psi_ptr[i];
+    }
+
+    T* psi_ptr_2 = reinterpret_cast<T*>(psi_tensor.data()) + 2 * psi.get_nbasis();
+    T* psi_ptr_3 = reinterpret_cast<T*>(psi_tensor.data()) + 3 * psi.get_nbasis();
+    T* psi_ptr_4 = reinterpret_cast<T*>(psi_tensor.data()) + 4 * psi.get_nbasis();
+    T* psi2_ptr_0 = reinterpret_cast<T*>(psi2_tensor.data());
+    T* psi2_ptr_1 = reinterpret_cast<T*>(psi2_tensor.data()) + 1 * psi.get_nbasis();
+    T* psi2_ptr_2 = reinterpret_cast<T*>(psi2_tensor.data()) + 2 * psi.get_nbasis();
+    T* psi2_ptr_3 = reinterpret_cast<T*>(psi2_tensor.data()) + 3 * psi.get_nbasis();
+    T* psi2_ptr_4 = reinterpret_cast<T*>(psi2_tensor.data()) + 4 * psi.get_nbasis();
+    #pragma omp parallel for
+    for (int i = 0; i < psi.get_nbasis(); i++)
+    {
+        psi2_ptr_0[i] = psi_ptr_4[i];
+        psi2_ptr_1[i] = psi_ptr_4[i];
+        psi2_ptr_2[i] = psi_ptr_4[i];
+        psi2_ptr_3[i] = psi_ptr_4[i];
+        // psi2_ptr_3[i] = psi_ptr_4[i] * (Real)2.0;
+        // psi2_ptr_4[i] = psi_ptr_4[i];// + psi_ptr_3[i];
+    }
+
+    // allocate hpsi tensor
+    T* hpsi_ptr = new T[psi.get_nbands() * psi.get_nbasis()];
+    ct::TensorMap hpsi_tensor(hpsi_ptr,
+                              ct::DataTypeToEnum<T>::value,
+                              ct::DeviceTypeToEnum<ct_Device>::value,
+                              ct::TensorShape({psi.get_nbands(), psi.get_nbasis()}));
+
+    T* hpsi2_ptr = new T[psi.get_nbands() * psi.get_nbasis()];
+    ct::TensorMap hpsi2_tensor(hpsi2_ptr,
+                               ct::DataTypeToEnum<T>::value,
+                               ct::DeviceTypeToEnum<ct_Device>::value,
+                               ct::TensorShape({psi.get_nbands()-1, psi.get_nbasis()}));
+
+    hpsi_func(psi_tensor, hpsi_tensor);
+    hpsi_func(psi2_tensor, hpsi2_tensor);
+    // implement rayleigh quotient, only get the value
+    // only do for band 4, operate for bare pointers
+    T* psi_loc = reinterpret_cast<T*>(psi_tensor.data()) + 4 * psi.get_nbasis();
+    T* hpsi_loc_2 = reinterpret_cast<T*>(hpsi_tensor.data()) + 2 * psi.get_nbasis();
+    T* hpsi_loc_3 = reinterpret_cast<T*>(hpsi_tensor.data()) + 3 * psi.get_nbasis();
+    T* hpsi_loc_4 = reinterpret_cast<T*>(hpsi_tensor.data()) + 4 * psi.get_nbasis();
+    T* hpsi2_loc_0 = reinterpret_cast<T*>(hpsi2_tensor.data());
+    T* hpsi2_loc_1 = reinterpret_cast<T*>(hpsi2_tensor.data()) + 1 * psi.get_nbasis();
+    T* hpsi2_loc_2 = reinterpret_cast<T*>(hpsi2_tensor.data()) + 2 * psi.get_nbasis();
+    T* hpsi2_loc_3 = reinterpret_cast<T*>(hpsi2_tensor.data()) + 3 * psi.get_nbasis();
+    T* hpsi2_loc_4 = reinterpret_cast<T*>(hpsi2_tensor.data()) + 4 * psi.get_nbasis();
+
+
+    
+
+    T pp = 0.0, php = 0.0, pp2 = 0.0, php2 = 0.0;
+    Real max0 = -1e3, min0 = 1e3;
+    Real max1 = -1e3, min1 = 1e3;
+    Real max2 = -1e3, min2 = 1e3;
+    Real max3 = -1e3, min3 = 1e3;
+
+    // define the reduction operation
+    #pragma omp declare reduction(+: std::complex<double>: omp_out += omp_in) initializer(omp_priv = std::complex<double>(0, 0))
+    #pragma omp declare reduction(+: std::complex<float >: omp_out += omp_in) initializer(omp_priv = std::complex<float >(0, 0))
+
+
+    #ifdef _OPENMP
+    #pragma omp parallel for reduction(+ : pp, php, pp2, php2)
+    #endif
+    for (int i = 0; i < psi.get_nbasis(); i++)
+    {
+        pp += std::conj(psi_loc[i]) * psi_loc[i];
+        php += std::conj(psi_loc[i]) * hpsi_loc_4[i];
+        pp2 += std::conj(psi2_ptr_1[i]) * psi2_ptr_1[i];
+        php2 += std::conj(psi2_ptr_1[i]) * hpsi2_loc_1[i];
+
+    }
+
+    // #ifdef _OPENMP
+    // #pragma omp parallel for reduction(max : max0, max1, max2, max3) reduction(min : min0, min1, min2, min3)
+    // #endif
+    // for (int i = 0; i < psi.get_nbasis(); i++)
+    // {
+    //     Real fac0 = std::abs(hpsi2_loc_0[i] - hpsi2_loc_4[i]);
+    //     Real fac1 = std::abs(hpsi2_loc_1[i] - hpsi2_loc_4[i]);
+    //     Real fac2 = std::abs(hpsi2_loc_2[i] - hpsi2_loc_4[i]);
+    //     Real fac3 = std::abs(hpsi2_loc_3[i] - hpsi2_loc_4[i]);
+    //     // Real fac = std::abs(hpsi2_loc_2[i] + hpsi2_loc_2[i] - hpsi2_loc_3[i]);
+    //     if (fac0 > max0)
+    //     {
+    //         max0 = fac0;
+    //     }
+    //     if (fac0 < min0)
+    //     {
+    //         min0 = fac0;
+    //     }
+
+    //     if (fac1 > max1)
+    //     {
+    //         max1 = fac1;
+    //     }
+    //     if (fac1 < min1)
+    //     {
+    //         min1 = fac1;
+    //     }
+
+    //     if (fac2 > max2)
+    //     {
+    //         max2 = fac2;
+    //     }
+    //     if (fac2 < min2)
+    //     {
+    //         min2 = fac2;
+    //     }
+
+    //     if (fac3 > max3)
+    //     {
+    //         max3 = fac3;
+    //     }
+    //     if (fac3 < min3)
+    //     {
+    //         min3 = fac3;
+    //     }
+
+
+    // }
+
+    std::cout << php / pp << std::endl;
+    std::cout << php2 / pp2 << std::endl;
+    // std::cout << "0:" << max0 << " " << min0 << std::endl;
+    // std::cout << "1:" << max1 << " " << min1 << std::endl;
+    // std::cout << "2:" << max2 << " " << min2 << std::endl;
+    // std::cout << "3:" << max3 << " " << min3 << std::endl;
+
+    delete[] hpsi_ptr;
+    delete[] hpsi2_ptr;
+    delete[] psi2_ptr;
+
+    Real eigen4 = reinterpret_cast<Real*>(eigen_tensor.data())[4];
+    std::cout << eigen4 << std::endl;
 }
 
 template<typename T, typename Device>

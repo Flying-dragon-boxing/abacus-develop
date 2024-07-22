@@ -99,6 +99,8 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
         virtual void after_scf(const int istep) override;
 
         virtual void others(const int istep)override;
+        
+        virtual bool do_after_converge(int &iter) override;
 
         //temporary, this will be removed in the future;
         //Init Global class
@@ -127,7 +129,7 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
         psi::Psi<std::complex<double>, psi::DEVICE_CPU>* psi = nullptr;
 
     private:
-
+        double cal_exx_energy(psi::Psi<T, Device> psi);
         // psi_initializer<T, Device>* psi_init = nullptr;
         // change to use smart pointer to manage the memory, and avoid memory leak
         // while the std::make_unique() is not supported till C++14, 

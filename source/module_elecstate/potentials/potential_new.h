@@ -168,6 +168,12 @@ class Potential : public PotBase
     {
         return this->v_effective_fixed.data();
     }
+    const ModulePW::PW_Basis *get_rho_basis() const
+    {
+        return this->rho_basis_;
+    }
+    // What about adding a function to get the wfc? 
+    // This is useful for the calculation of the exx energy
 
   private:
     void cal_v_eff(const Charge* chg, const UnitCell* ucell, ModuleBase::matrix& v_eff) override;

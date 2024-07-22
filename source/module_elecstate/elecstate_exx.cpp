@@ -13,6 +13,7 @@ void ElecState::set_exx(const double& Eexx)
 
     if (GlobalC::exx_info.info_global.cal_exx)
     {
+        std::cout << "Eexx = " << Eexx << std::endl;
         this->f_en.exx = GlobalC::exx_info.info_global.hybrid_alpha * Eexx;
     }
     return;

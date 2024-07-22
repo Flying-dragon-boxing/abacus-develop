@@ -1,7 +1,11 @@
 #include "esolver_ks_pw.h"
 
 #include <iostream>
+#include <vector>
 
+#include "module_base/global_variable.h"
+#include "module_elecstate/elecstate_getters.h"
+#include "module_hamilt_general/module_xc/xc_functional.h"
 #include "module_io/nscf_band.h"
 #include "module_io/write_dos_pw.h"
 #include "module_io/write_istate_info.h"
@@ -37,6 +41,7 @@
 #include "module_io/write_wfc_r.h"
 #include "module_psi/kernels/device.h"
 //---------------------------------------------------
+#include "module_psi/psi.h"
 #include "module_psi/psi_initializer_atomic.h"
 #include "module_psi/psi_initializer_nao.h"
 #include "module_psi/psi_initializer_random.h"
@@ -51,6 +56,230 @@
 
 namespace ModuleESolver
 {
+
+template <typename T, typename Device>
+double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
+{
+    using setmem_complex_op = psi::memory::set_memory_op<T, Device>;
+    using delmem_complex_op = psi::memory::delete_memory_op<T, Device>;
+    T* psi_nk_real = new T[this->pw_wfc->nrxx];
+    T* psi_mq_real = new T[this->pw_wfc->nrxx];
+    T* h_psi_recip = new T[this->pw_wfc->npwk_max];
+    T* h_psi_real = new T[this->pw_wfc->nrxx];
+    T* density_real = new T[this->pw_wfc->nrxx];
+    auto rhopw = this->pelec->charge->rhopw;
+    T* density_recip = new T[rhopw->npw];
+    auto *kv = &this->kv;
+
+    // lambda
+    auto exx_divergence = [&]() -> double
+    {
+        auto wfcpw = this->pw_wfc;
+        if (GlobalC::exx_info.info_lip.lambda == 0.0)
+        {
+            return 0;
+        }
+
+        // here we follow the exx_divergence subroutine in q-e (PW/src/exx_base.f90)
+        double alpha = GlobalC::exx_info.info_lip.lambda;
+        double tpiba2 = elecstate::get_ucell_tpiba() * elecstate::get_ucell_tpiba();
+        double div = 0;
+        
+        // this is the \sum_q F(q) part
+        // temporarily for all k points, should be replaced to q points later
+        for (int ik = 0; ik < wfcpw->nks; ik++)
+        {
+            auto k = wfcpw->kvec_c[ik];
+            #ifdef _OPENMP
+            #pragma omp parallel for reduction(+:div)
+            #endif
+            for (int ig = 0; ig < rhopw->npw; ig++)
+            {
+                auto q = k + rhopw->gcar[ig];
+                double qq = q.norm2();
+                if (qq <= 1e-8) continue;
+                else if (GlobalV::DFT_FUNCTIONAL == "hse")
+                {
+                    double omega = GlobalC::exx_info.info_global.hse_omega;
+                    double omega2 = omega * omega;
+                    div += std::exp(-alpha * qq) / qq * (1.0 - std::exp(-qq*tpiba2 / 4.0 / omega2));
+                }
+                else
+                {
+                    div += std::exp(-alpha * qq) / qq;
+                }
+            }
+        }
+
+        Parallel_Reduce::reduce_pool(div);
+        std::cout << "EXX div: " << div << std::endl;
+
+        if (GlobalV::DFT_FUNCTIONAL == "hse")
+        {
+            double alpha = GlobalC::exx_info.info_global.hybrid_alpha;
+            div += tpiba2 / 4.0 / alpha / alpha; // compensate for the finite value when qq = 0
+        }
+        else 
+        {
+            div -= alpha;
+        }
+
+        div *= ModuleBase::e2 * ModuleBase::FOUR_PI / tpiba2 / wfcpw->nks;
+
+        // numerically value the nean value of F(q) in the reciprocal space
+        alpha /= tpiba2;
+        int nqq = 100000;
+        double dq = 5.0 / std::sqrt(alpha) / nqq;
+        double aa = 0.0;
+        if (GlobalV::DFT_FUNCTIONAL == "hse")
+        {
+            double omega = GlobalC::exx_info.info_global.hse_omega;
+            double omega2 = omega * omega;
+            #ifdef _OPENMP
+            #pragma omp parallel for reduction(+:aa)
+            #endif
+            for (int i = 0; i < nqq; i++)
+            {
+                double q = dq * (i+0.5);
+                aa -= exp(-alpha * q * q) * exp(-q*q / 4.0 / omega2) * dq;
+            }
+        }
+        aa *= 8 / ModuleBase::FOUR_PI;
+        aa += 1.0 / std::sqrt(alpha * ModuleBase::PI);
+
+        double omega = elecstate::get_ucell_omega();
+        div -= ModuleBase::e2 * omega * aa;
+        return div * wfcpw->nks;
+        
+
+    };
+
+    double exx_div = exx_divergence();
+
+    if (GlobalC::exx_helper.wg == nullptr) return 0.0;
+    ModuleBase::timer::tick("OperatorEXXPW", "get_Eexx");
+    // evaluate the Eexx
+    // T Eexx_ik = 0.0;
+    Real Eexx_ik_real = 0.0;
+    for (int ik = 0; ik < this->pw_wfc->nks; ik++)
+    {
+        for (int n_iband = 0; n_iband < GlobalV::NBANDS; n_iband++)
+        {
+            setmem_complex_op()(this->ctx, h_psi_recip, 0, this->pw_wfc->npwk_max);
+            setmem_complex_op()(this->ctx, h_psi_real, 0, rhopw->nrxx);  
+            setmem_complex_op()(this->ctx, density_real, 0, rhopw->nrxx);
+            setmem_complex_op()(this->ctx, density_recip, 0, rhopw->npw);  
+
+            // double wg_ikb_real = GlobalC::exx_helper.wg(this->ik, n_iband);
+            double wg_ikb_real = (*(GlobalC::exx_helper.wg))(ik, n_iband);
+            T wg_ikb = wg_ikb_real;
+            if (wg_ikb_real < 1e-12)
+            {
+                continue;
+            }
+
+            // const T *psi_nk = get_pw(n_iband, ik);
+            psi.fix_k(ik);
+            const T* psi_nk = psi.get_pointer() + n_iband * this->pw_wfc->npwk[ik];
+            // retrieve \psi_nk in real space
+            this->pw_wfc->recip_to_real(ctx, psi_nk, psi_nk_real, ik);
+
+            // for \psi_nk, get the pw of iq and band m
+            // q_points is a vector of integers, 0 to nks-1
+            std::vector<int> q_points;
+            for (int iq = 0; iq < this->pw_wfc->nks; iq++)
+            {
+                q_points.push_back(iq);
+            }
+            Real nqs = q_points.size();
+            for (int iq: q_points)
+            {
+                for (int m_iband = 0; m_iband < GlobalV::NBANDS; m_iband++)
+                {
+                    // double wg_f = GlobalC::exx_helper.wg(iq, m_iband);
+                    double wg_iqb_real = (*(GlobalC::exx_helper.wg))(iq, m_iband);
+                    T wg_iqb = wg_iqb_real;
+                    if (wg_iqb_real < 1e-12)
+                    {
+                        continue;
+                    }
+                    psi.fix_k(iq);
+                    const T* psi_mq = psi.get_pointer() + m_iband * this->pw_wfc->npwk[iq];
+                    // const T* psi_mq = get_pw(m_iband, iq);
+                    this->pw_wfc->recip_to_real(ctx, psi_mq, psi_mq_real, iq);
+
+                    T omega_inv = 1.0 / elecstate::get_ucell_omega();
+                    
+                    // direct multiplication in real space, \psi_nk(r) * \psi_mq(r)
+                    #ifdef _OPENMP
+                    #pragma omp parallel for
+                    #endif
+                    for (int ir = 0; ir < this->pw_wfc->nrxx; ir++)
+                    {
+                        // assert(is_finite(psi_nk_real[ir]));
+                        // assert(is_finite(psi_mq_real[ir]));
+                        density_real[ir] = psi_nk_real[ir] * std::conj(psi_mq_real[ir]) * omega_inv;
+                    }
+                    // to be changed into kernel function
+                    
+                    // bring the density to recip space
+                    rhopw->real2recip(density_real, density_recip);
+
+                    Real tpiba2 = elecstate::get_ucell_tpiba(); tpiba2 *= tpiba2;
+                    Real hse_omega2 = GlobalC::exx_info.info_global.hse_omega * GlobalC::exx_info.info_global.hse_omega;
+
+                    #ifdef _OPENMP
+                    #pragma omp parallel for reduction(+:Eexx_ik_real)
+                    #endif
+                    for (int ig = 0; ig < rhopw->npw; ig++)
+                    {
+                        // double gg = (rhopw->gg[ig] * tpiba2);
+                        auto k = this->pw_wfc->kvec_c[ik];
+                        auto q = this->pw_wfc->kvec_c[iq];
+                        auto gcar = rhopw->gcar[ig];
+                        double gg = (k - q + gcar).norm2() * tpiba2;
+                        double Eexx_tmp = 0.0;
+                        if (gg >= 1e-8)
+                        {
+                            Eexx_tmp = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg * (density_recip[ig] * std::conj(density_recip[ig])).real() * wg_ikb_real / nqs * (wg_iqb_real / kv->wk[iq]);
+                            //                          fpi * e2             / qq * (                                                       ) *(wg(iq, m_iband)/nqs)*(x_occupation(ik, n_iband))
+                            if (GlobalV::DFT_FUNCTIONAL == "hse")
+                            {
+                                Eexx_tmp *= (1 - std::exp(-gg/ 4.0 / hse_omega2));
+                            }
+                        }
+                        else 
+                        {
+                            if (GlobalV::DFT_FUNCTIONAL == "hse")
+                            {
+                                Eexx_tmp += -ModuleBase::PI * ModuleBase::e2 / hse_omega2 * (density_recip[ig] * std::conj(density_recip[ig])).real() * wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik];
+                            }
+                            else 
+                            {
+                                // double exx_div = -4448.8824478350289 ;
+                                Eexx_tmp += exx_div * (density_recip[ig] * std::conj(density_recip[ig])).real() * wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik];
+                            }
+                        }
+                        Eexx_ik_real += Eexx_tmp;
+                    }
+
+                }
+
+            }
+
+        }
+    }
+    Eexx_ik_real *= 0.5 * elecstate::get_ucell_omega();
+    Parallel_Reduce::reduce_pool(Eexx_ik_real);
+    std::cout << "Eexx_ik_real: " << Eexx_ik_real << std::endl;
+    // Eexx_ik_real: -1.635e+01
+    // if (Eexx != 0)
+    GlobalC::exx_lip.set_exx_energy(Eexx_ik_real);
+
+    Real Eexx = Eexx_ik_real;
+    ModuleBase::timer::tick("OperatorEXXPW", "get_Eexx");
+    return Eexx;
+}
 
 template <typename T, typename Device>
 ESolver_KS_PW<T, Device>::ESolver_KS_PW()
@@ -241,6 +470,35 @@ void ESolver_KS_PW<T, Device>::init(Input& inp, UnitCell& ucell)
                                                             this->pw_rho,
                                                             this->pw_big);
     }
+
+#ifdef __EXX
+    // 7) initialize exx
+    // PLEASE simplify the Exx_Global interface
+    if (GlobalV::CALCULATION == "scf" 
+        || GlobalV::CALCULATION == "relax" 
+        || GlobalV::CALCULATION == "cell-relax"
+        || GlobalV::CALCULATION == "md")
+    {
+        if (GlobalC::exx_info.info_global.cal_exx)
+        {
+            /* In the special "two-level" calculation case,
+            first scf iteration only calculate the functional without exact exchange.
+            but in "nscf" calculation, there is no need of "two-level" method. */
+            if (ucell.atoms[0].ncpp.xc_func == "HF" 
+             || ucell.atoms[0].ncpp.xc_func == "PBE0" 
+             || ucell.atoms[0].ncpp.xc_func == "HSE")
+            {
+                XC_Functional::set_xc_type("pbe");
+            }
+            else if (ucell.atoms[0].ncpp.xc_func == "SCAN0")
+            {
+                XC_Functional::set_xc_type("scan");
+            }
+
+
+        }
+    }
+#endif    
 
     //! Inititlize the charge density.
     this->pelec->charge->allocate(GlobalV::NSPIN);
@@ -473,6 +731,22 @@ void ESolver_KS_PW<T, Device>::before_scf(int istep)
 				this->pelec->pot, 
 				this->pw_wfc, 
 				&this->kv);
+        
+#ifdef __EXX
+        if (GlobalV::CALCULATION == "scf" 
+            || GlobalV::CALCULATION == "relax" 
+            || GlobalV::CALCULATION == "cell-relax"
+            || GlobalV::CALCULATION == "md")
+            {
+                if (GlobalC::exx_info.info_global.cal_exx && GlobalV::BASIS_TYPE == "pw")
+                {
+                    std::cout << "setting psi for exx before scf" << std::endl;
+                    auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
+                    hamilt_pw->set_exx_psi(*this->kspw_psi);
+                }
+                
+            }
+#endif
     }
 
     //----------------------------------------------------------
@@ -822,7 +1096,12 @@ void ESolver_KS_PW<T, Device>::hamilt2density(
 			}
         }
         if(GlobalV::BASIS_TYPE != "lcao_in_pw")
-        {
+        {       
+            // exx in pw: set up the occupation number
+            if (GlobalC::exx_info.info_global.cal_exx)
+            {
+                GlobalC::exx_helper.wg = &this->pelec->wg;
+            }
             // from HSolverPW
             this->phsol->solve(this->p_hamilt,      // hamilt::Hamilt<T, Device>* pHamilt,
                                this->kspw_psi[0],   // psi::Psi<T, Device>& psi,
@@ -868,6 +1147,11 @@ void ESolver_KS_PW<T, Device>::hamilt2density(
 #ifdef __EXX
     this->pelec->set_exx(GlobalC::exx_lip.get_exx_energy()); // Peize Lin add 2019-03-09
 #endif
+{
+    // double en = GlobalC::exx_lip.get_exx_energy();
+    double en = cal_exx_energy(*kspw_psi);
+    this->pelec->set_exx(en);
+}
 #endif
 
     // calculate the delta_harris energy
@@ -931,6 +1215,14 @@ void ESolver_KS_PW<T, Device>::iter_finish(const int iter)
         ModuleBase::matrix veff = this->pelec->pot->get_effective_v();
         GlobalC::ppcell.cal_effective_D(veff, this->pw_rhod, GlobalC::ucell);
     }
+#ifdef __EXX
+    if (GlobalC::exx_info.info_global.cal_exx && !GlobalC::exx_info.info_global.separate_loop)
+    {
+        std::cout << "setting psi for exx iter_finish" << std::endl;
+        auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
+        hamilt_pw->set_exx_psi(*this->kspw_psi);
+    }
+#endif // __EXX
 
     this->pelec->cal_energies(2);
 
@@ -965,6 +1257,15 @@ void ESolver_KS_PW<T, Device>::iter_finish(const int iter)
             // ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running,"write wave functions into file WAVEFUNC.dat");
         }
     }
+
+// #ifdef __EXX
+//     if (GlobalV::BASIS_TYPE == "pw")
+//     {
+//         GlobalC::exx_lip.set_exx_energy(0);
+//         std::cout << "EXX energy: set to 0" << std::endl;
+//     }
+// #endif
+
 }
 
 
@@ -1076,6 +1377,34 @@ void ESolver_KS_PW<T, Device>::after_scf(const int istep)
     }
 }
 
+template <typename T, typename Device>
+bool ESolver_KS_PW<T, Device>::do_after_converge(int& iter)
+{
+    ModuleBase::TITLE("ESolver_KS_PW","do_after_converge");
+#ifdef __EXX
+    if (GlobalC::exx_info.info_global.cal_exx)
+    {
+        if (GlobalV::CALCULATION == "scf" 
+        || GlobalV::CALCULATION == "relax" 
+        || GlobalV::CALCULATION == "cell-relax"
+        || GlobalV::CALCULATION == "md")
+        {
+            XC_Functional::set_xc_type(GlobalV::DFT_FUNCTIONAL);
+        }
+
+        if (GlobalC::exx_info.info_global.separate_loop)
+        {
+            std::cout << "setting psi for exx do_after_converge" << std::endl;
+            auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
+            hamilt_pw->set_exx_psi(*this->kspw_psi);
+        }
+        return GlobalC::exx_helper.exx_after_converge(iter);
+    }
+#endif // __EXX
+
+    return true;
+
+}
 
 template <typename T, typename Device>
 double ESolver_KS_PW<T, Device>::cal_energy()

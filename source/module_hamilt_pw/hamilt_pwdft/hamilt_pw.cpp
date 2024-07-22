@@ -9,6 +9,7 @@
 #include "operator_pw/ekinetic_pw.h"
 #include "operator_pw/meta_pw.h"
 #include "operator_pw/nonlocal_pw.h"
+#include "operator_pw/op_exx_pw.h"
 
 #ifdef USE_PAW
 #include "module_cell/module_paw/paw_cell.h"
@@ -107,6 +108,19 @@ HamiltPW<T, Device>::HamiltPW(elecstate::Potential* pot_in, ModulePW::PW_Basis_K
         else
         {
             this->ops->add(nonlocal);
+        }
+    }
+    if (GlobalC::exx_info.info_global.cal_exx)
+    {
+        auto exx = new OperatorEXXPW<T, Device>(isk, wfc_basis, pot_in->get_rho_basis(), pkv);
+        if (this->ops == nullptr)
+        {
+            this->ops = exx;
+        }
+        else
+        {
+            this->ops->add(exx);
+            // exx->set_psi(&this->psi);
         }
     }
     return;
@@ -364,6 +378,21 @@ void HamiltPW<T, Device>::sPsi(const T* psi_in, // psi
     }
 
     ModuleBase::TITLE("HamiltPW", "sPsi");
+}
+
+template<typename T, typename Device>
+void HamiltPW<T, Device>::set_exx_psi(psi::Psi<T, Device>& psi_in)
+{
+    this->psi = psi_in;
+    auto op = this->ops;
+    while (op != nullptr)
+    {
+        if (op->get_cal_type() == calculation_type::pw_exx)
+        {
+            reinterpret_cast<OperatorEXXPW<T, Device>*>(op)->set_psi(&this->psi);
+        }
+        op = op->next_op;
+    }
 }
 
 template class HamiltPW<std::complex<float>, psi::DEVICE_CPU>;

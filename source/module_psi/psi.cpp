@@ -174,6 +174,33 @@ Psi<T, Device>::Psi(const Psi<T_in, Device_in>& psi_in)
 }
 
 template <typename T, typename Device>
+Psi<T, Device>& Psi<T, Device>::operator=(const Psi<T, Device>& psi_in)
+{
+    this->ngk = psi_in.get_ngk_pointer();
+    this->npol = psi_in.npol;
+    this->nk = psi_in.get_nk();
+    this->nbands = psi_in.get_nbands();
+    this->nbasis = psi_in.get_nbasis();
+    this->current_k = psi_in.get_current_k();
+    this->current_b = psi_in.get_current_b();
+    this->k_first = psi_in.get_k_first();
+    // this function will copy psi_in.psi to this->psi no matter the device types of each other.
+    this->device = device::get_device_type<Device>(this->ctx);
+    this->resize(psi_in.get_nk(), psi_in.get_nbands(), psi_in.get_nbasis());
+    memory::synchronize_memory_op<T, Device, Device>()(this->ctx,
+                                                       psi_in.get_device(),
+                                                       this->psi,
+                                                       psi_in.get_pointer() - psi_in.get_psi_bias(),
+                                                       psi_in.size());
+    this->psi_bias = psi_in.get_psi_bias();
+    this->current_nbasis = psi_in.get_current_nbas();
+    this->psi_current = this->psi + psi_in.get_psi_bias();
+    // this->psi_current = psi_in.psi_current;
+    return *this;
+
+}
+
+template <typename T, typename Device>
 void Psi<T, Device>::resize(const int nks_in, const int nbands_in, const int nbasis_in)
 {
     assert(nks_in > 0 && nbands_in >= 0 && nbasis_in > 0);

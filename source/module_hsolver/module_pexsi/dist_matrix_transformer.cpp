@@ -147,7 +147,7 @@ inline void DistMatrixTransformer::countMatrixDistribution(int N, double* A, std
     for (int i = 0; i < N; ++i)
     {
         int key;
-        if (fabs(A[i] < 1e-31))
+        if (fabs(A[i]) < 1e-31)
             key = -100;
         else
             key = floor(log10(fabs(A[i])));

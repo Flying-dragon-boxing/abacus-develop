@@ -75,13 +75,14 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
     auto exx_divergence = [&]() -> double
     {
         auto wfcpw = this->pw_wfc;
-        if (GlobalC::exx_info.info_lip.lambda == 0.0)
-        {
-            return 0;
-        }
+        // if (GlobalC::exx_info.info_lip.lambda == 0.0)
+        // {
+        //     return 0;
+        // }
 
         // here we follow the exx_divergence subroutine in q-e (PW/src/exx_base.f90)
-        double alpha = GlobalC::exx_info.info_lip.lambda;
+        // double alpha = GlobalC::exx_info.info_lip.lambda;
+        double alpha = 10.0 / wfcpw->gk_ecut;
         double tpiba2 = elecstate::get_ucell_tpiba() * elecstate::get_ucell_tpiba();
         double div = 0;
         

@@ -36,7 +36,9 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     }
 
     // here we follow the exx_divergence subroutine in q-e (PW/src/exx_base.f90)
-    double alpha = GlobalC::exx_info.info_lip.lambda;
+    double alpha = 10.0 / wfcpw->gk_ecut;
+    std::cout << "alpha: " << alpha << std::endl;
+    // double alpha = GlobalC::exx_info.info_lip.lambda; // alternative way set by user
     double tpiba2 = elecstate::get_ucell_tpiba() * elecstate::get_ucell_tpiba();
     double div = 0;
     
@@ -67,7 +69,7 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     }
 
     Parallel_Reduce::reduce_pool(div);
-    std::cout << "EXX div: " << div << std::endl;
+    // std::cout << "EXX div: " << div << std::endl;
 
     if (GlobalV::DFT_FUNCTIONAL == "hse")
     {
@@ -82,6 +84,7 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     div *= ModuleBase::e2 * ModuleBase::FOUR_PI / tpiba2 / wfcpw->nks;
 
     // numerically value the nean value of F(q) in the reciprocal space
+    // This means we need to calculate the average of F(q) in the first brillouin zone
     alpha /= tpiba2;
     int nqq = 100000;
     double dq = 5.0 / std::sqrt(alpha) / nqq;
@@ -105,7 +108,7 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     double omega = elecstate::get_ucell_omega();
     div -= ModuleBase::e2 * omega * aa;
     exx_div = div * wfcpw->nks;
-    std::cout << "EXX divergence: " << exx_div << std::endl;
+    // std::cout << "EXX divergence: " << exx_div << std::endl;
 
     return;
 
@@ -140,7 +143,7 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
     resmem_complex_op()(this->ctx, density_recip, rhopw->npw);
     // allocate h_psi recip space memory
     resmem_complex_op()(this->ctx, h_psi_recip, wfcpw->npwk_max);
-    resmem_complex_op()(this->ctx, psi_all_real, wfcpw->nrxx * GlobalV::NBANDS);
+    // resmem_complex_op()(this->ctx, psi_all_real, wfcpw->nrxx * GlobalV::NBANDS);
 
     update_psi = true;
     exx_divergence();

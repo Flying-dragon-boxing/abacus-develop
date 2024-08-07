@@ -73,8 +73,8 @@ void OperatorEXXPW<T, Device>::exx_divergence()
 
     if (GlobalV::DFT_FUNCTIONAL == "hse")
     {
-        double alpha = GlobalC::exx_info.info_global.hybrid_alpha;
-        div += tpiba2 / 4.0 / alpha / alpha; // compensate for the finite value when qq = 0
+        double omega = GlobalC::exx_info.info_global.hse_omega;
+        div += tpiba2 / 4.0 / omega / omega; // compensate for the finite value when qq = 0
     }
     else 
     {

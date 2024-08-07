@@ -289,12 +289,12 @@ void ElecState::cal_energies(const int type)
         this->f_en.edeepks_scf = get_deepks_E_delta() - get_deepks_E_delta_band();
     }
 #endif
-#ifdef __EXX
-    if (GlobalC::exx_info.info_global.cal_exx && GlobalV::BASIS_TYPE == "pw")
-    {
+// #ifdef __EXX
+//     if (GlobalC::exx_info.info_global.cal_exx && GlobalV::BASIS_TYPE == "pw")
+//     {
         
-    }
-#endif     
+//     }
+// #endif     
     if (type == 1) // harris
     {
         this->f_en.calculate_harris();

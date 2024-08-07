@@ -113,12 +113,12 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
         }
 
         Parallel_Reduce::reduce_pool(div);
-        std::cout << "EXX div: " << div << std::endl;
+        // std::cout << "EXX div: " << div << std::endl;
 
         if (GlobalV::DFT_FUNCTIONAL == "hse")
         {
-            double alpha = GlobalC::exx_info.info_global.hybrid_alpha;
-            div += tpiba2 / 4.0 / alpha / alpha; // compensate for the finite value when qq = 0
+            double omega = GlobalC::exx_info.info_global.hse_omega;
+            div += tpiba2 / 4.0 / omega / omega; // compensate for the finite value when qq = 0
         }
         else 
         {

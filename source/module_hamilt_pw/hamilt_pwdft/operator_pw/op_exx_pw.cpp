@@ -190,21 +190,6 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
 {
     if (GlobalC::exx_helper.first_iter) return;
     // return;
-    // return;
-    // std::cout << "OperatorEXXPW act on " << nbands << " bands" << std::endl;
-    // if (nbands == GlobalV::NBANDS) 
-    // {
-    //     // if (first_called) 
-    //     // {
-    //     //     get_Eexx();
-    //     //     // if (std::abs(Eexx) > 1e-12)
-    //     //     // {
-    //     //     //     first_called = false;
-    //     //     // }
-    //     // }
-        
-    //     return;
-    // }
 
     ModuleBase::timer::tick("OperatorEXXPW", "act");
 
@@ -214,10 +199,6 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
     // ik fixed here, select band n
     for (int n_iband = 0; n_iband < nbands; n_iband++)
     {
-        // if ((*(GlobalC::exx_helper.wg))(this->ik, n_iband) < 1e-12)
-        // {
-        //     continue;
-        // }
         const T *psi_nk = tmpsi_in + n_iband * nbasis;
         // retrieve \psi_nk in real space
         wfcpw->recip_to_real(ctx, psi_nk, psi_nk_real, this->ik);
@@ -229,10 +210,10 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
         {
             for (int m_iband = 0; m_iband < GlobalV::NBANDS; m_iband++)
             {
-                // double wg_f = GlobalC::exx_helper.wg(iq, m_iband);
-                double wg_f = (*(GlobalC::exx_helper.wg))(this->ik, m_iband);
-                T wg_jkb = wg_f;
-                if (wg_f < 1e-12)
+                // double wg_mqb_real = GlobalC::exx_helper.wg(iq, m_iband);
+                double wg_mqb_real = (*(GlobalC::exx_helper.wg))(this->ik, m_iband);
+                T wg_mqb = wg_mqb_real;
+                if (wg_mqb_real < 1e-12)
                 {
                     continue;
                 }
@@ -284,7 +265,7 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
                     density_real[ir] *= psi_mq_real[ir];
                 }
 
-                // T wk_iq = kv->wk[iq];
+                T wk_iq = kv->wk[iq];
                 T wk_ik = kv->wk[this->ik];
 
                 #ifdef _OPENMP
@@ -292,7 +273,7 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
                 #endif
                 for (int ir = 0; ir < wfcpw->nrxx; ir++)
                 {
-                    h_psi_real[ir] += density_real[ir] * wg_jkb / wk_ik / nqs;
+                    h_psi_real[ir] += density_real[ir] * wg_mqb / wk_iq / nqs;
                 }
 
             } // end of m_iband
@@ -343,9 +324,8 @@ double OperatorEXXPW<T, Device>::get_Eexx() const
         for (int n_iband = 0; n_iband < GlobalV::NBANDS; n_iband++)
         {
             setmem_complex_op()(this->ctx, h_psi_recip, 0, wfcpw->npwk_max);
-            setmem_complex_op()(this->ctx, h_psi_real, 0, rhopw->nrxx);  
-            setmem_complex_op()(this->ctx, density_real, 0, rhopw->nrxx);
-            setmem_complex_op()(this->ctx, density_recip, 0, rhopw->npw);  
+            setmem_complex_op()(this->ctx, h_psi_real, 0, rhopw->nrxx);
+            setmem_complex_op()(this->ctx, psi_nk_real, 0, rhopw->nrxx);
 
             // double wg_ikb_real = GlobalC::exx_helper.wg(this->ik, n_iband);
             double wg_ikb_real = (*(GlobalC::exx_helper.wg))(this->ik, n_iband);
@@ -366,6 +346,9 @@ double OperatorEXXPW<T, Device>::get_Eexx() const
             {
                 for (int m_iband = 0; m_iband < GlobalV::NBANDS; m_iband++)
                 {
+                    setmem_complex_op()(this->ctx, density_real, 0, rhopw->nrxx);
+                    setmem_complex_op()(this->ctx, density_recip, 0, rhopw->npw);
+                    setmem_complex_op()(this->ctx, psi_mq_real, 0, rhopw->nrxx);
                     // double wg_f = GlobalC::exx_helper.wg(iq, m_iband);
                     double wg_iqb_real = (*(GlobalC::exx_helper.wg))(iq, m_iband);
                     T wg_iqb = wg_iqb_real;
@@ -421,7 +404,7 @@ double OperatorEXXPW<T, Device>::get_Eexx() const
                         {
                             if (GlobalV::DFT_FUNCTIONAL == "hse")
                             {
-                                Eexx_tmp += -ModuleBase::PI * ModuleBase::e2 / hse_omega2 * (density_recip[ig] * std::conj(density_recip[ig])).real() * wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik];
+                                Eexx_tmp += -ModuleBase::PI * ModuleBase::e2 / hse_omega2 * (density_recip[ig] * std::conj(density_recip[ig])).real() * wg_iqb_real / nqs * wg_ikb_real / kv->wk[iq];
                             }
                         }
                         Eexx_ik_real += Eexx_tmp;
@@ -497,7 +480,7 @@ void OperatorEXXPW<T, Device>::multiply_potential(T *density_recip, int ik, int 
         Real hse_omega2 = GlobalC::exx_info.info_global.hse_omega * GlobalC::exx_info.info_global.hse_omega;
         // if (kqgcar2 > 1e-12) // vasp uses 1/40 of the smallest (k spacing)**2
         // {
-            
+//        density_recip[ig] *= 2;
         if (gg >= 1e-8)
         {
             Real fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg;
@@ -534,8 +517,8 @@ template <typename T, typename Device>
 const T *OperatorEXXPW<T, Device>::get_pw(const int m, const int iq) const
 {
     // return pws[iq].get() + m * wfcpw->npwk[iq];
-    psi->fix_k(iq);
-    auto psi_mq = psi->get_pointer() + m * wfcpw->npwk[iq];
+    psi->fix_kb(iq, m);
+    auto psi_mq = psi->get_pointer();
     return psi_mq;
 }
 

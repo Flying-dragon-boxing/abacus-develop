@@ -164,6 +164,8 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
     Real Eexx_ik_real = 0.0;
     for (int ik = 0; ik < this->pw_wfc->nks; ik++)
     {
+//        auto k = this->pw_wfc->kvec_c[ik];
+//        std::cout << k << std::endl;
         for (int n_iband = 0; n_iband < GlobalV::NBANDS; n_iband++)
         {
             setmem_complex_op()(this->ctx, h_psi_recip, 0, this->pw_wfc->npwk_max);
@@ -180,8 +182,8 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
             }
 
             // const T *psi_nk = get_pw(n_iband, ik);
-            psi.fix_k(ik);
-            const T* psi_nk = psi.get_pointer() + n_iband * this->pw_wfc->npwk[ik];
+            psi.fix_kb(ik, n_iband);
+            const T* psi_nk = psi.get_pointer();
             // retrieve \psi_nk in real space
             this->pw_wfc->recip_to_real(ctx, psi_nk, psi_nk_real, ik);
 
@@ -193,8 +195,12 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
                 q_points.push_back(iq);
             }
             Real nqs = q_points.size();
+
+//            std::cout << "ik = " << ik << " ib = " << n_iband << " wg_kb = " << wg_ikb_real << " wk_ik = " << kv->wk[ik] << std::endl;
             for (int iq: q_points)
             {
+                double min_gg = 200;
+                double max_gg = -1e8;
                 for (int m_iband = 0; m_iband < GlobalV::NBANDS; m_iband++)
                 {
                     // double wg_f = GlobalC::exx_helper.wg(iq, m_iband);
@@ -204,12 +210,12 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
                     {
                         continue;
                     }
-                    psi.fix_k(iq);
-                    const T* psi_mq = psi.get_pointer() + m_iband * this->pw_wfc->npwk[iq];
+                    psi.fix_kb(iq, m_iband);
+                    const T* psi_mq = psi.get_pointer();
                     // const T* psi_mq = get_pw(m_iband, iq);
                     this->pw_wfc->recip_to_real(ctx, psi_mq, psi_mq_real, iq);
 
-                    T omega_inv = 1.0 / elecstate::get_ucell_omega();
+                    Real omega_inv = 1.0 / elecstate::get_ucell_omega();
                     
                     // direct multiplication in real space, \psi_nk(r) * \psi_mq(r)
                     #ifdef _OPENMP
@@ -227,49 +233,59 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
                     rhopw->real2recip(density_real, density_recip);
 
                     Real tpiba2 = elecstate::get_ucell_tpiba(); tpiba2 *= tpiba2;
+//                    std::cout << tpiba2 << std::endl;
                     Real hse_omega2 = GlobalC::exx_info.info_global.hse_omega * GlobalC::exx_info.info_global.hse_omega;
 
                     #ifdef _OPENMP
-                    #pragma omp parallel for reduction(+:Eexx_ik_real)
+                    #pragma omp parallel for reduction(+:Eexx_ik_real) reduction(min:min_gg) reduction(max:max_gg)
                     #endif
                     for (int ig = 0; ig < rhopw->npw; ig++)
                     {
-                        // double gg = (rhopw->gg[ig] * tpiba2);
-                        auto k = this->pw_wfc->kvec_c[ik];
-                        auto q = this->pw_wfc->kvec_c[iq];
+                        auto k = this->pw_wfc->kvec_c[ik];// * latvec;
+                        auto q = this->pw_wfc->kvec_c[iq];// * latvec;
                         auto gcar = rhopw->gcar[ig];
                         double gg = (k - q + gcar).norm2() * tpiba2;
-                        double Eexx_tmp = 0.0;
+
+                        double Fac = 0.0;
                         if (gg >= 1e-8)
                         {
-                            Eexx_tmp = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg * (density_recip[ig] * std::conj(density_recip[ig])).real() * wg_ikb_real / nqs * (wg_iqb_real / kv->wk[iq]);
-                            //                          fpi * e2             / qq * (                                                       ) *(wg(iq, m_iband)/nqs)*(x_occupation(ik, n_iband))
+                            Fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg;// * 2.57763;
+                            //                          fpi * e2             / qq * (                                                          ) *(wg(iq, m_iband)/nqs)*(x_occupation(ik, n_iband))
                             if (GlobalV::DFT_FUNCTIONAL == "hse")
                             {
-                                Eexx_tmp *= (1 - std::exp(-gg/ 4.0 / hse_omega2));
+                                Fac *= (1 - std::exp(-gg/ 4.0 / hse_omega2));
                             }
                         }
                         else 
                         {
                             if (GlobalV::DFT_FUNCTIONAL == "hse")
                             {
-                                Eexx_tmp += -ModuleBase::PI * ModuleBase::e2 / hse_omega2 * (density_recip[ig] * std::conj(density_recip[ig])).real() * wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik];
+                                Fac =(-ModuleBase::PI * ModuleBase::e2 / hse_omega2 + exx_div);
                             }
                             else 
                             {
                                 // double exx_div = -4448.8824478350289 ;
-                                Eexx_tmp += exx_div * (density_recip[ig] * std::conj(density_recip[ig])).real() * wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik];
+                                Fac = exx_div;
                             }
                         }
-                        Eexx_ik_real += Eexx_tmp;
+                        min_gg = std::min(min_gg, Fac);
+                        max_gg = std::max(max_gg, Fac);
+                        Eexx_ik_real += Fac * (density_recip[ig] * std::conj(density_recip[ig])).real()
+                                        * wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik];
                     }
+                    MPI_Allreduce(&min_gg, &min_gg, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+                    MPI_Allreduce(&max_gg, &max_gg, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+                } // m_iband
+//                auto q = this->pw_wfc->kvec_c[iq];
+//                if (n_iband == 0)
+//                std::cout << "q=" << q <<
+//                    " min_gg=" << min_gg << " max_gg=" << max_gg << std::endl;
 
-                }
+            } // iq
 
-            }
+        } // n_iband
 
-        }
-    }
+    } // ik
     Eexx_ik_real *= 0.5 * elecstate::get_ucell_omega();
     Parallel_Reduce::reduce_pool(Eexx_ik_real);
     std::cout << "Eexx_ik_real: " << Eexx_ik_real << std::endl;
@@ -475,8 +491,8 @@ void ESolver_KS_PW<T, Device>::init(Input& inp, UnitCell& ucell)
 #ifdef __EXX
     // 7) initialize exx
     // PLEASE simplify the Exx_Global interface
-    if (GlobalV::CALCULATION == "scf" 
-        || GlobalV::CALCULATION == "relax" 
+    if (GlobalV::CALCULATION == "scf"
+        || GlobalV::CALCULATION == "relax"
         || GlobalV::CALCULATION == "cell-relax"
         || GlobalV::CALCULATION == "md")
     {
@@ -485,8 +501,8 @@ void ESolver_KS_PW<T, Device>::init(Input& inp, UnitCell& ucell)
             /* In the special "two-level" calculation case,
             first scf iteration only calculate the functional without exact exchange.
             but in "nscf" calculation, there is no need of "two-level" method. */
-            if (ucell.atoms[0].ncpp.xc_func == "HF" 
-             || ucell.atoms[0].ncpp.xc_func == "PBE0" 
+            if (ucell.atoms[0].ncpp.xc_func == "HF"
+             || ucell.atoms[0].ncpp.xc_func == "PBE0"
              || ucell.atoms[0].ncpp.xc_func == "HSE")
             {
                 XC_Functional::set_xc_type("pbe");
@@ -496,10 +512,12 @@ void ESolver_KS_PW<T, Device>::init(Input& inp, UnitCell& ucell)
                 XC_Functional::set_xc_type("scan");
             }
 
+            GlobalC::exx_info.info_global.hybrid_alpha = 0;
+            XC_Functional::get_hybrid_alpha(0);
 
         }
     }
-#endif    
+#endif
 
     //! Inititlize the charge density.
     this->pelec->charge->allocate(GlobalV::NSPIN);
@@ -1391,11 +1409,14 @@ bool ESolver_KS_PW<T, Device>::do_after_converge(int& iter)
         || GlobalV::CALCULATION == "md")
         {
             XC_Functional::set_xc_type(GlobalV::DFT_FUNCTIONAL);
+            GlobalC::exx_info.info_global.hybrid_alpha = 0.25;
+            XC_Functional::get_hybrid_alpha(0.25);
         }
 
         if (GlobalC::exx_info.info_global.separate_loop)
         {
             std::cout << "setting psi for exx do_after_converge" << std::endl;
+//            MPI_Abort(MPI_COMM_WORLD, 0);
             auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
             hamilt_pw->set_exx_psi(*this->kspw_psi);
         }

@@ -181,6 +181,8 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
                 continue;
             }
 
+//            std::cout << "ik = " << ik << " nb = " << n_iband << " wg_ikb = " << wg_ikb_real << std::endl;
+
             // const T *psi_nk = get_pw(n_iband, ik);
             psi.fix_kb(ik, n_iband);
             const T* psi_nk = psi.get_pointer();
@@ -210,6 +212,9 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
                     {
                         continue;
                     }
+
+//                    std::cout << "iq = " << iq << " mb = " << m_iband << " wg_iqb = " << wg_iqb_real << std::endl;
+
                     psi.fix_kb(iq, m_iband);
                     const T* psi_mq = psi.get_pointer();
                     // const T* psi_mq = get_pw(m_iband, iq);

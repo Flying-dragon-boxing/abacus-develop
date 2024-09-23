@@ -143,6 +143,7 @@
     - [out\_level](#out_level)
     - [out\_alllog](#out_alllog)
     - [out\_mat\_hs](#out_mat_hs)
+    - [out\_mat\_tk](#out_mat_tk)
     - [out\_mat\_r](#out_mat_r)
     - [out\_mat\_hs2](#out_mat_hs2)
     - [out\_mat\_t](#out_mat_t)
@@ -242,7 +243,9 @@
     - [exx\_opt\_orb\_ecut](#exx_opt_orb_ecut)
     - [exx\_opt\_orb\_tolerence](#exx_opt_orb_tolerence)
     - [exx\_real\_number](#exx_real_number)
+    - [exx\_symmetry\_realspace](#exx_symmetry_realspace)
     - [rpa\_ccp\_rmesh\_times](#rpa_ccp_rmesh_times)
+    - [out\_ri\_cv](#out_ri_cv)
   - [Molecular dynamics](#molecular-dynamics)
     - [md\_type](#md_type)
     - [md\_nstep](#md_nstep)
@@ -259,7 +262,6 @@
     - [md\_tfreq](#md_tfreq)
     - [md\_tchain](#md_tchain)
     - [md\_pmode](#md_pmode)
-    - [md\_prec\_level](#md_prec_level)
     - [ref\_cell\_factor](#ref_cell_factor)
     - [md\_pcouple](#md_pcouple)
     - [md\_pfirst, md\_plast](#md_pfirst-md_plast)
@@ -366,7 +368,6 @@
     - [vion\_in\_h](#vion_in_h)
     - [test\_force](#test_force)
     - [test\_stress](#test_stress)
-    - [colour](#colour)
     - [test\_skip\_ewald](#test_skip_ewald)
   - [Electronic conductivities](#electronic-conductivities)
     - [cal\_cond](#cal_cond)
@@ -423,8 +424,11 @@
     - [lr\_nstates](#lr_nstates)
     - [abs\_wavelen\_range](#abs_wavelen_range)
     - [out\_wfc\_lr](#out_wfc_lr)
-[back to top](#full-list-of-input-keywords)
+    - [abs\_broadening](#abs_broadening)
+    - [ri\_hartree\_benchmark](#ri_hartree_benchmark)
+    - [aims_nbasis](#aims_nbasis)
 
+[back to top](#full-list-of-input-keywords)
 ## System variables
 
 These variables are used to control general system parameters.
@@ -568,6 +572,7 @@ These variables are used to control general system parameters.
 
   - atomic: the density is starting from the summation of the atomic density of single atoms.
   - file: the density will be read in from a binary file `charge-density.dat` first. If it does not exist, the charge density will be read in from cube files. Besides, when you do `nspin=1` calculation, you only need the density file SPIN1_CHG.cube. However, if you do `nspin=2` calculation, you also need the density file SPIN2_CHG.cube. The density file should be output with these names if you set out_chg = 1 in INPUT file.
+  - wfc: the density will be calculated by wavefunctions and occupations. Wavefunctions are read in from binary files `WAVEFUNC*.dat` while occupations are read in from file `istate.info`.
   - auto: Abacus first attempts to read the density from a file; if not found, it defaults to using atomic density.
 - **Default**: atomic
 
@@ -1512,23 +1517,28 @@ These variables are used to control the output of properties.
 
 ### out_chg
 
-- **Type**: Integer
+- **Type**: Integer \[Integer\](optional)
 - **Description**: 
+  The first integer controls whether to output the charge density on real space grids:
   - 1. Output the charge density (in Bohr^-3) on real space grids into the density files in the folder `OUT.${suffix}`. The files are named as:
     - nspin = 1: SPIN1_CHG.cube;
     - nspin = 2: SPIN1_CHG.cube, and SPIN2_CHG.cube;
     - nspin = 4: SPIN1_CHG.cube, SPIN2_CHG.cube, SPIN3_CHG.cube, and SPIN4_CHG.cube.
-  - 2. On top of 1, also output the initial charge density. The files are named as:
+  - 2: On top of 1, also output the initial charge density. The files are named as:
     - nspin = 1: SPIN1_CHG_INI.cube
     - nspin = 2: SPIN1_CHG_INI.cube, and SPIN2_CHG_INI.cube;
     - nspin = 4: SPIN1_CHG_INI.cube, SPIN2_CHG_INI.cube, SPIN3_CHG_INI.cube, and SPIN4_CHG_INI.cube.
+  - -1: disable the charge density auto-back-up file `{suffix}-CHARGE-DENSITY.restart`, useful for large systems.
+    
+  The second integer controls the precision of the charge density output, if not given, will use `3` as default. For purpose restarting from this file and other high-precision involved calculation, recommend to use `10`.
 
+  ---
   The circle order of the charge density on real space grids is: x is the outer loop, then y and finally z (z is moving fastest).
 
   If EXX(exact exchange) is calculated, (i.e. *[dft_fuctional](#dft_functional)==hse/hf/pbe0/scan0/opt_orb* or *[rpa](#rpa)==True*), the Hexx(R) files will be output in the folder `OUT.${suffix}` too, which can be read in NSCF calculation.
 
   In molecular dynamics calculations, the output frequency is controlled by [out_interval](#out_interval).
-- **Default**: 0
+- **Default**: 0 3
 
 ### out_pot
 
@@ -1613,7 +1623,7 @@ These variables are used to control the output of properties.
 
 ### out_band
 
-- **Type**: Boolean Integer(optional)
+- **Type**: Boolean \[Integer\](optional)
 - **Description**: Whether to output the band structure (in eV), optionally output precision can be set by a second parameter, default is 8. For more information, refer to the [band.md](../elec_properties/band.md)
 - **Default**: False
 
@@ -1657,10 +1667,17 @@ These variables are used to control the output of properties.
 
 ### out_mat_hs
 
-- **Type**: Boolean Integer(optional)
+- **Type**: Boolean \[Integer\](optional)
 - **Availability**: Numerical atomic orbital basis
 - **Description**: Whether to print the upper triangular part of the Hamiltonian matrices (in Ry) and overlap matrices for each k point into files in the directory `OUT.${suffix}`. The second number controls precision. For more information, please refer to [hs_matrix.md](../elec_properties/hs_matrix.md#out_mat_hs). Also controled by [out_interval](#out_interval) and [out_app_flag](#out_app_flag).
 - **Default**: False 8
+
+### out_mat_tk
+
+- **Type**: Boolean \[Integer\](optional)
+- **Availability**: Numerical atomic orbital basis
+- **Description**: Whether to print the upper triangular part of the kinetic matrices (in Ry) for each k point into `OUT.${suffix}/data-i-T`, where i is the index of k points (see `OUT.${suffix}/kpoints`). One may optionally provide a second parameter to specify the precision. 
+- **Default**: False \[8\]
 
 ### out_mat_r
 
@@ -2413,6 +2430,21 @@ These variables are relevant when using hybrid functionals.
 - **Description**: How many times larger the radial mesh required is to that of atomic orbitals in the postprocess calculation of the **bare** Coulomb matrix for RPA, GW, etc.
 - **Default**: 10
 
+### exx_symmetry_realspace
+
+- **Type**: Boolean
+- **Availability**: *[symmetry](#symmetry)==1* and exx calculation  (*[dft_fuctional](#dft_functional)==hse/hf/pbe0/scan0/opt_orb* or *[rpa](#rpa)==True*)
+- **Description**: 
+  - False: only rotate k-space density matrix D(k) from irreducible k-points to accelerate diagonalization
+  - True: rotate both D(k) and Hexx(R) to accelerate both diagonalization and EXX calculation
+- **Default**: True
+
+### out_ri_cv
+
+- **Type**: Boolean
+- **Description**: Whether to output the coefficient tensor C(R) and ABFs-representation Coulomb matrix V(R) for each atom pair and cell in real space.
+- **Default**: false
+
 [back to top](#full-list-of-input-keywords)
 
 ## Molecular dynamics
@@ -2544,14 +2576,14 @@ These variables are used to control molecular dynamics calculations. For more in
 - **Default**: iso
 - **Relavent**: [md_tfreq](#md_tfreq), [md_tchain](#md_tchain), [md_pcouple](#md_pcouple), [md_pfreq](#md_pfreq), and [md_pchain](#md_pchain).
 
-### md_prec_level
+<!-- ### md_prec_level
 
 - **Type**: Integer
 - **Description**: Determine the precision level of variable-cell molecular dynamics calculations.
   - 0: FFT grids do not change, only G vectors and K vectors are changed due to the change of lattice vector. This level is suitable for cases where the variation of the volume and shape is not large, and the efficiency is relatively higher.
   - 2: FFT grids change per step. This level is suitable for cases where the variation of the volume and shape is large, such as the MSST method. However, accuracy comes at the cost of efficiency.
 
-- **Default**: 0
+- **Default**: 0 -->
 
 ### ref_cell_factor
 
@@ -2644,6 +2676,27 @@ These variables are used to control molecular dynamics calculations. For more in
 - **Type**: String
 - **Description**: The filename of DP potential files, see [md.md](../md.md#dpmd) in detail.
 - **Default**: graph.pb
+
+### dp_rescaling
+
+- **Type**: Real
+- **Availability**: [esolver_type](#esolver_type) = `dp`.
+- **Description**: Rescaling factor to use a temperature-dependent DP. Energy, stress and force calculated by DP will be multiplied by this factor.
+- **Default**: 1.0
+
+### dp_fparam
+
+- **Type**: Real
+- **Availability**: [esolver_type](#esolver_type) = `dp`.
+- **Description**: The frame parameter for dp potential. The array size is dim_fparam, then all frames are assumed to be provided with the same fparam.
+- **Default**: {}
+
+### dp_aparam
+
+- **Type**: Real
+- **Availability**: [esolver_type](#esolver_type) = `dp`.
+- **Description**: The atomic parameter for dp potential. The array size can be (1) natoms x dim_aparam, then all frames are assumed to be provided with the same aparam; (2) dim_aparam, then all frames and atoms are assumed to be provided with the same aparam.
+- **Default**: {}
 
 ### msst_direction
 
@@ -3472,8 +3525,6 @@ These variables are used to control berry phase and wannier90 interface paramete
   - 1: Yes.
 - **Default**: 0
 
-### colour
-
 - **Type**: Boolean
 - **Description**: Specify whether to set the colorful output in terminal.
   - 0: No.
@@ -3903,5 +3954,22 @@ The output files are `OUT.${suffix}/Excitation_Energy.dat` and `OUT.${suffix}/Ex
 - **Type**: Real
 - **Description**: The broadening factor $\eta$ for the absorption spectrum calculation.
 - **Default**: 0.01
+
+### ri_hartree_benchmark
+- **Type**: String
+- **Description**: Whether to use the localized resolution-of-identity (LRI) approximation for the **Hartree** term of kernel in the $A$ matrix of LR-TDDFT for benchmark (with FHI-aims or another ABACUS calculation). Now it only supports molecular systems running with a single processor, and a large enough supercell should be used to make LRI C, V tensors contain only the R=(0 0 0) cell. 
+  - `aims`: The `OUT.${suffix}`directory should contain the FHI-aims output files: RI-LVL tensors`Cs_data_0.txt` and `coulomb_mat_0.txt`, and KS eigenstates from FHI-aims: `band_out`and `KS_eigenvectors.out`. The Casida equation will be constructed under FHI-aims' KS eigenpairs.
+    - LRI tensor files (`Cs_data_0.txt` and `coulomb_mat_0.txt`)and Kohn-Sham eigenvalues (`bands_out`): run FHI-aims with periodic boundary conditions and with `total_energy_method rpa` and `output librpa`.
+    - Kohn-Sham eigenstates under aims NAOs (`KS_eigenvectors.out`): run FHI-aims with `output eigenvectors`.
+    - If the number of atomic orbitals of any atom type in FHI-aims is different from that in ABACUS, the `aims_nbasis` should be set.
+  - `abacus`: The `OUT.${suffix}`directory should contain the RI-LVL tensors `Cs` and `Vs` (written by setting `out_ri_cv` to 1). The Casida equation will be constructed under ABACUS' KS eigenpairs, with the only difference that the Hartree term is constructed with RI approximation.
+  - `none`: Construct the Hartree term by Poisson equation and grid integration as usual.
+- **Default**: none
+
+### aims_nbasis
+- **Type**: A number(ntype) of Integers
+- **Availability**: `ri_hartree_benchmark` = `aims`
+- **Description**: Atomic basis set size for each atom type (with the same order as in `STRU`) in FHI-aims.
+- **Default**: {} (empty list, where ABACUS use its own basis set size)
 
 [back to top](#full-list-of-input-keywords)

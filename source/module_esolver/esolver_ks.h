@@ -56,11 +56,8 @@ class ESolver_KS : public ESolver_FP
 		// get maxniter used in current scf
 		virtual int get_maxniter() override;
 
-		// get conv_elec used in current scf
-		virtual bool get_conv_elec() override;
-
-	protected:
-		//! Something to do before SCF iterations.
+      protected:
+        //! Something to do before SCF iterations.
 		virtual void before_scf(const int istep) {};
 
 		//! Something to do before hamilt2density function in each iter loop.
@@ -70,7 +67,7 @@ class ESolver_KS : public ESolver_FP
         virtual void iter_finish(int& iter);
 
         //! Something to do after SCF iterations when SCF is converged or comes to the max iter step.
-        virtual void after_scf(const int istep);
+        virtual void after_scf(const int istep) override;
 
         //! <Temporary> It should be replaced by a function in Hamilt Class
 		virtual void update_pot(const int istep, const int iter) {};
@@ -100,9 +97,6 @@ class ESolver_KS : public ESolver_FP
 				const int istep, 
 				const int iter);
 
-        //! Solve Hamitonian
-		hsolver::HSolver<T, Device>* phsol = nullptr;
-
         //! Hamiltonian
 		hamilt::Hamilt<T, Device>* p_hamilt = nullptr;
 
@@ -119,7 +113,9 @@ class ESolver_KS : public ESolver_FP
 
 		std::string basisname; //PW or LCAO
 
-		void print_wfcfft(const Input_para& inp, std::ofstream &ofs);
+        void print_wfcfft(const Input_para& inp, std::ofstream& ofs);
+
+	    double esolver_KS_ne = 0.0;
 };	
 } // end of namespace
 #endif

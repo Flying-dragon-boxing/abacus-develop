@@ -61,7 +61,7 @@ class ESolver
     // get conv_elec used in current scf
     virtual bool get_conv_elec()
     {
-        return false;
+        return true;
     }
     std::string classname;
 };
@@ -69,7 +69,7 @@ class ESolver
 /**
  * @brief A subrutine called in init_esolver()
  *        This function returns type of ESolver
- *        Based on GlobalV::BASIS_TYPE and GlobalV::ESOLVER_TYPE
+ *        Based on PARAM.inp.basis_type and PARAM.inp.esolver_type
  * 
  * @return [out] std::string The type of ESolver
  */

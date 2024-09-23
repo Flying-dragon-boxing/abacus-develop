@@ -8,8 +8,8 @@
 
 #include <module_base/macros.h>
 
-template class hsolver::HSolver<std::complex<float>, base_device::DEVICE_CPU>;
-template class hsolver::HSolver<std::complex<double>, base_device::DEVICE_CPU>;
+// template class hsolver::HSolver<std::complex<float>, base_device::DEVICE_CPU>;
+// template class hsolver::HSolver<std::complex<double>, base_device::DEVICE_CPU>;
 
 /************************************************
  *  unit test of HSolver base class
@@ -24,8 +24,6 @@ template class hsolver::HSolver<std::complex<double>, base_device::DEVICE_CPU>;
  * 		- stodft case;
  *  - hsolver::HSolver::diagethr (for cases below)
  * 		- set_diagethr, for setting diagethr;
- *  	- reset_diagethr, for updating diagethr;
- * 		- cal_hsolerror, for calculate actually diagethr;
  *  - hsolver::DiagH (for cases below)
  *      - diag() for Psi(FPTYPE) case
  *      - destructor of DiagH and HSolver
@@ -36,10 +34,10 @@ template class hsolver::HSolver<std::complex<double>, base_device::DEVICE_CPU>;
 class TestHSolver : public ::testing::Test
 {
 public:
-  hsolver::HSolver<std::complex<float>, base_device::DEVICE_CPU> hs_cf;
-  hsolver::HSolver<std::complex<double>, base_device::DEVICE_CPU> hs_cd;
-  hsolver::HSolver<float, base_device::DEVICE_CPU> hs_f;
-  hsolver::HSolver<double, base_device::DEVICE_CPU> hs_d;
+  // hsolver::HSolver<std::complex<float>, base_device::DEVICE_CPU> hs_cf;
+  // hsolver::HSolver<std::complex<double>, base_device::DEVICE_CPU> hs_cd;
+  // hsolver::HSolver<float, base_device::DEVICE_CPU> hs_f;
+  // hsolver::HSolver<double, base_device::DEVICE_CPU> hs_d;
 
   hamilt::Hamilt<std::complex<double>> hamilt_test_cd;
   hamilt::Hamilt<std::complex<float>> hamilt_test_cf;
@@ -78,26 +76,14 @@ public:
 // 	EXPECT_EQ(hs_d.method, "none");
 // }
 
-TEST_F(TestHSolver, diagethr)
-{
-    float test_diagethr = hs_f.set_diagethr(0.0, 0, 0, 0.0);
-	EXPECT_EQ(test_diagethr, 0.0);
+// TEST_F(TestHSolver, diagethr)
+// {
+//     float test_diagethr = hs_f.set_diagethr(0.0, 0, 0, 0.0);
+// 	EXPECT_EQ(test_diagethr, 0.0);
 
-    test_diagethr = hs_f.reset_diagethr(temp_ofs, 0.0, 0.0, 0.0);
-	EXPECT_EQ(test_diagethr, 0.0);
-
-    test_diagethr = hs_f.cal_hsolerror(0.0);
-	EXPECT_EQ(test_diagethr, 0.0);
-
-	double test_diagethr_d = hs_d.set_diagethr(0.0, 0, 0, 0.0);
-	EXPECT_EQ(test_diagethr_d, 0.0);
-
-    test_diagethr_d = hs_d.reset_diagethr(temp_ofs, 0.0, 0.0, 0.0);
-	EXPECT_EQ(test_diagethr_d, 0.0);
-
-    test_diagethr_d = hs_d.cal_hsolerror(0.0);
-	EXPECT_EQ(test_diagethr_d, 0.0);
-}
+// 	double test_diagethr_d = hs_d.set_diagethr(0.0, 0, 0, 0.0);
+// 	EXPECT_EQ(test_diagethr_d, 0.0);
+// }
 namespace hsolver
 {
 template <typename T, typename Device = base_device::DEVICE_CPU>

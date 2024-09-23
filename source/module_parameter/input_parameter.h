@@ -52,12 +52,13 @@ struct Input_para
     bool dm_to_rho = false;             ///< read density matrix from npz format and calculate charge density
     std::string chg_extrap = "default"; ///< xiaohui modify 2015-02-01
     bool init_vel = false;              ///< read velocity from STRU or not  liuyu 2021-07-14
-
+    
+    std::string input_file = "INPUT";   ///< input file name
     std::string stru_file = "STRU";     ///< file contains atomic positions --
                                         ///< xiaohui modify 2015-02-01
     std::string kpoint_file = "KPT";    ///< file contains k-points -- xiaohui modify 2015-02-01
-    std::string pseudo_dir = "auto";      ///< directory of pseudopotential
-    std::string orbital_dir = "auto";     ///< directory of orbital file
+    std::string pseudo_dir = "";      ///< directory of pseudopotential
+    std::string orbital_dir = "";     ///< directory of orbital file
     std::string read_file_dir = "auto"; ///< directory of files for reading
     bool restart_load = false;
     std::string wannier_card = "none";              ///< input card for wannier functions.
@@ -114,7 +115,8 @@ struct Input_para
     double scf_thr = -1.0;   ///< \sum |rhog_out - rhog_in |^2
     double scf_ene_thr = -1.0; ///< energy threshold for scf convergence, in eV
     int scf_thr_type = -1;   ///< type of the criterion of scf_thr, 1: reci drho, 2: real drho
-
+    bool final_scf= false;   ///< whether to do final scf
+    
     bool lspinorb = false;   ///< consider the spin-orbit interaction
     bool noncolin = false;   ///< using non-collinear-spin
     double soc_lambda = 1.0; ///< The fraction of averaged SOC pseudopotential
@@ -228,8 +230,8 @@ struct Input_para
     bool deepks_equiv = false;        ///< whether to use equivariant version of DeePKS
     bool deepks_out_unittest = false; ///< if set to true, prints intermediate quantities that shall
                                       ///< be used for making unit test
-
     std::string deepks_model = "None";              ///< needed when deepks_scf=1
+    
     int bessel_descriptor_lmax = 2;                 ///< lmax used in descriptor
     std::string bessel_descriptor_ecut = "default"; ///< energy cutoff for spherical bessel functions(Ry)
     double bessel_descriptor_tolerence = 1e-12;     ///< tolerance for spherical bessel root
@@ -303,14 +305,15 @@ struct Input_para
     bool out_wfc_lr = false; ///< whether to output the eigenvectors (excitation amplitudes) in the particle-hole basis
     std::vector<double> abs_wavelen_range = {0., 0.}; ///< the range of wavelength(nm) to output the absorption spectrum
     double abs_broadening = 0.01;                     ///< the broadening (eta) for LR-TDDFT absorption spectrum
-
+    std::string ri_hartree_benchmark = "none"; ///< whether to use the RI approximation for the Hartree potential in LR-TDDFT for benchmark (with FHI-aims/ABACUS read-in style)
+    std::vector<int> aims_nbasis = {};  ///< the number of basis functions for each atom type used in FHI-aims (for benchmark)
     // ==============   #Parameters (11.Output) ===========================
     bool out_stru = false;                ///< outut stru file each ion step
     int out_freq_elec = 0;                ///< the frequency ( >= 0) of electronic iter to output charge
                                           ///< 0: output only when converged
     int out_freq_ion = 0;                 ///< the frequency ( >= 0 ) of ionic step to output charge density;
                                           ///< 0: output only when ion steps are finished
-    int out_chg = 0;                      ///< output charge density. 0: no; 1: yes
+    std::vector<int> out_chg = {0, 3};    ///< output charge density. 0: no; 1: yes
     int out_pot = 0;                      ///< yes or no
     int out_wfc_pw = 0;                   ///< 0: no; 1: txt; 2: dat
     bool out_wfc_r = false;               ///< 0: no; 1: yes
@@ -324,6 +327,7 @@ struct Input_para
     bool out_dm1 = false;                 ///< output density matrix. (multi-k points)
     bool out_bandgap = false;             ///< QO added for bandgap printing
     std::vector<int> out_mat_hs = {0, 8}; ///< output H matrix and S matrix in local basis.
+    std::vector<int> out_mat_tk = {0, 8}; ///< output T(k) matrix in local basis.
     bool out_mat_hs2 = false;             ///< LiuXh add 2019-07-16, output H(R) matrix and
                                           ///< S(R) matrix in local basis.
     bool out_mat_dh = false;
@@ -471,6 +475,8 @@ struct Input_para
     double exx_cauchy_threshold = 1e-07;        ///< threshold to screen exx using Cauchy-Schwartz inequality
     double exx_c_grad_threshold = 0.0001;       ///< threshold to screen nabla C matrix in exx
     double exx_v_grad_threshold = 0.1;          ///< threshold to screen nabla V matrix in exx
+    double exx_c_grad_r_threshold = 0.0001;     ///< threshold to screen nabla C matrix in exx
+    double exx_v_grad_r_threshold = 0.1;        ///< threshold to screen nabla V matrix in exx
     double exx_cauchy_force_threshold = 1e-07;  ///< threshold to screen exx force using Cauchy-Schwartz
                                                 ///< inequality
     double exx_cauchy_stress_threshold = 1e-07; ///< threshold to screen exx stress using Cauchy-Schwartz
@@ -483,8 +489,10 @@ struct Input_para
     double exx_opt_orb_ecut = 0.0;              ///< the cut-off of plane wave expansion for opt ABFs
     double exx_opt_orb_tolerence = 0.0;         ///< the threshold when solving for the zeros of spherical Bessel
                                                 ///< functions for opt ABFs
+    bool exx_symmetry_realspace = true; ///< whether to reduce the real-space sector in when using symmetry=1 in EXX calculation
     double rpa_ccp_rmesh_times = 10.0;          ///< how many times larger the radial mesh required for
                                                 ///< calculating Columb potential is to that of atomic orbitals
+    bool out_ri_cv = false;   ///<Whether to output the coefficient tensor C and ABFs-representation Coulomb matrix V
     // ==============   #Parameters (16.dft+u) ======================
     //    DFT+U       Xin Qu added on 2020-10-29
     int dft_plus_u = 0;                    ///< 0: standard DFT calculation (default)
@@ -554,7 +562,6 @@ struct Input_para
     // ==============   #Parameters (20.Test) ====================
     bool out_alllog = false;      ///< output all logs.
     int nurse = 0;                ///< used for debug.
-    bool colour = false;          ///< used for fun.
     bool t_in_h = true;           ///< calculate the T or not.
     bool vl_in_h = true;          ///< calculate the vloc or not.
     bool vnl_in_h = true;         ///< calculate the vnl or not.
@@ -564,5 +571,16 @@ struct Input_para
     bool test_force = false;      ///< test the force.
     bool test_stress = false;     ///< test the stress.
     bool test_skip_ewald = false; ///< variables for test only
+    bool test_atom_input = false; ///< variables for test_atom_input only
+    bool test_symmetry = false;   ///< variables for test_lattice only
+    int test_wf = 0;         ///< variables for test_wf only
+    int test_grid = false;  ///< variables for test_grid only
+    bool test_charge = false; ///< variables for test_vloc only
+    bool test_energy = false; ///< variables for test_energy only
+    bool test_gridt = false;  ///< variables for test_gridt only
+    bool test_pseudo_cell = false; ///< variables for test_pseudo_cell only
+    int test_pp = 0;          ///< variables for test_pp only
+    bool test_relax_method = false; ///< variables for test_relax_method only
+    int test_deconstructor = false; ///< variables for test_deconstructor only
 };
 #endif

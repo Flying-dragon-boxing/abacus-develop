@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 #include <iostream>
+#define private public
+#include "module_parameter/parameter.h"
+#undef private
 #include <vector>
 
 #define private public
@@ -18,6 +21,16 @@ Sto_Func<REAL>::Sto_Func(){}
 
 template class Sto_Func<double>;
 
+template<typename REAL>
+StoChe<REAL>::StoChe(const int& nche, const int& method, const REAL& emax_sto, const REAL& emin_sto)
+{
+    this->nche = nche;
+}
+template<typename REAL>
+StoChe<REAL>::~StoChe(){}
+
+template class StoChe<double>;
+
 Stochastic_hchi::Stochastic_hchi(){};
 Stochastic_hchi::~Stochastic_hchi(){};
 
@@ -28,18 +41,13 @@ Stochastic_Iter::Stochastic_Iter()
     method = 2;
 }
 
-Stochastic_Iter::~Stochastic_Iter()
-{
-    delete p_che;
-    delete[] spolyv;
-    delete[] chiallorder;
-}
+Stochastic_Iter::~Stochastic_Iter(){};
 
-void Stochastic_Iter::init(const int method_in, K_Vectors* pkv, ModulePW::PW_Basis_K *wfc_basis, Stochastic_WF &stowf)
+void Stochastic_Iter::init(K_Vectors* pkv, ModulePW::PW_Basis_K *wfc_basis, Stochastic_WF &stowf, StoChe<double> &stoche)
 {
     this->nchip = stowf.nchip;;
     this->targetne = 1;
-    this->method = method_in;
+    this->method = stoche.method_sto;
 }
 
 void Stochastic_Iter::orthog(const int& ik,
@@ -118,16 +126,33 @@ Charge::~Charge(){};
  *      - skip charge;
  *  - 2. hsolver::HSolverPW_SDFT::diagethr (for cases below)
  * 		- set_diagethr, for setting diagethr;
- * 		- cal_hsolerror, for calculate actually diagethr;
  */
 class TestHSolverPW_SDFT : public ::testing::Test
 {
 	public:
+    TestHSolverPW_SDFT():stoche(8,1,0,0){}
     ModulePW::PW_Basis_K pwbk;
     Stochastic_WF stowf;
     K_Vectors kv;
     wavefunc wf;
-    hsolver::HSolverPW_SDFT hs_d = hsolver::HSolverPW_SDFT(&kv, &pwbk, &wf, stowf, 0);
+    StoChe<double> stoche;
+    hsolver::HSolverPW_SDFT hs_d = hsolver::HSolverPW_SDFT(&kv, 
+                                                           &pwbk, 
+                                                           &wf, 
+                                                           stowf, 
+                                                           stoche, 
+                                                           
+                                                           "scf",
+                                                           "pw",
+                                                           "cg",
+                                                           false,
+                                                           GlobalV::use_uspp,
+                                                           PARAM.input.nspin,
+                     hsolver::DiagoIterAssist<std::complex<double>>::SCF_ITER,
+                     hsolver::DiagoIterAssist<std::complex<double>>::PW_DIAG_NMAX,
+                     hsolver::DiagoIterAssist<std::complex<double>>::PW_DIAG_THR,
+                     hsolver::DiagoIterAssist<std::complex<double>>::need_subspace,
+                     false);
 
     hamilt::Hamilt<std::complex<double>> hamilt_test_d;
 
@@ -156,9 +181,6 @@ TEST_F(TestHSolverPW_SDFT, solve)
     int istep = 0;
     int iter = 0;
 
-	//check solve()
-	EXPECT_EQ(this->hs_d.initialed_psi, false);
-
     this->hs_d.solve(&hamilt_test_d,
                      psi_test_cd,
                      &elecstate_test,
@@ -166,14 +188,7 @@ TEST_F(TestHSolverPW_SDFT, solve)
                      stowf,
                      istep,
                      iter,
-                     method_test,
-                     hsolver::DiagoIterAssist<std::complex<double>>::SCF_ITER,
-                     hsolver::DiagoIterAssist<std::complex<double>>::need_subspace,
-                     hsolver::DiagoIterAssist<std::complex<double>>::PW_DIAG_NMAX,
-                     hsolver::DiagoIterAssist<std::complex<double>>::PW_DIAG_THR,
-                     false
-    );
-	EXPECT_EQ(this->hs_d.initialed_psi, true);
+                     false);
 	EXPECT_DOUBLE_EQ(hsolver::DiagoIterAssist<std::complex<double>>::avg_iter, 0.0);
 	EXPECT_DOUBLE_EQ(elecstate_test.ekb.c[0], 4.0);
 	EXPECT_DOUBLE_EQ(elecstate_test.ekb.c[1], 7.0);
@@ -208,16 +223,13 @@ TEST_F(TestHSolverPW_SDFT, solve_noband_skipcharge)
     psi_test_no.nbasis = 0;
 	GlobalV::nelec = 1.0;
     GlobalV::MY_STOGROUP = 0.0;
-    GlobalV::NSPIN = 1;
+    PARAM.input.nspin = 1;
     elecstate_test.charge = new Charge;
     elecstate_test.charge->rho = new double*[1];
     elecstate_test.charge->rho[0] = new double[10];
     elecstate_test.charge->nrxx = 10;
     int istep = 0;
     int iter = 0;
-    
-	//check solve()
-    hs_d.initialed_psi = true;
 
     this->hs_d.solve(&hamilt_test_d,
                      psi_test_no,
@@ -226,11 +238,6 @@ TEST_F(TestHSolverPW_SDFT, solve_noband_skipcharge)
                      stowf,
                      istep,
                      iter,
-                     method_test,
-                     hsolver::DiagoIterAssist<std::complex<double>>::SCF_ITER,
-                     hsolver::DiagoIterAssist<std::complex<double>>::need_subspace,
-                     hsolver::DiagoIterAssist<std::complex<double>>::PW_DIAG_NMAX,
-                     hsolver::DiagoIterAssist<std::complex<double>>::PW_DIAG_THR,
                      false
     );
 	EXPECT_DOUBLE_EQ(hsolver::DiagoIterAssist<std::complex<double>>::avg_iter, 0.0);
@@ -253,11 +260,6 @@ TEST_F(TestHSolverPW_SDFT, solve_noband_skipcharge)
                      stowf,
                      istep,
                      iter,
-                     method_test,
-                     hsolver::DiagoIterAssist<std::complex<double>>::SCF_ITER,
-                     hsolver::DiagoIterAssist<std::complex<double>>::need_subspace,
-                     hsolver::DiagoIterAssist<std::complex<double>>::PW_DIAG_NMAX,
-                     hsolver::DiagoIterAssist<std::complex<double>>::PW_DIAG_THR,
                      true
     );
     EXPECT_EQ(stowf.nbands_diag, 4);

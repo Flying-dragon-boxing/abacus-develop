@@ -58,27 +58,10 @@ namespace ModuleESolver
     template <typename T>
     ESolver_KS_LIP<T>::~ESolver_KS_LIP()
     {
-        // delete HSolver and ElecState
-        this->deallocate_hsolver();
         // delete Hamilt
         this->deallocate_hamilt();
     }
 
-    template <typename T>
-    void ESolver_KS_LIP<T>::allocate_hsolver()
-    {
-        this->phsol = new hsolver::HSolverLIP<T>(this->pw_wfc);
-    }
-    template <typename T>
-    void ESolver_KS_LIP<T>::deallocate_hsolver()
-    {
-        if (this->phsol != nullptr)
-        {
-            std::cout << "test" << std::endl;
-            delete reinterpret_cast<hsolver::HSolverLIP<T>*>(this->phsol);
-            this->phsol = nullptr;
-        }
-    }
     template <typename T>
     void ESolver_KS_LIP<T>::allocate_hamilt()
     {
@@ -103,9 +86,9 @@ namespace ModuleESolver
     {
         ESolver_KS_PW<T>::before_all_runners(inp, cell);
 #ifdef __EXX
-        if (GlobalV::CALCULATION == "scf" || GlobalV::CALCULATION == "relax"
-            || GlobalV::CALCULATION == "cell-relax"
-            || GlobalV::CALCULATION == "md") {
+        if (PARAM.inp.calculation == "scf" || PARAM.inp.calculation == "relax"
+            || PARAM.inp.calculation == "cell-relax"
+            || PARAM.inp.calculation == "md") {
             if (GlobalC::exx_info.info_global.cal_exx)
             {
                 XC_Functional::set_xc_first_loop(cell);
@@ -134,7 +117,6 @@ namespace ModuleESolver
         ModuleBase::TITLE("ESolver_KS_LIP", "hamilt2density");
         ModuleBase::timer::tick("ESolver_KS_LIP", "hamilt2density");
 
-        if (this->phsol != nullptr)
         {
             // reset energy
             this->pelec->f_en.eband = 0.0;
@@ -145,7 +127,7 @@ namespace ModuleESolver
             hsolver::DiagoIterAssist<T>::need_subspace = ((istep == 0 || istep == 1) && iter == 1) ? false : true;
             hsolver::DiagoIterAssist<T>::SCF_ITER = iter;
             hsolver::DiagoIterAssist<T>::PW_DIAG_THR = ethr;
-            hsolver::DiagoIterAssist<T>::PW_DIAG_NMAX = GlobalV::PW_DIAG_NMAX;
+            hsolver::DiagoIterAssist<T>::PW_DIAG_NMAX = PARAM.inp.pw_diag_nmax;
 
             // It is not a good choice to overload another solve function here, this will spoil the concept of
             // multiple inheritance and polymorphism. But for now, we just do it in this way.
@@ -157,15 +139,16 @@ namespace ModuleESolver
                 ModuleBase::WARNING_QUIT("ESolver_KS_PW::hamilt2density", "psig lifetime is expired");
             }
 
-            // from HSolverLIP
-            this->phsol->solve(this->p_hamilt,        // hamilt::Hamilt<T>* pHamilt,
-                this->kspw_psi[0],     // psi::Psi<T>& psi,
-                this->pelec,           // elecstate::ElecState<T>* pelec,
-                psig.lock().get()[0]); // psi::Psi<T>& transform,
+            hsolver::HSolverLIP<T> hsolver_lip_obj(this->pw_wfc);
+            hsolver_lip_obj.solve(this->p_hamilt, 
+                                  this->kspw_psi[0], 
+                                  this->pelec, 
+                                  psig.lock().get()[0], 
+                                  false);
 
             if (PARAM.inp.out_bandgap)
             {
-                if (!GlobalV::TWO_EFERMI)
+                if (!PARAM.globalv.two_fermi)
                 {
                     this->pelec->cal_bandgap();
                 }
@@ -175,10 +158,7 @@ namespace ModuleESolver
                 }
             }
         }
-        else
-        {
-            ModuleBase::WARNING_QUIT("ESolver_KS_LIP", "HSolver has not been allocated.");
-        }
+   
         // add exx
 #ifdef __EXX
         if (GlobalC::exx_info.info_global.cal_exx) {
@@ -192,9 +172,9 @@ namespace ModuleESolver
         this->pelec->cal_energies(1);
 
         Symmetry_rho srho;
-        for (int is = 0; is < GlobalV::NSPIN; is++)
+        for (int is = 0; is < PARAM.inp.nspin; is++)
         {
-            srho.begin(is, *(this->pelec->charge), this->pw_rhod, GlobalC::Pgrid, GlobalC::ucell.symm);
+            srho.begin(is, *(this->pelec->charge), this->pw_rhod, GlobalC::ucell.symm);
         }
 
         // compute magnetization, only for LSDA(spin==2)
@@ -281,7 +261,7 @@ namespace ModuleESolver
 #ifdef __LCAO
         if (PARAM.inp.out_mat_xc)
         {
-            ModuleIO::write_Vxc(GlobalV::NSPIN, GlobalV::NLOCAL,
+            ModuleIO::write_Vxc(PARAM.inp.nspin, GlobalV::NLOCAL,
                 GlobalV::DRANK, *this->kspw_psi, GlobalC::ucell, this->sf,
                 *this->pw_wfc, *this->pw_rho, *this->pw_rhod,
                 GlobalC::ppcell.vloc, *this->pelec->charge, this->kv, this->pelec->wg

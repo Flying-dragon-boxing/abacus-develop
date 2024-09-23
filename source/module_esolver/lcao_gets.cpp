@@ -44,33 +44,35 @@ void ESolver_KS_LCAO<std::complex<double>, double>::get_S(void)
 {
     ModuleBase::TITLE("ESolver_KS_LCAO", "get_S");
     // (1) Find adjacent atoms for each atom.
-    GlobalV::SEARCH_RADIUS = atom_arrange::set_sr_NL(GlobalV::ofs_running,
-                                                     GlobalV::OUT_LEVEL,
-                                                     GlobalC::ORB.get_rcutmax_Phi(),
+    double search_radius = -1.0;
+    search_radius = atom_arrange::set_sr_NL(GlobalV::ofs_running,
+                                                     PARAM.inp.out_level,
+                                                     orb_.get_rcutmax_Phi(),
                                                      GlobalC::ucell.infoNL.get_rcutmax_Beta(),
-                                                     GlobalV::GAMMA_ONLY_LOCAL);
+                                                     PARAM.globalv.gamma_only_local);
 
     atom_arrange::search(PARAM.inp.search_pbc,
                          GlobalV::ofs_running,
                          GlobalC::GridD,
                          GlobalC::ucell,
-                         GlobalV::SEARCH_RADIUS,
-                         GlobalV::test_atom_input);
+                         search_radius,
+                         PARAM.inp.test_atom_input);
 
-    this->RA.for_2d(this->pv, GlobalV::GAMMA_ONLY_LOCAL);
+    this->RA.for_2d(this->pv, PARAM.globalv.gamma_only_local, orb_.cutoffs());
 
     if (this->p_hamilt == nullptr) {
         this->p_hamilt = new hamilt::HamiltLCAO<std::complex<double>, double>(
             &this->pv,
             this->kv,
-            *(two_center_bundle_.overlap_orb));
+            *(two_center_bundle_.overlap_orb),
+            orb_.cutoffs());
         dynamic_cast<hamilt::OperatorLCAO<std::complex<double>, double>*>(
             this->p_hamilt->ops)
             ->contributeHR();
     }
 
     // mohan add 2024-06-09
-    const std::string fn = GlobalV::global_out_dir + "SR.csr";
+    const std::string fn = PARAM.globalv.global_out_dir + "SR.csr";
 
     std::cout << " The file is saved in " << fn << std::endl;
 
@@ -84,26 +86,29 @@ void ESolver_KS_LCAO<std::complex<double>, std::complex<double>>::get_S(void)
 {
     ModuleBase::TITLE("ESolver_KS_LCAO", "get_S");
     // (1) Find adjacent atoms for each atom.
-    GlobalV::SEARCH_RADIUS = atom_arrange::set_sr_NL(GlobalV::ofs_running,
-                                                     GlobalV::OUT_LEVEL,
-                                                     GlobalC::ORB.get_rcutmax_Phi(),
+    double search_radius = -1.0;
+    search_radius = atom_arrange::set_sr_NL(GlobalV::ofs_running,
+                                                     PARAM.inp.out_level,
+                                                     orb_.get_rcutmax_Phi(),
                                                      GlobalC::ucell.infoNL.get_rcutmax_Beta(),
-                                                     GlobalV::GAMMA_ONLY_LOCAL);
+                                                     PARAM.globalv.gamma_only_local);
 
     atom_arrange::search(PARAM.inp.search_pbc,
                          GlobalV::ofs_running,
                          GlobalC::GridD,
                          GlobalC::ucell,
-                         GlobalV::SEARCH_RADIUS,
-                         GlobalV::test_atom_input);
+                         search_radius,
+                         PARAM.inp.test_atom_input);
 
-    this->RA.for_2d(this->pv, GlobalV::GAMMA_ONLY_LOCAL);
+    this->RA.for_2d(this->pv, PARAM.globalv.gamma_only_local, orb_.cutoffs());
     if (this->p_hamilt == nullptr) {
         this->p_hamilt = new hamilt::HamiltLCAO<std::complex<double>,
                                                 std::complex<double>>(
             &this->pv,
             this->kv,
-            *(two_center_bundle_.overlap_orb));
+            *(two_center_bundle_.overlap_orb),
+            orb_.cutoffs()
+            );
         dynamic_cast<
             hamilt::OperatorLCAO<std::complex<double>, std::complex<double>>*>(
             this->p_hamilt->ops)
@@ -111,7 +116,7 @@ void ESolver_KS_LCAO<std::complex<double>, std::complex<double>>::get_S(void)
     }
 
     // mohan add 2024-06-09
-    const std::string fn = GlobalV::global_out_dir + "SR.csr";
+    const std::string fn = PARAM.globalv.global_out_dir + "SR.csr";
 
     std::cout << " The file is saved in " << fn << std::endl;
 

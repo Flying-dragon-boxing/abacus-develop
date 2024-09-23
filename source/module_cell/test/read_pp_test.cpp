@@ -1,5 +1,8 @@
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
+#define private public
+#include "module_parameter/parameter.h"
+#undef private
 #include<memory>
 /************************************************
  *  unit test of read_pp
@@ -589,7 +592,7 @@ TEST_F(ReadPPTest, BLPS)
 	std::ifstream ifs;
 	// this pp file is a vwr type of pp
 	ifs.open("./support/si.lda.lps");
-	GlobalV::DFT_FUNCTIONAL="default";
+	PARAM.input.dft_functional="default";
 	read_pp->read_pseudo_blps(ifs, *upf);
 	EXPECT_FALSE(upf->nlcc);
 	EXPECT_FALSE(upf->tvanp);
@@ -741,7 +744,7 @@ TEST_F(ReadPPTest, AverageSimpleReturns)
 	int ierr;
 	double lambda = 1.0;
 	// first return
-	GlobalV::LSPINORB = 1;
+	PARAM.input.lspinorb = 1;
 	upf->has_so = 0;
 	ierr = read_pp->average_p(lambda, *upf);
 	EXPECT_EQ(ierr,1);
@@ -764,7 +767,7 @@ TEST_F(ReadPPTest, AverageErrReturns)
 	ifs.open("./support/Te.pbe-rrkj.UPF");
 	read_pp->read_pseudo_upf(ifs, *upf);
 	EXPECT_TRUE(upf->has_so); // has soc info
-	GlobalV::LSPINORB = 0;
+	PARAM.input.lspinorb = 0;
 	ierr = read_pp->average_p(lambda, *upf);
 	EXPECT_EQ(upf->nbeta,3);
 	EXPECT_EQ(ierr,1);
@@ -784,7 +787,7 @@ TEST_F(ReadPPTest, AverageLSPINORB0)
 	int ierr;
 	double lambda = 1.0;
 	// LSPINORB = 0
-	GlobalV::LSPINORB = 0;
+	PARAM.input.lspinorb = 0;
 	ierr = read_pp->average_p(lambda, *upf);
 	EXPECT_EQ(ierr,0);
 	EXPECT_EQ(upf->nbeta,4);
@@ -801,7 +804,7 @@ TEST_F(ReadPPTest, AverageLSPINORB1)
 	int ierr;
 	double lambda = 1.1;
 	// LSPINORB = 0
-	GlobalV::LSPINORB = 1;
+	PARAM.input.lspinorb = 1;
 	ierr = read_pp->average_p(lambda, *upf);
 	EXPECT_EQ(ierr,0);
 	EXPECT_EQ(upf->nbeta,6);

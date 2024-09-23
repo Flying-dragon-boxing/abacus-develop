@@ -65,12 +65,6 @@ void ReadInput::item_system()
         item.read_value = [](const Input_Item& item, Parameter& para) {
             para.input.calculation = strvalue;
             std::string& calculation = para.input.calculation;
-            para.sys.global_calculation = calculation;
-            if (calculation == "nscf" || calculation == "get_S")
-            {
-                // Maybe it should be modified.
-                para.sys.global_calculation = "nscf";
-            }
         };
         item.check_value = [](const Input_Item& item, const Parameter& para) {
             const std::string& calculation = para.input.calculation;
@@ -87,7 +81,8 @@ void ReadInput::item_system()
                                                 "gen_bessel"};
             if (!find_str(callist, calculation))
             {
-                ModuleBase::WARNING_QUIT("ReadInput", "check 'calculation' !");
+                const std::string warningstr = nofound_str(callist, "calculation");
+                ModuleBase::WARNING_QUIT("ReadInput", warningstr);
             }
             if (calculation == "get_pchg" || calculation == "get_wf")
             {
@@ -117,9 +112,8 @@ void ReadInput::item_system()
             const std::vector<std::string> esolver_types = { "ksdft", "sdft", "ofdft", "tddft", "lj", "dp", "lr", "ks-lr" };
             if (!find_str(esolver_types, para.input.esolver_type))
             {
-                ModuleBase::WARNING_QUIT("ReadInput",
-                                         "esolver_type should be ksdft, sdft, "
-                                         "ofdft, tddft, lr, ks-lr, lj or dp.");
+                const std::string warningstr = nofound_str(esolver_types, "esolver_type");
+                ModuleBase::WARNING_QUIT("ReadInput", warningstr);
             }
             if (para.input.esolver_type == "dp")
             {
@@ -522,9 +516,11 @@ void ReadInput::item_system()
             }
         };
         item.check_value = [](const Input_Item& item, const Parameter& para) {
-            if (para.input.init_chg != "atomic" && para.input.init_chg != "file" && para.input.init_chg != "auto")
+            const std::vector<std::string> init_chgs = {"atomic", "file", "wfc", "auto"};
+            if (!find_str(init_chgs, para.input.init_chg))
             {
-                ModuleBase::WARNING_QUIT("ReadInput", "init_chg should be 'atomic', 'file' or 'auto'");
+                const std::string warningstr = nofound_str(init_chgs, "init_chg");
+                ModuleBase::WARNING_QUIT("ReadInput", warningstr);
             }
         };
         this->add_item(item);
@@ -599,64 +595,45 @@ void ReadInput::item_system()
         Input_Item item("kpoint_file");
         item.annotation = "the name of file containing k points";
         read_sync_string(input.kpoint_file);
+        item.reset_value = [](const Input_Item& item, Parameter& para) {
+            if (para.input.stru_file == "")
+            {
+                GlobalV::ofs_warning << "kpoint_file is set to KPT when stru_file is not set" << std::endl;
+                para.input.stru_file = "KPT";
+            }
+        };
         this->add_item(item);
     }
     {
         Input_Item item("pseudo_dir");
         item.annotation = "the directory containing pseudo files";
         item.read_value = [](const Input_Item& item, Parameter& para) {
-            para.input.pseudo_dir = strvalue;
-        };
-        item.reset_value = [](const Input_Item& item, Parameter& para) {
-            if(para.input.pseudo_dir == "auto")
+            if(item.get_size() == 0)
             {
                 para.input.pseudo_dir = "";
             }
             else
             {
-                para.input.pseudo_dir = to_dir(para.input.pseudo_dir);
+                para.input.pseudo_dir = to_dir(strvalue);
             }
         };
-        item.get_final_value = [](Input_Item& item, const Parameter& para) {
-            if (para.input.pseudo_dir == "")
-            {
-                item.final_value << "auto";
-            }
-            else
-            {
-                item.final_value << para.input.pseudo_dir;
-            }
-        };
-        add_string_bcast(input.pseudo_dir);
+        sync_string(input.pseudo_dir);
         this->add_item(item);
     }
     {
         Input_Item item("orbital_dir");
         item.annotation = "the directory containing orbital files";
         item.read_value = [](const Input_Item& item, Parameter& para) {
-            para.input.orbital_dir = strvalue;
-        };
-        item.reset_value = [](const Input_Item& item, Parameter& para) {
-            if(para.input.orbital_dir == "auto")
+            if(item.get_size() == 0)
             {
                 para.input.orbital_dir = "";
             }
             else
             {
-                para.input.orbital_dir = to_dir(para.input.orbital_dir);
+                para.input.orbital_dir = to_dir(strvalue);
             }
         };
-        item.get_final_value = [](Input_Item& item, const Parameter& para) {
-            if (para.input.orbital_dir == "")
-            {
-                item.final_value << "auto";
-            }
-            else
-            {
-                item.final_value << para.input.orbital_dir;
-            }
-        };
-        add_string_bcast(input.orbital_dir);
+        sync_string(input.orbital_dir);
         this->add_item(item);
     }
     {

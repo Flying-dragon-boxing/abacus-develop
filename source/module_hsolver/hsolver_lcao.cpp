@@ -1,5 +1,6 @@
 #include "hsolver_lcao.h"
 
+#include "module_parameter/parameter.h"
 #include "diago_cg.h"
 
 #ifdef __MPI
@@ -23,6 +24,7 @@
 #endif // __CUSOLVERMP
 #ifdef __ELPA
 #include "diago_elpa.h"
+#include "diago_elpa_native.h"
 #endif
 #ifdef __CUDA
 #include "diago_cusolver.h"
@@ -86,7 +88,7 @@ void HSolverLCAO<T, Device>::solve(hamilt::Hamilt<T>* pHamilt,
 
 #ifdef __MPI
     if (GlobalV::KPAR_LCAO > 1 &&
-        (this->method == "genelpa" || this->method == "scalapack_gvx"))
+        (this->method == "genelpa" || this->method == "elpa" || this->method == "scalapack_gvx"))
     {
         this->parakSolve(pHamilt, psi, pes, GlobalV::KPAR_LCAO);
     }
@@ -110,7 +112,7 @@ void HSolverLCAO<T, Device>::solve(hamilt::Hamilt<T>* pHamilt,
         this->is_first_scf = false;
     }
 
-    if (this->method != "genelpa" && this->method != "scalapack_gvx" && this->method != "lapack"
+    if (this->method != "genelpa" && this->method != "elpa" && this->method != "scalapack_gvx" && this->method != "lapack"
         && this->method != "cusolver" && this->method != "cusolvermp" && this->method != "cg_in_lcao"
         && this->method != "pexsi")
     {
@@ -147,6 +149,11 @@ void HSolverLCAO<T, Device>::hamiltSolvePsiK(hamilt::Hamilt<T>* hm, psi::Psi<T>&
     else if (this->method == "genelpa")
     {
         DiagoElpa<T> el;
+        el.diag(hm, psi, eigenvalue);
+    }
+    else if (this->method == "elpa")
+    {
+        DiagoElpaNative<T> el;
         el.diag(hm, psi, eigenvalue);
     }
 #endif
@@ -187,8 +194,8 @@ void HSolverLCAO<T, Device>::hamiltSolvePsiK(hamilt::Hamilt<T>* hm, psi::Psi<T>&
                 REQUIRES_OK(ndim == 2, "dims of psi_in should be less than or equal to 2");
             };
 
-        DiagoCG<T, Device> cg(GlobalV::BASIS_TYPE,
-                              GlobalV::CALCULATION,
+        DiagoCG<T, Device> cg(PARAM.inp.basis_type,
+                              PARAM.inp.calculation,
                               DiagoIterAssist<T, Device>::need_subspace,
                               subspace_func,
                               DiagoIterAssist<T, Device>::PW_DIAG_THR,
@@ -203,8 +210,8 @@ void HSolverLCAO<T, Device>::hamiltSolvePsiK(hamilt::Hamilt<T>* hm, psi::Psi<T>&
         {
             for (int j = i; j < h_mat.col; j++)
             {
-                h_mat.p[h_mat.row * j + i] = hsolver::my_conj(h_mat.p[h_mat.row * i + j]);
-                s_mat.p[s_mat.row * j + i] = hsolver::my_conj(s_mat.p[s_mat.row * i + j]);
+                h_mat.p[h_mat.row * j + i] = hsolver::get_conj(h_mat.p[h_mat.row * i + j]);
+                s_mat.p[s_mat.row * j + i] = hsolver::get_conj(s_mat.p[s_mat.row * i + j]);
             }
         }
 
@@ -319,7 +326,7 @@ void HSolverLCAO<T, Device>::parakSolve(hamilt::Hamilt<T>* pHamilt,
                      nb2d,
                      GlobalV::NPROC,
                      GlobalV::MY_RANK,
-                     GlobalV::NSPIN);
+                     PARAM.inp.nspin);
     /// set psi_pool
     const int zero = 0;
     int ncol_bands_pool = numroc_(&(nbands), &(nb2d), &(k2d.get_p2D_pool()->coord[1]), &zero, &(k2d.get_p2D_pool()->dim1));
@@ -366,6 +373,11 @@ void HSolverLCAO<T, Device>::parakSolve(hamilt::Hamilt<T>* pHamilt,
             else if (this->method == "genelpa")
             {
                 DiagoElpa<T> el;
+                el.diag_pool(hk_pool, sk_pool, psi_pool,&(pes->ekb(ik_global, 0)), k2d.POOL_WORLD_K2D);
+            }
+            else if (this->method == "elpa")
+            {
+                DiagoElpaNative<T> el;
                 el.diag_pool(hk_pool, sk_pool, psi_pool,&(pes->ekb(ik_global, 0)), k2d.POOL_WORLD_K2D);
             }
 #endif

@@ -1,5 +1,6 @@
 #include "gint.h"
 
+#include "module_parameter/parameter.h"
 #if ((defined __CUDA))
 #include "gint_force_gpu.h"
 #include "gint_rho_gpu.h"
@@ -32,6 +33,7 @@ Gint::~Gint() {
 }
 
 void Gint::cal_gint(Gint_inout* inout) {
+    ModuleBase::TITLE("Gint_interface", "cal_gint");
     ModuleBase::timer::tick("Gint_interface", "cal_gint");
     // In multi-process environments,
     // some processes may not be allocated any data.
@@ -41,7 +43,7 @@ void Gint::cal_gint(Gint_inout* inout) {
     }
     if (this->gridt->max_atom > 0) {
 #ifdef __CUDA
-        if (GlobalV::device_flag == "gpu"
+        if (PARAM.globalv.device_flag == "gpu"
             && (inout->job == Gint_Tools::job_type::vlocal
                 || inout->job == Gint_Tools::job_type::rho
                 || inout->job == Gint_Tools::job_type::force)) {
@@ -77,9 +79,9 @@ void Gint::cal_gint(Gint_inout* inout) {
                 }
             }
         }
-        ModuleBase::timer::tick("Gint_interface", "cal_gint");
-        return;
     }
+    ModuleBase::timer::tick("Gint_interface", "cal_gint");
+    return;
 }
 void Gint::prep_grid(const Grid_Technique& gt,
                      const int& nbx_in,
@@ -137,9 +139,9 @@ void Gint::initialize_pvpR(const UnitCell& ucell_in, Grid_Driver* gd) {
     int npol = 1;
     // there is the only resize code of DMRGint
     if (this->DMRGint.size() == 0) {
-        this->DMRGint.resize(GlobalV::NSPIN);
+        this->DMRGint.resize(PARAM.inp.nspin);
     }
-    if (GlobalV::NSPIN != 4) {
+    if (PARAM.inp.nspin != 4) {
         if (this->hRGint != nullptr) {
             delete this->hRGint;
         }
@@ -151,7 +153,7 @@ void Gint::initialize_pvpR(const UnitCell& ucell_in, Grid_Driver* gd) {
         }
         this->hRGintCd
             = new hamilt::HContainer<std::complex<double>>(ucell_in.nat);
-        for (int is = 0; is < GlobalV::NSPIN; is++) {
+        for (int is = 0; is < PARAM.inp.nspin; is++) {
             if (this->DMRGint[is] != nullptr) {
                 delete this->DMRGint[is];
             }
@@ -184,7 +186,7 @@ void Gint::initialize_pvpR(const UnitCell& ucell_in, Grid_Driver* gd) {
         }
     }
 
-    if (GlobalV::GAMMA_ONLY_LOCAL && GlobalV::NSPIN != 4) {
+    if (PARAM.globalv.gamma_only_local && PARAM.inp.nspin != 4) {
         this->hRGint->fix_gamma();
     }
     for (int T1 = 0; T1 < ucell_in.ntype; ++T1) {
@@ -330,7 +332,7 @@ void Gint::transfer_DM2DtoGrid(std::vector<hamilt::HContainer<double>*> DM2D) {
 #endif
 
     ModuleBase::timer::tick("Gint", "transfer_DMR");
-    if (GlobalV::NSPIN != 4) {
+    if (PARAM.inp.nspin != 4) {
         for (int is = 0; is < this->DMRGint.size(); is++) {
 #ifdef __MPI
             hamilt::transferParallels2Serials(*DM2D[is], DMRGint[is]);

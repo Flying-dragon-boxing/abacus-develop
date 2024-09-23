@@ -4,6 +4,7 @@
 
 #define private public
 #define protected public
+#include "module_parameter/parameter.h"
 #include "module_hsolver/hsolver_pw.h"
 #include "module_hsolver/hsolver_lcaopw.h"
 #include "hsolver_supplementary_mock.h"
@@ -13,8 +14,6 @@
 #include "module_hsolver/hsolver_pw.h"
 #undef private
 #undef protected
-
-#include "module_parameter/parameter.h"
 /************************************************
  *  unit test of HSolverPW class
  ***********************************************/
@@ -30,8 +29,6 @@
  *  - 6. update_precondition()
  *  - 7. hsolver::HSolver::diagethr (for cases below)
  * 		- set_diagethr, for setting diagethr;
- *  	- reset_diagethr, for updating diagethr;
- * 		- cal_hsolerror, for calculate actually diagethr;
  *  - 8. solve()
  *      - lcao_in_pw specific implementation
  */
@@ -41,11 +38,33 @@ class TestHSolverPW : public ::testing::Test {
     hsolver::HSolverPW<std::complex<float>, base_device::DEVICE_CPU> hs_f
         = hsolver::HSolverPW<std::complex<float>, base_device::DEVICE_CPU>(&pwbk,
                                                                            nullptr,
-                                                                           false);
+                                                                           
+                                                                           "scf",
+                                                                           "pw",
+                                                                           "cg",
+                                                                           false,
+                                                                           GlobalV::use_uspp,
+                                                                           PARAM.input.nspin,
+                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::SCF_ITER,
+                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::PW_DIAG_NMAX,
+                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::PW_DIAG_THR,
+                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::need_subspace,
+                     false);
     hsolver::HSolverPW<std::complex<double>, base_device::DEVICE_CPU> hs_d
         = hsolver::HSolverPW<std::complex<double>, base_device::DEVICE_CPU>(&pwbk,
                                                                             nullptr,
-                                                                            false);
+
+                                                                            "scf",
+                                                                            "pw",
+                                                                            "cg",
+                                                                            false,
+                                                                            GlobalV::use_uspp,
+                                                                            PARAM.input.nspin,
+                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::SCF_ITER,
+                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::PW_DIAG_NMAX,
+                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::PW_DIAG_THR,
+                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::need_subspace,
+                     false);
 
     hamilt::Hamilt<std::complex<double>> hamilt_test_d;
     hamilt::Hamilt<std::complex<float>> hamilt_test_f;
@@ -81,18 +100,9 @@ TEST_F(TestHSolverPW, solve) {
                      &elecstate_test,
                      elecstate_test.ekb.c,
                      is_occupied,
-                     method_test,
-                     "scf",
-                     "pw",
-                     false,
-                     GlobalV::use_uspp,
+
                      GlobalV::RANK_IN_POOL,
                      GlobalV::NPROC_IN_POOL,
-
-                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::SCF_ITER,
-                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::need_subspace,
-                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::PW_DIAG_NMAX,
-                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::PW_DIAG_THR,
 
                      true);
     // EXPECT_EQ(this->hs_f.initialed_psi, true);
@@ -109,18 +119,9 @@ TEST_F(TestHSolverPW, solve) {
                      &elecstate_test,
                      elecstate_test.ekb.c,
                      is_occupied,
-                     method_test,
-                     "scf",
-                     "pw",
-                     false,
-                     GlobalV::use_uspp,
+                     
                      GlobalV::RANK_IN_POOL,
                      GlobalV::NPROC_IN_POOL,
-
-                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::SCF_ITER,
-                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::need_subspace,
-                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::PW_DIAG_NMAX,
-                     hsolver::DiagoIterAssist<std::complex<double>, base_device::DEVICE_CPU>::PW_DIAG_THR,
 
                      true);
   
@@ -132,17 +133,6 @@ TEST_F(TestHSolverPW, solve) {
     }
     EXPECT_DOUBLE_EQ(elecstate_test.ekb.c[0], 4.0);
     EXPECT_DOUBLE_EQ(elecstate_test.ekb.c[1], 7.0);
-
-    // check initDiagh()
-    this->hs_f.method = "dav";
-    this->hs_d.method = "dav";
-    this->hs_f.initialed_psi = false;
-    this->hs_d.initialed_psi = false;
-    // this->hs_f.initDiagh(psi_test_cf);
-    // this->hs_d.initDiagh(psi_test_cd);
-    // will not change state of initialed_psi in initDiagh
-    EXPECT_EQ(this->hs_f.initialed_psi, false);
-    EXPECT_EQ(this->hs_d.initialed_psi, false);
 
     // // check hamiltSolvePsiK()
     // this->hs_f.hamiltSolvePsiK(&hamilt_test_f, psi_test_cf, this->hs_f.precondition, ekb_f.data());
@@ -195,47 +185,35 @@ TEST_F(TestHSolverPW, solve) {
     // EXPECT_NEAR(this->hs_d.precondition[2], 6.236067977, 1e-8);
 
     // // check diago_ethr
-    // GlobalV::init_chg = "atomic";
+    // PARAM.input.init_chg = "atomic";
     // GlobalV::PW_DIAG_THR = 1e-7;
-    // GlobalV::CALCULATION = "scf";
+    // PARAM.input.calculation = "scf";
     // float test_diagethr = hs_f.set_diagethr(hs_f.diag_ethr, 0, 1, 1.0);
     // EXPECT_NEAR(hs_f.diag_ethr, 0.01, 1.0e-7);
     // EXPECT_NEAR(test_diagethr, 0.01, 1.0e-7);
-    // GlobalV::CALCULATION = "md";
-    // GlobalV::init_chg = "file";
+    // PARAM.input.calculation = "md";
+    // PARAM.input.init_chg = "file";
     // test_diagethr = hs_f.set_diagethr(hs_f.diag_ethr, 0, 1, 1.0);
     // EXPECT_NEAR(test_diagethr, 1e-5, 1.0e-7);
     // test_diagethr = hs_f.set_diagethr(hs_f.diag_ethr, 0, 2, 1.0);
     // EXPECT_NEAR(test_diagethr, 0.01, 1.0e-7);
     // test_diagethr = hs_f.set_diagethr(hs_f.diag_ethr, 0, 3, 1.0e-3);
     // EXPECT_NEAR(test_diagethr, 0.0001, 1.0e-7);
-    // test_diagethr = hs_f.reset_diagethr(temp_ofs, 2.0, 1.0, hs_f.diag_ethr);
-    // EXPECT_NEAR(test_diagethr, 0.1, 1.0e-7);
-    // test_diagethr = hs_f.reset_diagethr(temp_ofs, 0.5, 1.0, hs_f.diag_ethr);
-    // EXPECT_NEAR(test_diagethr, 0.1, 1.0e-7);
-    // test_diagethr = hs_f.cal_hsolerror(hs_f.diag_ethr);
-    // EXPECT_NEAR(test_diagethr, 0.1, 1.0e-7);
 
-    // GlobalV::init_chg = "atomic";
+    // PARAM.input.init_chg = "atomic";
     // GlobalV::PW_DIAG_THR = 1e-7;
-    // GlobalV::CALCULATION = "scf";
+    // PARAM.input.calculation = "scf";
     // double test_diagethr_d = hs_d.set_diagethr(hs_d.diag_ethr, 0, 1, 1.0);
     // EXPECT_EQ(hs_d.diag_ethr, 0.01);
     // EXPECT_EQ(test_diagethr_d, 0.01);
-    // GlobalV::CALCULATION = "md";
-    // GlobalV::init_chg = "file";
+    // PARAM.input.calculation = "md";
+    // PARAM.input.init_chg = "file";
     // test_diagethr_d = hs_d.set_diagethr(hs_d.diag_ethr, 0, 1, 1.0);
     // EXPECT_EQ(test_diagethr_d, 1e-5);
     // test_diagethr_d = hs_d.set_diagethr(hs_d.diag_ethr, 0, 2, 1.0);
     // EXPECT_EQ(test_diagethr_d, 0.01);
     // test_diagethr_d = hs_d.set_diagethr(hs_d.diag_ethr, 0, 3, 1.0e-3);
     // EXPECT_EQ(test_diagethr_d, 0.0001);
-    // test_diagethr_d = hs_d.reset_diagethr(temp_ofs, 2.0, 1.0, hs_d.diag_ethr);
-    // EXPECT_EQ(test_diagethr_d, 0.1);
-    // test_diagethr_d = hs_d.reset_diagethr(temp_ofs, 0.5, 1.0, hs_d.diag_ethr);
-    // EXPECT_EQ(test_diagethr_d, 0.1);
-    // test_diagethr_d = hs_d.cal_hsolerror(hs_d.diag_ethr);
-    // EXPECT_EQ(test_diagethr_d, 0.1);
 }
 
 TEST_F(TestHSolverPW, SolveLcaoInPW) {

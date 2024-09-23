@@ -131,13 +131,12 @@ TEST_F(NonlocalNewTest, constructHRd2d)
     std::vector<ModuleBase::Vector3<double>> kvec_d_in(1, ModuleBase::Vector3<double>(0.0, 0.0, 0.0));
     hamilt::HS_Matrix_K<double> hsk(paraV, true);
     hsk.set_zero_hk();
-    Grid_Driver gd(0, 0, 0);
+    Grid_Driver gd(0, 0);
     // check some input values
     EXPECT_EQ(ucell.infoNL.Beta[0].get_rcut_max(), 1.0);
-    EXPECT_EQ(LCAO_Orbitals::get_const_instance().Phi[0].getRcut(), 1.0);
     std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
     hamilt::NonlocalNew<hamilt::OperatorLCAO<double, double>>
-        op(&hsk, kvec_d_in, HR, &ucell, &gd, &intor_);
+        op(&hsk, kvec_d_in, HR, &ucell, {1.0}, &gd, &intor_);
     std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_time
         = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
@@ -205,9 +204,9 @@ TEST_F(NonlocalNewTest, constructHRd2cd)
     kvec_d_in[1] = ModuleBase::Vector3<double>(0.1, 0.2, 0.3);
     hamilt::HS_Matrix_K<std::complex<double>> hsk(paraV);
     hsk.set_zero_hk();
-    Grid_Driver gd(0, 0, 0);
+    Grid_Driver gd(0, 0);
     hamilt::NonlocalNew<hamilt::OperatorLCAO<std::complex<double>, double>>
-        op(&hsk, kvec_d_in, HR, &ucell, &gd, &intor_);
+        op(&hsk, kvec_d_in, HR, &ucell, {1.0}, &gd, &intor_);
     op.contributeHR();
     // check the value of HR
     for (int iap = 0; iap < HR->size_atom_pairs(); ++iap)

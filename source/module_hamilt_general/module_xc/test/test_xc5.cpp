@@ -1,5 +1,9 @@
 #include "../xc_functional.h"
 #include "gtest/gtest.h"
+#define private public
+#include "module_parameter/parameter.h"
+#undef private
+#include "xctest.h"
 #include "../exx_info.h"
 #include "xc3_mock.h"
 #include "module_base/matrix.h"
@@ -15,7 +19,7 @@
 // v_xc_libxc, called by v_xc, when we use functionals from LIBXC
 // v_xc_meta, unified interface of mGGA functionals
 
-class XCTest_VXC : public testing::Test
+class XCTest_VXC : public XCTest
 {
     protected:
     
@@ -70,14 +74,14 @@ class XCTest_VXC : public testing::Test
 
             XC_Functional::set_xc_type("PBE");
 
-            GlobalV::NSPIN = 1;
+            PARAM.input.nspin = 1;
             std::tuple<double, double, ModuleBase::matrix> etxc_vtxc_v
                 = XC_Functional::v_xc(rhopw.nrxx,&chr,&ucell);
             et1 = std::get<0>(etxc_vtxc_v);
             vt1 = std::get<1>(etxc_vtxc_v);
             v1  = std::get<2>(etxc_vtxc_v);
 
-            GlobalV::NSPIN = 2;
+            PARAM.input.nspin = 2;
             etxc_vtxc_v
                 = XC_Functional::v_xc(rhopw.nrxx,&chr,&ucell);
             et2 = std::get<0>(etxc_vtxc_v);
@@ -113,7 +117,7 @@ TEST_F(XCTest_VXC, set_xc_type)
 
 }
 
-class XCTest_VXC_Libxc : public testing::Test
+class XCTest_VXC_Libxc : public XCTest
 {
     protected:
     
@@ -168,14 +172,14 @@ class XCTest_VXC_Libxc : public testing::Test
 
             XC_Functional::set_xc_type("GGA_X_PBE+GGA_C_PBE");
 
-            GlobalV::NSPIN = 1;
+            PARAM.input.nspin = 1;
             std::tuple<double, double, ModuleBase::matrix> etxc_vtxc_v
                 = XC_Functional::v_xc(rhopw.nrxx,&chr,&ucell);
             et1 = std::get<0>(etxc_vtxc_v);
             vt1 = std::get<1>(etxc_vtxc_v);
             v1  = std::get<2>(etxc_vtxc_v);
 
-            GlobalV::NSPIN = 2;
+            PARAM.input.nspin = 2;
             etxc_vtxc_v
                 = XC_Functional::v_xc(rhopw.nrxx,&chr,&ucell);
             et2 = std::get<0>(etxc_vtxc_v);
@@ -211,7 +215,7 @@ TEST_F(XCTest_VXC_Libxc, set_xc_type)
 
 }
 
-class XCTest_VXC_meta : public testing::Test
+class XCTest_VXC_meta : public XCTest
 {
     protected:
     
@@ -276,7 +280,7 @@ class XCTest_VXC_meta : public testing::Test
 
             XC_Functional::set_xc_type("SCAN");
 
-            GlobalV::NSPIN = 1;
+            PARAM.input.nspin = 1;
             std::tuple<double, double, ModuleBase::matrix, ModuleBase::matrix> etxc_vtxc_v
                 = XC_Functional::v_xc_meta(rhopw.nrxx,ucell.omega,ucell.tpiba,&chr);
             et1 = std::get<0>(etxc_vtxc_v);
@@ -284,7 +288,7 @@ class XCTest_VXC_meta : public testing::Test
             v1  = std::get<2>(etxc_vtxc_v);
             vtau1 = std::get<3>(etxc_vtxc_v);
 
-            GlobalV::NSPIN = 2;
+            PARAM.input.nspin = 2;
             etxc_vtxc_v
                 = XC_Functional::v_xc_meta(rhopw.nrxx,ucell.omega,ucell.tpiba,&chr);
             et2 = std::get<0>(etxc_vtxc_v);

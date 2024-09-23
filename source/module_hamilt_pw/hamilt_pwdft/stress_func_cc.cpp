@@ -1,5 +1,6 @@
 #include "stress_func.h"
 #include "module_hamilt_general/module_xc/xc_functional.h"
+#include "module_parameter/parameter.h"
 #include "module_base/math_integral.h"
 #include "module_base/timer.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
@@ -17,7 +18,7 @@ void Stress_Func<FPTYPE, Device>::stress_cc(ModuleBase::matrix& sigma,
         
 	FPTYPE fact=1.0;
 
-	if(is_pw&&PARAM.inp.gamma_only) 
+	if(is_pw&&PARAM.globalv.gamma_only_pw) 
 	{
 		fact = 2.0; //is_pw:PW basis, gamma_only need to FPTYPE.
 	}
@@ -57,7 +58,7 @@ void Stress_Func<FPTYPE, Device>::stress_cc(ModuleBase::matrix& sigma,
 	}
 	else
 	{
-		if(GlobalV::NSPIN==4) { GlobalC::ucell.cal_ux();
+		if(PARAM.inp.nspin==4) { GlobalC::ucell.cal_ux();
 }
         const auto etxc_vtxc_v = XC_Functional::v_xc(rho_basis->nrxx, chr, &GlobalC::ucell);
         // etxc = std::get<0>(etxc_vtxc_v); // may delete?
@@ -67,7 +68,7 @@ void Stress_Func<FPTYPE, Device>::stress_cc(ModuleBase::matrix& sigma,
 
     std::complex<FPTYPE>* psic = new std::complex<FPTYPE>[rho_basis->nmaxgr];
 
-    if(GlobalV::NSPIN==1||GlobalV::NSPIN==4)
+    if(PARAM.inp.nspin==1||PARAM.inp.nspin==4)
 	{
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static, 1024)

@@ -1,5 +1,6 @@
 #include "stress_func.h"
 #include "module_base/math_integral.h"
+#include "module_parameter/parameter.h"
 #include "module_base/tool_threading.h"
 #include "module_base/timer.h"
 #include "module_base/libm/libm.h"
@@ -20,9 +21,10 @@ void Stress_Func<FPTYPE, Device>::stress_loc(ModuleBase::matrix& sigma,
     FPTYPE evloc=0.0;
 	FPTYPE fact=1.0;
 
-	const int nspin_rho = (GlobalV::NSPIN == 2) ? 2 : 1;
+	const int nspin_rho = (PARAM.inp.nspin == 2) ? 2 : 1;
 
-	if (PARAM.inp.gamma_only && is_pw) fact=2.0;
+	if (PARAM.globalv.gamma_only_pw && is_pw) { fact=2.0;
+}
 
     
 
@@ -32,7 +34,7 @@ void Stress_Func<FPTYPE, Device>::stress_loc(ModuleBase::matrix& sigma,
 		blocking rho_basis->nrxx for data locality.
 
 		By blocking aux with block size 1024,
-		we can keep the blocked aux in L1 cache when iterating GlobalV::NSPIN loop
+		we can keep the blocked aux in L1 cache when iterating PARAM.inp.nspin loop
 		performance will be better when number of atom is quite huge
 	*/
 	const int block_ir = 1024;
@@ -70,12 +72,13 @@ void Stress_Func<FPTYPE, Device>::stress_loc(ModuleBase::matrix& sigma,
 		{
 			for (int ig=0; ig<rho_basis->npw; ig++)
 			{
-                if (rho_basis->ig_gge0 == ig)
+                if (rho_basis->ig_gge0 == ig) {
                     evloc += GlobalC::ppcell.vloc(it, rho_basis->ig2igg[ig])
                              * (p_sf->strucFac(it, ig) * conj(aux[ig])).real();
-                else
+                } else {
                     evloc += GlobalC::ppcell.vloc(it, rho_basis->ig2igg[ig])
                              * (p_sf->strucFac(it, ig) * conj(aux[ig]) * fact).real();
+}
             }
 		}
     }

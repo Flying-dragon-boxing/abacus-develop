@@ -3,7 +3,6 @@
 
 #include "diagh.h"
 #include "module_hsolver/diag_comm_info.h"
-#include "module_hsolver/diag_const_nums.h"
 
 namespace hsolver
 {
@@ -40,8 +39,8 @@ class DiagoDavid : public DiagH<T, Device>
      * For eigenvalue problem HX = λX or generalized eigenvalue problem HX = λSX,
      * this function computes the product of the Hamiltonian matrix H and a blockvector X.
      *
-     * @param[out] HX  Pointer to output blockvector of type `T*`.
-     * @param[in]  X  Pointer to input blockvector of type `T*`.
+     * @param[out] X  Pointer to input blockvector of type `T*`.
+     * @param[in]  HX  Pointer to output blockvector of type `T*`.
      * @param[in]  neig  Number of eigebpairs required.
      * @param[in]  dim  Dimension of matrix.
      * @param[in]  id_start  Start index of blockvector.
@@ -197,8 +196,8 @@ class DiagoDavid : public DiagH<T, Device>
 
     using hpsi_info = typename hamilt::Operator<T, Device>::hpsi_info;
 
-    const_nums<T> cs;
-    const T* one = nullptr, * zero = nullptr, * neg_one = nullptr;
+    const T *one = nullptr, *zero = nullptr, *neg_one = nullptr;
+    const T one_ = static_cast<T>(1.0), zero_ = static_cast<T>(0.0), neg_one_ = static_cast<T>(-1.0);
 };
 } // namespace hsolver
 

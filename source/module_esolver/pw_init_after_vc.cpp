@@ -90,10 +90,7 @@ void ESolver_KS_PW<T, Device>::init_after_vc(const Input_para& inp, UnitCell& uc
         this->pw_wfc->collect_local_pw(inp.erf_ecut,
                                        inp.erf_height,
                                        inp.erf_sigma);
-
-        delete this->phsol;
         this->init_psi = false;
-        this->allocate_hsolver();
 
         delete this->pelec;
         this->pelec
@@ -106,7 +103,7 @@ void ESolver_KS_PW<T, Device>::init_after_vc(const Input_para& inp, UnitCell& uc
                                                     this->pw_rho,
                                                     this->pw_big);
 
-        this->pelec->charge->allocate(GlobalV::NSPIN);
+        this->pelec->charge->allocate(PARAM.inp.nspin);
 
         //! setup cell volume
         this->pelec->omega = ucell.omega;
@@ -147,7 +144,7 @@ void ESolver_KS_PW<T, Device>::init_after_vc(const Input_para& inp, UnitCell& uc
     }
 
 #ifdef USE_PAW
-    if (GlobalV::use_paw) {
+    if (PARAM.inp.use_paw) {
         GlobalC::paw_cell.set_libpaw_ecut(PARAM.inp.ecutwfc / 2.0,
                                           PARAM.inp.ecutwfc / 2.0); // in Hartree
         GlobalC::paw_cell.set_libpaw_fft(this->pw_wfc->nx,

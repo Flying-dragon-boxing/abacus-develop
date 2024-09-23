@@ -134,13 +134,14 @@ TEST_F(TNLTest, testTVNLcd2cd)
     kvec_d_in[1] = ModuleBase::Vector3<double>(0.1, 0.2, 0.3);
     hamilt::HS_Matrix_K<std::complex<double>> hsk(paraV, 1);
     hsk.set_zero_hk();
-    Grid_Driver gd(0, 0, 0);
+    Grid_Driver gd(0, 0);
     std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
     hamilt::Operator<std::complex<double>>* op
         = new hamilt::EkineticNew<hamilt::OperatorLCAO<std::complex<double>, std::complex<double>>>(&hsk,
                                                                                                     kvec_d_in,
                                                                                                     HR,
                                                                                                     &ucell,
+                                                                                                    {1.0},
                                                                                                     &gd,
                                                                                                     &intor_);
     hamilt::Operator<std::complex<double>>* op1
@@ -148,6 +149,7 @@ TEST_F(TNLTest, testTVNLcd2cd)
                                                                                                     kvec_d_in,
                                                                                                     HR,
                                                                                                     &ucell,
+                                                                                                    {1.0},
                                                                                                     &gd,
                                                                                                     &intor_);
     // merge two Operators to a chain

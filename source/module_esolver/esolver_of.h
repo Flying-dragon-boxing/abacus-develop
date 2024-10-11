@@ -5,7 +5,6 @@
 #include "module_base/opt_DCsrch.h"
 #include "module_base/opt_TN.hpp"
 #include "module_elecstate/module_charge/charge.h"
-#include "module_elecstate/module_charge/charge_extra.h" // liuyu add 2022-11-07
 #include "module_hamilt_pw/hamilt_ofdft/kedf_lkt.h"
 #include "module_hamilt_pw/hamilt_ofdft/kedf_tf.h"
 #include "module_hamilt_pw/hamilt_ofdft/kedf_vw.h"
@@ -20,13 +19,13 @@ class ESolver_OF : public ESolver_FP
     ESolver_OF();
     ~ESolver_OF();
 
-    virtual void init(Input& inp, UnitCell& ucell) override;
+    virtual void before_all_runners(const Input_para& inp, UnitCell& ucell) override;
 
-    virtual void init_after_vc(Input& inp, UnitCell& ucell) override;
+    virtual void init_after_vc(const Input_para& inp, UnitCell& ucell) override;
 
-    virtual void run(int istep, UnitCell& ucell) override;
+    virtual void runner(const int istep, UnitCell& ucell) override;
 
-    virtual void post_process() override;
+    virtual void after_all_runners() override;
 
     virtual double cal_energy() override;
 
@@ -34,7 +33,7 @@ class ESolver_OF : public ESolver_FP
 
     virtual void cal_stress(ModuleBase::matrix& stress) override;
 
-    virtual int getniter() override
+    virtual int get_niter() override
     {
         return this->iter_;
     }
@@ -46,9 +45,6 @@ class ESolver_OF : public ESolver_FP
     KEDF_vW* vw_ = nullptr;
     KEDF_WT* wt_ = nullptr;
     KEDF_LKT* lkt_ = nullptr;
-
-    // charge extrapolation liuyu add 2022-11-07
-    Charge_Extra CE_;
 
     // ----------------- the optimization methods ------------------
     ModuleBase::Opt_CG* opt_cg_ = nullptr;
@@ -77,7 +73,6 @@ class ESolver_OF : public ESolver_FP
     double** pdLdphi_ = nullptr;                  // dL/dphi
     double** pphi_ = nullptr;                     // pphi[i] = ppsi.get_pointer(i), which will be freed in ~Psi().
     char* task_ = nullptr;                        // used in line search
-    double* mu_ = nullptr;                        // chemical potential
     int tn_spin_flag_ = -1;                       // spin flag used in cal_potential, which will be called by opt_tn
     int max_dcsrch_ = 200;                        // max no. of line search
     int flag_ = -1;                               // flag of TN
@@ -85,7 +80,6 @@ class ESolver_OF : public ESolver_FP
     psi::Psi<double>* psi_ = nullptr;             // sqrt(rho)
 
     // ----------------- used for convergence check -------------------
-    bool conv_ = false;
     double energy_llast_ = 0;
     double energy_last_ = 0;
     double energy_current_ = 0;
@@ -128,9 +122,10 @@ class ESolver_OF : public ESolver_FP
     }
 
     // ---------------------- interfaces to KEDF ------------------------
-    void init_kedf(Input& inp);
+    void init_kedf(const Input_para& inp);
     void kinetic_potential(double** prho, double** pphi, ModuleBase::matrix& rpot);
     double kinetic_energy();
+    void kinetic_energy_density(double** prho, double** pphi, double** rtau);
     void kinetic_stress(ModuleBase::matrix& kinetic_stress);
 
     // ---------------------- interfaces to optimization methods --------

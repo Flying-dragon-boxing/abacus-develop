@@ -9,6 +9,9 @@ list(APPEND objects
     operator_pw/velocity_pw.cpp
     operator_pw/operator_pw.cpp
     operator_pw/op_exx_pw.cpp
+    forces_nl.cpp
+    forces_cc.cpp
+    forces_scc.cpp
     forces.cpp
     forces_us.cpp
     stress_func_cc.cpp
@@ -26,11 +29,15 @@ list(APPEND objects
     VNL_grad_pw.cpp
     wavefunc.cpp
     wf_atomic.cpp
+    wfinit.cpp
     structure_factor.cpp
     structure_factor_k.cpp
     soc.cpp
     global.cpp
     parallel_grid.cpp
+    elecond.cpp
+    fs_nonlocal_tools.cpp
+    radial_proj.cpp
 )
 
 add_library(
@@ -44,6 +51,8 @@ if(ENABLE_COVERAGE)
 endif()
 
 if (BUILD_TESTING)
-    add_subdirectory(test)
-    add_subdirectory(kernels/test)
+    if(ENABLE_MPI)
+        add_subdirectory(test)
+        add_subdirectory(kernels/test)
+    endif()
 endif()

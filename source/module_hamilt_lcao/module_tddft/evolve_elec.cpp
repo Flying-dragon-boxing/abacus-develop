@@ -18,7 +18,6 @@ bool Evolve_elec::td_vext;
 std::vector<int> Evolve_elec::td_vext_dire_case;
 bool Evolve_elec::out_dipole;
 bool Evolve_elec::out_efield;
-bool Evolve_elec::out_current;
 double Evolve_elec::td_print_eij; // the threshold to output Eij elements
 int Evolve_elec::td_edm;          // 0: new edm method   1: old edm method
 
@@ -27,7 +26,7 @@ void Evolve_elec::solve_psi(const int& istep,
                             const int nband,
                             const int nlocal,
                             hamilt::Hamilt<std::complex<double>>* phm,
-                            Local_Orbital_wfc& lowf,
+                            Parallel_Orbitals& para_orb,
                             psi::Psi<std::complex<double>>* psi,
                             psi::Psi<std::complex<double>>* psi_laststep,
                             std::complex<double>** Hk_laststep,
@@ -37,8 +36,8 @@ void Evolve_elec::solve_psi(const int& istep,
                             int propagator,
                             const int& nks)
 {
-    ModuleBase::TITLE("Evolve_elec", "eveolve_psi");
-    ModuleBase::timer::tick("Evolve_elec", "evolve_psi");
+    ModuleBase::TITLE("Evolve_elec", "solve_psi");
+    ModuleBase::timer::tick("Evolve_elec", "solve_psi");
 
     for (int ik = 0; ik < nks; ik++)
     {
@@ -51,7 +50,7 @@ void Evolve_elec::solve_psi(const int& istep,
         {
             evolve_psi(nband,
                        nlocal,
-                       lowf.ParaV,
+                       &(para_orb),
                        phm,
                        psi[0].get_pointer(),
                        psi_laststep[0].get_pointer(),
@@ -65,7 +64,7 @@ void Evolve_elec::solve_psi(const int& istep,
         {
             evolve_psi(nband,
                        nlocal,
-                       lowf.ParaV,
+                       &(para_orb),
                        phm,
                        psi[0].get_pointer(),
                        psi_laststep[0].get_pointer(),
@@ -83,7 +82,7 @@ void Evolve_elec::solve_psi(const int& istep,
         ModuleBase::timer::tick("Efficience", "evolve_k");
     } // end k
 
-    ModuleBase::timer::tick("Evolve_elec", "evolve_psi");
+    ModuleBase::timer::tick("Evolve_elec", "solve_psi");
     return;
 }
 } // namespace module_tddft

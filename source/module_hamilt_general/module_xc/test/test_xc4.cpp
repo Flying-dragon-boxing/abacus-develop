@@ -1,5 +1,7 @@
 #include "../xc_functional.h"
+#include "../xc_functional_libxc.h"
 #include "gtest/gtest.h"
+#include "xctest.h"
 #include "../exx_info.h"
 
 /************************************************
@@ -17,10 +19,9 @@ namespace ModuleBase
 namespace GlobalV
 {
     std::string BASIS_TYPE = "";
-    bool CAL_STRESS = 0;
+    bool CAL_STRESS = false;
     int CAL_FORCE = 0;
     int NSPIN = 1;
-    double XC_TEMPERATURE;
 }
 
 namespace GlobalC
@@ -28,7 +29,7 @@ namespace GlobalC
 	Exx_Info exx_info;
 }
 
-class XCTest_SCAN : public testing::Test
+class XCTest_SCAN : public XCTest
 {
     protected:
         std::vector<double> e_,v1_,v2_,v3_;
@@ -43,7 +44,7 @@ class XCTest_SCAN : public testing::Test
             for(int i=0;i<5;i++)
             {
                 double e,v,v1,v2,v3;
-                XC_Functional::tau_xc(rho[i],grho[i],tau[i],e,v1,v2,v3);
+                XC_Functional_Libxc::tau_xc(XC_Functional::get_func_id(), rho[i],grho[i],tau[i],e,v1,v2,v3);
                 e_.push_back(e);
                 v1_.push_back(v1);
                 v2_.push_back(v2);

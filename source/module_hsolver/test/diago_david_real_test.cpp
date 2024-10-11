@@ -48,8 +48,10 @@ void lapackEigen(int& npw, std::vector<double>& hm, double* e, bool outtime = fa
     double* work2 = new double[lwork];
     dsyev_(&tmp_c1, &tmp_c2, &npw, tmp.data(), &npw, e, work2, &lwork, &info);
     end = clock();
-    if (info) std::cout << "ERROR: Lapack solver, info=" << info << std::endl;
-    if (outtime) std::cout << "Lapack Run time: " << (double)(end - start) / CLOCKS_PER_SEC << " S" << std::endl;
+    if (info) { std::cout << "ERROR: Lapack solver, info=" << info << std::endl;
+}
+    if (outtime) { std::cout << "Lapack Run time: " << (double)(end - start) / CLOCKS_PER_SEC << " S" << std::endl;
+}
     delete[] work2;
 }
 class DiagoDavPrepare
@@ -73,14 +75,25 @@ public:
         //calculate eigenvalues by LAPACK;
         double* e_lapack = new double[npw];
         double* ev;
-        if (mypnum == 0) lapackEigen(npw, DIAGOTEST::hmatrix_d, e_lapack, DETAILINFO);
+        if (mypnum == 0) { lapackEigen(npw, DIAGOTEST::hmatrix_d, e_lapack, DETAILINFO);
+}
 
         //do Diago_David::diag()
         double* en = new double[npw];
         hamilt::Hamilt<double>* phm;
         phm = new hamilt::HamiltPW<double>(nullptr, nullptr, nullptr);
-        hsolver::DiagoDavid<double> dav(precondition);
-        hsolver::DiagoDavid<double>::PW_DIAG_NDIM = order;
+
+#ifdef __MPI 
+        const hsolver::diag_comm_info comm_info = {MPI_COMM_WORLD, mypnum, nprocs};
+#else
+        const hsolver::diag_comm_info comm_info = {mypnum, nprocs};
+#endif
+
+		const int dim = phi.get_current_nbas();
+        const int nband = phi.get_nbands();
+        const int ld_psi = phi.get_nbasis();
+        hsolver::DiagoDavid<double> dav(precondition, nband, dim, order, false, comm_info);
+
         hsolver::DiagoIterAssist<double>::PW_DIAG_NMAX = maxiter;
         hsolver::DiagoIterAssist<double>::PW_DIAG_THR = eps;
         GlobalV::NPROC_IN_POOL = nprocs;
@@ -95,7 +108,20 @@ public:
         start = clock();
 #endif	
 
-        dav.diag(phm, phi, en);
+        
+        auto hpsi_func = [phm](double* psi_in,double* hpsi_out,
+					const int ld_psi, const int nvec)
+                    {
+                        auto psi_iter_wrapper = psi::Psi<double>(psi_in, 1, nvec, ld_psi, nullptr);
+                        psi::Range bands_range(true, 0, 0, nvec-1);
+                        using hpsi_info = typename hamilt::Operator<double>::hpsi_info;
+                        hpsi_info info(&psi_iter_wrapper, bands_range, hpsi_out);
+                        phm->ops->hPsi(info);
+                    };
+        auto spsi_func = [phm](const double* psi_in, double* spsi_out,const int nrow, const int npw,  const int nbands){
+			phm->sPsi(psi_in, spsi_out, nrow, npw, nbands);
+		};
+        dav.diag(hpsi_func,spsi_func, ld_psi, phi.get_pointer(), en, eps, maxiter);
 
 #ifdef __MPI		
         end = MPI_Wtime();
@@ -107,7 +133,8 @@ public:
 
         if (mypnum == 0)
         {
-            if (DETAILINFO) std::cout << "diag Run time: " << use_time << std::endl;
+            if (DETAILINFO) { std::cout << "diag Run time: " << use_time << std::endl;
+}
             for (int i = 0;i < nband;i++)
             {
                 EXPECT_NEAR(en[i], e_lapack[i], CONVTHRESHOLD);
@@ -124,8 +151,9 @@ class DiagoDavTest : public ::testing::TestWithParam<DiagoDavPrepare> {};
 TEST_P(DiagoDavTest, RandomHamilt)
 {
     DiagoDavPrepare ddp = GetParam();
-    if (DETAILINFO && ddp.mypnum == 0) std::cout << "npw=" << ddp.npw << ", nband=" << ddp.nband << ", sparsity="
+    if (DETAILINFO && ddp.mypnum == 0) { std::cout << "npw=" << ddp.npw << ", nband=" << ddp.nband << ", sparsity="
         << ddp.sparsity << ", eps=" << ddp.eps << std::endl;
+}
 
     HPsi<double> hpsi(ddp.nband, ddp.npw, ddp.sparsity);
     DIAGOTEST::hmatrix_d = hpsi.hamilt();
@@ -212,7 +240,8 @@ int main(int argc, char** argv)
 
     testing::InitGoogleTest(&argc, argv);
     ::testing::TestEventListeners& listeners = ::testing::UnitTest::GetInstance()->listeners();
-    if (myrank != 0) delete listeners.Release(listeners.default_result_printer());
+    if (myrank != 0) { delete listeners.Release(listeners.default_result_printer());
+}
 
     int result = RUN_ALL_TESTS();
     if (myrank == 0 && result != 0)

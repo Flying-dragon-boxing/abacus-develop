@@ -6,6 +6,7 @@
 #include "constants.h"
 #include "timer.h"
 #include "tool_quit.h"
+#include "array_pool.h"
 
 namespace ModuleBase
 {
@@ -53,7 +54,7 @@ std::vector<double> Ylm::ylmcoef = {
 // here Lmax == max angular momentum + 1
 void Ylm::get_ylm_real( const int &Lmax, const ModuleBase::Vector3<double> &vec, double ylmr[] )
 {
-	ModuleBase::timer::tick ("Ylm","get_ylm_real");
+	//ModuleBase::timer::tick ("Ylm","get_ylm_real");
 	//1e-9 is too large
 	const double cut0 = 1e-12;
 	// allocate space.
@@ -164,7 +165,7 @@ void Ylm::get_ylm_real( const int &Lmax, const ModuleBase::Vector3<double> &vec,
 		}
 	}// end do
 
-	ModuleBase::timer::tick ("Ylm", "get_ylm_real");
+	//ModuleBase::timer::tick ("Ylm", "get_ylm_real");
 	return;
 }
 
@@ -535,7 +536,7 @@ void Ylm::sph_harm
 	std::vector<double> &rly
 )
 {
-	rly.reserve( (Lmax+1)*(Lmax+1) );
+	rly.resize( (Lmax+1)*(Lmax+1) );
 
 	//begin calculation
 	/***************************
@@ -810,13 +811,10 @@ void Ylm::grad_rl_sph_harm
  	const double& x,
 	const double& y,
 	const double& z,
-	std::vector<double>& rly,
-	std::vector<std::vector<double>>& grly
+	double* rly,
+	double** grly
 )
 {
-	rly.resize( (Lmax+1)*(Lmax+1) );
-	grly.resize( (Lmax+1)*(Lmax+1), std::vector<double>(3) );
-
 	double radius2 = x*x+y*y+z*z;
 	double tx = 2.0*x;
 	double ty = 2.0*y;

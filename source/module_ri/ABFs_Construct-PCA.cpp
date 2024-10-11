@@ -11,7 +11,9 @@
 #include <cassert>
 #include <limits>
 
-namespace ABFs_Construct::PCA
+namespace ABFs_Construct
+{
+namespace PCA
 {
 	void tensor_dsyev(const char jobz, const char uplo, RI::Tensor<double> & a, double*const w, int & info)
 	{
@@ -40,10 +42,13 @@ namespace ABFs_Construct::PCA
 		ModuleBase::TITLE("ABFs_Construct::PCA::get_sub_matrix");		
 		assert(m.shape.size() == 3);
 		RI::Tensor<double> m_sub({ m.shape[0], m.shape[1], range[T][L].N });
-		for (std::size_t ir=0; ir!=m.shape[0]; ++ir)
-			for (std::size_t jr=0; jr!=m.shape[1]; ++jr)
-				for (std::size_t N=0; N!=range[T][L].N; ++N)
+		for (std::size_t ir=0; ir!=m.shape[0]; ++ir) {
+			for (std::size_t jr=0; jr!=m.shape[1]; ++jr) {
+				for (std::size_t N=0; N!=range[T][L].N; ++N) {
 					m_sub(ir, jr, N) = m(ir, jr, index[T][L][N][0]);
+}
+}
+}
 		m_sub = m_sub.reshape({ m.shape[0] * m.shape[1], range[T][L].N });
 		return m_sub;
 	}
@@ -55,16 +60,19 @@ namespace ABFs_Construct::PCA
 		for( std::size_t ic=0; ic!=m.shape[1]; ++ic )
 		{
 			double sum=0;
-			for( std::size_t ir=0; ir!=m.shape[0]; ++ir )
+			for( std::size_t ir=0; ir!=m.shape[0]; ++ir ) {
 				sum += m(ir,ic);
+}
 			const double mean = sum/m.shape[0];
-			for( std::size_t ir=0; ir!=m.shape[0]; ++ir )
+			for( std::size_t ir=0; ir!=m.shape[0]; ++ir ) {
 				m_new(ir,ic) = m(ir,ic) - mean;
+}
 		}
 		return m_new;
 	}
 
 	std::vector<std::vector<std::pair<std::vector<double>, RI::Tensor<double>>>> cal_PCA(
+        const LCAO_Orbitals& orb,
 		const std::vector<std::vector<std::vector<Numerical_Orbital_Lm>>> &lcaos, 
 		const std::vector<std::vector<std::vector<Numerical_Orbital_Lm>>> &abfs,
 		const double kmesh_times )
@@ -83,16 +91,18 @@ namespace ABFs_Construct::PCA
 
 		const int Lmax_bak = GlobalC::exx_info.info_ri.abfs_Lmax;
 		GlobalC::exx_info.info_ri.abfs_Lmax = std::numeric_limits<int>::min();
-		for( std::size_t T=0; T!=abfs.size(); ++T )
+		for( std::size_t T=0; T!=abfs.size(); ++T ) {
 			GlobalC::exx_info.info_ri.abfs_Lmax = std::max( GlobalC::exx_info.info_ri.abfs_Lmax, static_cast<int>(abfs[T].size())-1 );
+}
 
 		Matrix_Orbs21 m_abfslcaos_lcaos;
-		m_abfslcaos_lcaos.init( 1, kmesh_times, 1 );
+		m_abfslcaos_lcaos.init( 1, orb, kmesh_times, 1 );
 		m_abfslcaos_lcaos.init_radial( abfs, lcaos, lcaos );
 
 		std::map<std::size_t,std::map<std::size_t,std::set<double>>> delta_R;
-		for( std::size_t it=0; it!=abfs.size(); ++it )
+		for( std::size_t it=0; it!=abfs.size(); ++it ) {
 			delta_R[it][it] = {0.0};
+}
 		m_abfslcaos_lcaos.init_radial_table(delta_R);
 
 		GlobalC::exx_info.info_ri.abfs_Lmax = Lmax_bak;
@@ -130,10 +140,11 @@ namespace ABFs_Construct::PCA
 						{
 							for (int ic = 0; ic != m.shape[1]; ++ic)
 							{
-								if (std::abs(m(ir, ic)) > threshold)
+								if (std::abs(m(ir, ic)) > threshold) {
 									os << m(ir, ic) << "\t";
-								else
+								} else {
 									os << 0 << "\t";
+}
 							}
 							os << std::endl;
 						}
@@ -151,3 +162,4 @@ namespace ABFs_Construct::PCA
 	}
 
 }	// namespace ABFs_Construct::PCA
+}	// namespace ABFs_Construct

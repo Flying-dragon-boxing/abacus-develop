@@ -4,10 +4,10 @@
 #include "module_base/matrix.h"
 #include "module_basis/module_pw/pw_basis.h"
 #include "module_cell/klist.h"
-#include "module_psi/kernels/types.h"
+//#include "module_psi/kernels/types.h"
 #include "module_psi/psi.h"
 #include "operator_pw.h"
-#include "module_psi/kernels/memory_op.h"
+//#include "module_psi/kernels/memory_op.h"
 #include "module_basis/module_pw/pw_basis_k.h"
 #include "module_base/macros.h"
 
@@ -116,13 +116,13 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     mutable bool update_psi = false;
 
     Device *ctx = {};
-    psi::DEVICE_CPU* cpu_ctx = {};
-    psi::AbacusDevice_t device = {};
+    base_device::DEVICE_CPU* cpu_ctx = {};
+    base_device::AbacusDevice_t device = {};
 
-    using setmem_complex_op = psi::memory::set_memory_op<T, Device>;
-    using resmem_complex_op = psi::memory::resize_memory_op<T, Device>;
-    using delmem_complex_op = psi::memory::delete_memory_op<T, Device>;
-    using syncmem_complex_op = psi::memory::synchronize_memory_op<T, Device, Device>;
+    using setmem_complex_op = base_device::memory::set_memory_op<T, Device>;
+    using resmem_complex_op = base_device::memory::resize_memory_op<T, Device>;
+    using delmem_complex_op = base_device::memory::delete_memory_op<T, Device>;
+    using syncmem_complex_op = base_device::memory::synchronize_memory_op<T, Device, Device>;
 
 };
 

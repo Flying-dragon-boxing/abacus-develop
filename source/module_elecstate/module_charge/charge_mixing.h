@@ -48,6 +48,7 @@ class Charge_Mixing
                     const double& mixing_angle_in,
                     const bool& mixing_dmr_in);
 
+    void close_kerker_gg0() { mixing_gg0 = 0.0; mixing_gg0_mag = 0.0; }
     /**
      * @brief initialize mixing, including constructing mixing and allocating memory for mixing data
      * @brief this function should be called at eachiterinit()
@@ -101,7 +102,8 @@ class Charge_Mixing
     Base_Mixing::Mixing* get_mixing() const {return mixing;}
 
     // for mixing restart
-    int mixing_restart = 0; //which step to restart mixing during SCF
+    int mixing_restart_step = 0; //which step to restart mixing during SCF
+    int mixing_restart_count = 0; // the number of restart mixing during SCF. Do not set mixing_restart_count as bool since I want to keep some flexibility in the future
 
   private:
   

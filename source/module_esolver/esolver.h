@@ -3,7 +3,7 @@
 
 #include "module_base/matrix.h"
 #include "module_cell/unitcell.h"
-#include "module_io/input.h"
+#include "module_parameter/parameter.h"
 
 namespace ModuleESolver
 {
@@ -20,12 +20,15 @@ class ESolver
     }
 
     //! initialize the energy solver by using input parameters and cell modules
-    virtual void init(Input& inp, UnitCell& cell) = 0;
+    virtual void before_all_runners(const Input_para& inp, UnitCell& cell) = 0;
 
     //! run energy solver
-    virtual void run(int istep, UnitCell& cell) = 0;
+    virtual void runner(const int istep, UnitCell& cell) = 0;
 
-    //! deal with exx and other calculation than scf/md/relax:
+    //! perform post processing calculations
+    virtual void after_all_runners(){};
+
+    //! deal with exx and other calculation than scf/md/relax/cell-relax:
     //! such as nscf, get_wf and get_pchg
     virtual void others(const int istep){};
 
@@ -38,17 +41,27 @@ class ESolver
     //! calcualte stress of given cell
     virtual void cal_stress(ModuleBase::matrix& stress) = 0;
 
-    //! perform post processing calculations
-    virtual void post_process(){};
 
     // Print current classname.
     void printname();
 
     // temporarily
     // get iterstep used in current scf
-    virtual int getniter()
+    virtual int get_niter()
     {
         return 0;
+    }
+
+    // get maxniter used in current scf
+    virtual int get_maxniter()
+    {
+        return 0;
+    }
+
+    // get conv_elec used in current scf
+    virtual bool get_conv_elec()
+    {
+        return true;
     }
     std::string classname;
 };
@@ -56,11 +69,11 @@ class ESolver
 /**
  * @brief A subrutine called in init_esolver()
  *        This function returns type of ESolver
- *        Based on GlobalV::BASIS_TYPE and GlobalV::ESOLVER_TYPE
+ *        Based on PARAM.inp.basis_type and PARAM.inp.esolver_type
  * 
  * @return [out] std::string The type of ESolver
  */
-std::string determine_type(void);
+std::string determine_type();
 
 /**
  * @brief Determine and initialize an ESolver based on input information.
@@ -69,11 +82,11 @@ std::string determine_type(void);
  * the corresponding ESolver child class. It supports various ESolver types including ksdft_pw,
  * ksdft_lcao, ksdft_lcao_tddft, sdft_pw, ofdft, lj_pot, and dp_pot.
  *
- * @param [in, out] p_esolver A pointer to an ESolver object that will be initialized.
+ * @return [out] A pointer to an ESolver object that will be initialized.
  */
-void init_esolver(ESolver*& p_esolver);
+ESolver* init_esolver(const Input_para& inp, UnitCell& ucell);
 
-void clean_esolver(ESolver*& pesolver);
+void clean_esolver(ESolver*& pesolver, const bool lcao_cblacs_exit = false);
 
 } // namespace ModuleESolver
 

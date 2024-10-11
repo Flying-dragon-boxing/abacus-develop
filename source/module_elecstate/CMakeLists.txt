@@ -7,6 +7,7 @@ list(APPEND objects
     elecstate_print.cpp
     elecstate_pw.cpp
     elecstate_pw_sdft.cpp
+    elecstate_pw_cal_tau.cpp
     potentials/gatefield.cpp
     # potentials/e_exx.cpp
     potentials/efield.cpp
@@ -32,6 +33,7 @@ if(ENABLE_LCAO)
   list(APPEND objects
       elecstate_lcao.cpp
       elecstate_lcao_tddft.cpp
+      elecstate_lcao_cal_tau.cpp
       potentials/H_TDDFT_pw.cpp
       module_dm/density_matrix.cpp
       module_dm/cal_dm_psi.cpp
@@ -49,8 +51,8 @@ if(ENABLE_COVERAGE)
 endif()
 
 if(BUILD_TESTING)
-  add_subdirectory(test)
   if(ENABLE_MPI)
+    add_subdirectory(test)
     add_subdirectory(test_mpi)
   endif()
 endif()

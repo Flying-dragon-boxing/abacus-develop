@@ -1,26 +1,21 @@
 #ifndef ESOLVER_KS_H
 #define ESOLVER_KS_H
-#include <string.h>
-
-#include <fstream>
-
 #include "esolver_fp.h"
 #include "module_basis/module_pw/pw_basis_k.h"
 #include "module_cell/klist.h"
-#include "module_elecstate/module_charge/charge_extra.h"
 #include "module_elecstate/module_charge/charge_mixing.h"
 #include "module_hamilt_general/hamilt.h"
 #include "module_hamilt_pw/hamilt_pwdft/wavefunc.h"
 #include "module_hsolver/hsolver.h"
-#include "module_psi/psi.h"
 #include "module_io/cal_test.h"
-#include "module_io/output_potential.h"
-#include "module_io/output_rho.h"
+#include "module_psi/psi.h"
 
+#include <fstream>
+#include <cstring>
 namespace ModuleESolver
 {
 
-template<typename T, typename Device = psi::DEVICE_CPU>
+template <typename T, typename Device = base_device::DEVICE_CPU>
 class ESolver_KS : public ESolver_FP
 {
 	public:
@@ -31,7 +26,9 @@ class ESolver_KS : public ESolver_FP
         //! Deconstructor
 		virtual ~ESolver_KS();
 
-		double scf_thr;   // scf threshold
+		double scf_thr;   // scf density threshold
+
+		double scf_ene_thr; // scf energy threshold
 
 		double drho;      // the difference between rho_in (before HSolver) and rho_out (After HSolver)
 
@@ -39,15 +36,13 @@ class ESolver_KS : public ESolver_FP
 
 		int niter;        // iter steps actually used in scf
 
-		bool conv_elec;   // If electron density is converged in scf.
+        int out_freq_elec; // frequency for output
 
-		int out_freq_elec;// frequency for output
+        virtual void before_all_runners(const Input_para& inp, UnitCell& cell) override;
 
-		virtual void init(Input& inp, UnitCell& cell) override;
+		virtual void init_after_vc(const Input_para& inp, UnitCell& cell) override;    // liuyu add 2023-03-09
 
-		virtual void init_after_vc(Input& inp, UnitCell& cell) override;    // liuyu add 2023-03-09
-
-		virtual void run(const int istep, UnitCell& cell) override;
+		virtual void runner(const int istep, UnitCell& cell) override;
 
 		// calculate electron density from a specific Hamiltonian
 		virtual void hamilt2density(const int istep, const int iter, const double ethr);
@@ -56,28 +51,28 @@ class ESolver_KS : public ESolver_FP
 		virtual void hamilt2estates(const double ethr){};
 
 		// get current step of Ionic simulation
-		virtual int getniter() override;
+		virtual int get_niter() override;
 
-	protected:
-		//! Something to do before SCF iterations.
-		virtual void before_scf(int istep) {};
+		// get maxniter used in current scf
+		virtual int get_maxniter() override;
+
+      protected:
+        //! Something to do before SCF iterations.
+		virtual void before_scf(const int istep) {};
 
 		//! Something to do before hamilt2density function in each iter loop.
 		virtual void iter_init(const int istep, const int iter) {};
 
 		//! Something to do after hamilt2density function in each iter loop.
-		virtual void iter_finish(const int iter) {};
+        virtual void iter_finish(int& iter);
 
-		//! Something to do after SCF iterations when SCF is converged or comes to the max iter step.
-		virtual void after_scf(const int istep) {};
+        //! Something to do after SCF iterations when SCF is converged or comes to the max iter step.
+        virtual void after_scf(const int istep) override;
 
-		//! <Temporary> It should be replaced by a function in Hamilt Class
+        //! <Temporary> It should be replaced by a function in Hamilt Class
 		virtual void update_pot(const int istep, const int iter) {};
 
-		//! choose strategy when charge density convergence achieved
-		virtual bool do_after_converge(int& iter){return true;}
-
-	protected:
+    protected:
 
 		// Print the headline on the screen:
 		// ITER   ETOT(eV)       EDIFF(eV)      DRHO    TIME(s) 
@@ -95,25 +90,12 @@ class ESolver_KS : public ESolver_FP
 				const double duration, 
 				const double ethr);
 
-
 		// Write the headline in the running_log file
 		// "PW/LCAO" ALGORITHM --------------- ION=   1  ELEC=   1--------------------------------
 		void write_head(
 				std::ofstream& ofs_running, 
 				const int istep, 
 				const int iter);
-
-		/// @brief create a new ModuleIO::Output_Rho object to output charge density
-		ModuleIO::Output_Rho create_Output_Rho(int is, int iter, const std::string& prefix="None");
-
-		/// @brief create a new ModuleIO::Output_Rho object to print kinetic energy density
-		ModuleIO::Output_Rho create_Output_Kin(int is, int iter, const std::string& prefix = "None");
-
-		/// @brief create a new ModuleIO::Output_Potential object to print potential
-		ModuleIO::Output_Potential create_Output_Potential(int iter, const std::string& prefix = "None");
-
-        //! Solve Hamitonian
-		hsolver::HSolver<T, Device>* phsol = nullptr;
 
         //! Hamiltonian
 		hamilt::Hamilt<T, Device>* p_hamilt = nullptr;
@@ -124,17 +106,16 @@ class ESolver_KS : public ESolver_FP
 
 		wavefunc wf;
 
-		Charge_Extra CE;
-
-		// wavefunction coefficients
-		psi::Psi<T>* psi = nullptr;
+        // wavefunction coefficients
+        psi::Psi<T>* psi = nullptr;
 
 	protected:
 
 		std::string basisname; //PW or LCAO
 
-		void print_wfcfft(Input& inp, std::ofstream &ofs);
-};
+        void print_wfcfft(const Input_para& inp, std::ofstream& ofs);
 
+	    double esolver_KS_ne = 0.0;
+};	
 } // end of namespace
 #endif

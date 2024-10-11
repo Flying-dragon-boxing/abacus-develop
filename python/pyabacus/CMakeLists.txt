@@ -11,6 +11,9 @@ find_package(pybind11 CONFIG REQUIRED)
 set(ABACUS_SOURCE_DIR "${PROJECT_SOURCE_DIR}/../../source")
 set(BASE_PATH "${ABACUS_SOURCE_DIR}/module_base")
 set(NAO_PATH "${ABACUS_SOURCE_DIR}/module_basis/module_nao")
+set(HSOLVER_PATH "${ABACUS_SOURCE_DIR}/module_hsolver")
+set(HAMILT_PATH "${ABACUS_SOURCE_DIR}/module_hamilt_general")
+set(PSI_PATH "${ABACUS_SOURCE_DIR}/module_psi")
 set(ENABLE_LCAO ON)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/../../cmake")
 
@@ -19,7 +22,7 @@ if(DEFINED ENV{MKLROOT} AND NOT DEFINED MKLROOT)
     set(MKLROOT "$ENV{MKLROOT}")
 endif()
 if(MKLROOT)
-
+  set(MKL_INTERFACE lp64)
   set(ENABLE_MPI ON)
   if (ENABLE_MPI)
     find_package(MPI REQUIRED)
@@ -33,9 +36,9 @@ if(MKLROOT)
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     add_link_options(${OpenMP_CXX_LIBRARIES})
   endif()
-  find_package(IntelMKL REQUIRED)
+  find_package(MKL REQUIRED)
   add_definitions(-D__MKL)
-  include_directories(${MKL_INCLUDE_DIRS} ${MKL_INCLUDE_DIRS}/fftw)
+  include_directories(${MKL_INCLUDE} ${MKL_INCLUDE}/fftw)
 
 # Since libtorch will find its own MKL, the fftw part conflicts with the original one.
 # When enable deepks, mkl will be linked within ${TORCH_LIBRARIES}.
@@ -69,6 +72,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # add base
 set(BASE_BINARY_DIR "${PROJECT_SOURCE_DIR}/build/base")
 add_subdirectory(${ABACUS_SOURCE_DIR}/module_base ${BASE_BINARY_DIR})
+# add parameter
+set(PARAMETER_BINARY_DIR "${PROJECT_SOURCE_DIR}/build/parameter")
+add_subdirectory(${ABACUS_SOURCE_DIR}/module_parameter ${PARAMETER_BINARY_DIR})
 # add orb
 set(ORB_BINARY_DIR "${PROJECT_SOURCE_DIR}/build/orb")
 add_subdirectory(${ABACUS_SOURCE_DIR}/module_basis/module_ao ${ORB_BINARY_DIR})
@@ -91,15 +97,41 @@ list(APPEND _naos
     ${NAO_PATH}/projgen.cpp
     # dependency
     ${ABACUS_SOURCE_DIR}/module_base/kernels/math_op.cpp
-    ${ABACUS_SOURCE_DIR}/module_psi/kernels/psi_memory_op.cpp
+    # ${ABACUS_SOURCE_DIR}/module_psi/kernels/psi_memory_op.cpp
+    ${ABACUS_SOURCE_DIR}/module_base/module_device/memory_op.cpp
     )
 add_library(naopack SHARED 
     ${_naos}
+    )
+# add diago shared library
+list(APPEND _diago
+    ${HSOLVER_PATH}/diago_dav_subspace.cpp
+    ${HSOLVER_PATH}/diago_david.cpp
+    ${HSOLVER_PATH}/diag_const_nums.cpp
+    ${HSOLVER_PATH}/diago_iter_assist.cpp
+
+    ${HSOLVER_PATH}/kernels/dngvd_op.cpp
+    ${HSOLVER_PATH}/kernels/math_kernel_op.cpp
+    # dependency
+    ${BASE_PATH}/module_device/device.cpp
+    ${BASE_PATH}/module_device/memory_op.cpp
+
+    ${HAMILT_PATH}/operator.cpp
+    ${PSI_PATH}/psi.cpp
+  )
+add_library(diagopack SHARED 
+    ${_diago}
+    )
+target_link_libraries(diagopack
+    PRIVATE
+    ${OpenBLAS_LIBRARIES} 
+    ${LAPACK_LIBRARIES}
     )
 # link math_libs
 if(MKLROOT)
   target_link_libraries(naopack
     base
+    parameter
     container
     orb
     ${math_libs}
@@ -109,6 +141,7 @@ if(MKLROOT)
 else()
   target_link_libraries(naopack
     base
+    parameter
     container
     orb
     ${math_libs}
@@ -119,9 +152,10 @@ list(APPEND _sources
     ${PROJECT_SOURCE_DIR}/src/py_abacus.cpp
     ${PROJECT_SOURCE_DIR}/src/py_base_math.cpp
     ${PROJECT_SOURCE_DIR}/src/py_m_nao.cpp
+    ${PROJECT_SOURCE_DIR}/src/py_hsolver.cpp
     )
 pybind11_add_module(_core MODULE ${_sources})
-target_link_libraries(_core PRIVATE pybind11::headers naopack)
+target_link_libraries(_core PRIVATE pybind11::headers naopack diagopack)
 target_compile_definitions(_core PRIVATE VERSION_INFO=${PROJECT_VERSION})
 # set RPATH
 execute_process(
@@ -135,5 +169,7 @@ set(TARGET_PACK pyabacus)
 set(CMAKE_INSTALL_RPATH "${PYTHON_SITE_PACKAGES}/${TARGET_PACK}")
 set_target_properties(_core PROPERTIES INSTALL_RPATH "$ORIGIN")
 set_target_properties(naopack PROPERTIES INSTALL_RPATH "$ORIGIN")
+set_target_properties(diagopack PROPERTIES INSTALL_RPATH "$ORIGIN")
 install(TARGETS _core naopack DESTINATION ${TARGET_PACK})
+install(TARGETS _core diagopack DESTINATION ${TARGET_PACK})
 

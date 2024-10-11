@@ -1,7 +1,6 @@
 #ifndef H_TDDFT_PW_H
 #define H_TDDFT_PW_H
 
-#include "module_io/input.h"
 #include "module_io/input_conv.h"
 #include "pot_base.h"
 
@@ -54,7 +53,7 @@ class H_TDDFT_pw : public PotBase
     static double lcut2;
 
     //velocity gauge, vector magnetic potential
-    static double At[3];
+    static ModuleBase::Vector3<double> At;
 
     // time domain parameters
 

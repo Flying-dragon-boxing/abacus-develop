@@ -1,12 +1,14 @@
 #ifndef ESOLVER_FP_H
 #define ESOLVER_FP_H
-#include <fstream>
 
 #include "esolver.h"
 #include "module_basis/module_pw/pw_basis.h"
 #include "module_cell/module_symmetry/symmetry.h"
 #include "module_elecstate/elecstate.h"
+#include "module_elecstate/module_charge/charge_extra.h"
 #include "module_hamilt_pw/hamilt_pwdft/structure_factor.h"
+
+#include <fstream>
 
 //! The First-Principles (FP) Energy Solver Class
 /**
@@ -40,9 +42,12 @@ namespace ModuleESolver
         virtual ~ESolver_FP();
 
         //! Initialize of the first-principels energy solver
-        virtual void init(Input& inp, UnitCell& cell) override;
+        virtual void before_all_runners(const Input_para& inp, UnitCell& cell) override;
 
-        virtual void init_after_vc(Input& inp, UnitCell& cell);    // liuyu add 2023-03-09
+        // get conv_elec used in current scf
+        virtual bool get_conv_elec() override;
+
+        virtual void init_after_vc(const Input_para& inp, UnitCell& cell);    // liuyu add 2023-03-09
 
         //! Electronic states
         elecstate::ElecState* pelec = nullptr;
@@ -59,10 +64,19 @@ namespace ModuleESolver
         //! K points in Brillouin zone
         K_Vectors kv;
 
+        bool conv_elec; // If electron density is converged in scf.
+
+      protected:
+        //! Something to do after SCF iterations when SCF is converged or comes to the max iter step.
+        virtual void after_scf(const int istep);
+
+        //! Charge extrapolation
+        Charge_Extra CE;
+
       private:
        
         //! Print charge density using FFT
-        void print_rhofft(Input& inp, std::ofstream &ofs);
+        void print_rhofft(const Input_para& inp, std::ofstream &ofs);
     };
 }
 

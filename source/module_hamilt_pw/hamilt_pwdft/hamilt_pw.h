@@ -4,6 +4,7 @@
 #include "module_base/macros.h"
 #include "module_cell/klist.h"
 #include "module_elecstate/potentials/potential_new.h"
+#include "module_esolver/esolver_ks_pw.h"
 #include "module_hamilt_general/hamilt.h"
 #include "module_hamilt_pw/hamilt_pwdft/VNL_in_pw.h"
 #include "module_hsolver/kernels/math_kernel_op.h"
@@ -36,7 +37,7 @@ class HamiltPW : public Hamilt<T, Device>
     ) const override;
 
 #ifdef __EXX
-    void set_exx_psi(psi::Psi<T, Device>& psi_in);
+    void set_exx_vars(psi::Psi<T, Device>& psi_in, typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper& exx_helper_in);
 #endif
 
 protected:

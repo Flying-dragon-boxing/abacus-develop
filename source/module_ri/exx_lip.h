@@ -46,10 +46,6 @@ public:
     {
         return exx_energy;
     }
-    void set_exx_energy(double exx_energy_in)
-    {
-        exx_energy = exx_energy_in;
-    }
 
     void write_q_pack() const;
 

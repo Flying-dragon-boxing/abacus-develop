@@ -255,20 +255,6 @@ namespace GlobalC
 {
 #ifdef __EXX
     extern Exx_Info exx_info;
-    class Exx_Helper
-    {
-        public:
-        Exx_Helper()
-        {
-            exx_energy = std::vector<double>(1, 1.0);
-        }
-        ModuleBase::matrix *wg;
-        std::vector<double> exx_energy;
-        bool exx_after_converge(int &iter);
-
-        bool first_iter = true;
-    };
-    extern Exx_Helper exx_helper;
 #endif
 extern pseudopot_cell_vnl ppcell;
 } // namespace GlobalC

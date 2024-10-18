@@ -2,7 +2,6 @@
 #include "module_elecstate/potentials/H_Hartree_pw.h"
 #include "module_elecstate/potentials/efield.h"
 #include "module_elecstate/potentials/gatefield.h"
-// #include "module_elecstate/potentials/e_exx.h"
 #include "module_hamilt_lcao/module_deepks/LCAO_deepks.h"
 #include "module_hamilt_lcao/module_dftu/dftu.h"
 #include "module_hamilt_lcao/module_deltaspin/spin_constrain.h"

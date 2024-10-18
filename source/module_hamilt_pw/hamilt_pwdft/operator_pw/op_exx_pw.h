@@ -10,6 +10,7 @@
 //#include "module_psi/kernels/memory_op.h"
 #include "module_basis/module_pw/pw_basis_k.h"
 #include "module_base/macros.h"
+#include "module_esolver/esolver_ks_pw.h"
 
 #include <memory>
 #include <utility>
@@ -28,6 +29,7 @@ class OperatorEXXPW : public OperatorPW<T, Device>
 {
   private:
     using Real = typename GetTypeReal<T>::type;
+    using Exx_Helper = typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper;
   public:
     OperatorEXXPW(const int* isk_in,
                   const ModulePW::PW_Basis_K* wfcpw_in,
@@ -49,13 +51,12 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     void set_psi(const psi::Psi<T, Device> *psi_in) const 
     { 
         this->psi = psi_in;
-        // get_Eexx();
     }
 
-    double get_Eexx() const;
-    double get_exx_div() const { return exx_div; }
-
-    void set_update_psi(bool update_psi_in) const { update_psi = update_psi_in; }
+    void set_exx_helper(Exx_Helper *p_exx_helper_in) const
+    {
+        this->p_exx_helper = p_exx_helper_in;
+    }
 
   private:
     const int *isk = nullptr;
@@ -80,16 +81,7 @@ class OperatorEXXPW : public OperatorPW<T, Device>
 
     // psi memory
     mutable const psi::Psi<T, Device> *psi = nullptr;
-
-    // // real space memory
-    // std::unique_ptr<T[]> psi_nk_real;
-    // std::unique_ptr<T[]> psi_mq_real;
-    // std::unique_ptr<T[]> density_real;
-    // // density recip space memory
-    // std::unique_ptr<T[]> density_recip;
-    // // h_psi recip space memory
-    // std::unique_ptr<T[]> h_psi_recip;
-
+    mutable Exx_Helper *p_exx_helper = nullptr;
     // real space memory
     T *psi_nk_real = nullptr;
     T *psi_mq_real = nullptr;
@@ -99,21 +91,14 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     T *density_recip = nullptr;
     // h_psi recip space memory
     T *h_psi_recip = nullptr;
-    T* psi_all_real = nullptr;
+    T *pot = nullptr;
 
     mutable std::map<int, std::vector<int>> q_points;
-    // has real calced
-    mutable std::map<std::pair<int, int>, bool> has_real;
-
-    // Energy
-    mutable double Eexx = 0.0;
-
-    mutable bool first_called = true;
 
     // occupational number
     ModuleBase::matrix wg;
 
-    mutable bool update_psi = false;
+//    mutable bool update_psi = false;
 
     Device *ctx = {};
     base_device::DEVICE_CPU* cpu_ctx = {};

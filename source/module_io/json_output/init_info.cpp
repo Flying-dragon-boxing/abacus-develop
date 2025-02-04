@@ -1,5 +1,6 @@
 #include "init_info.h"
 
+#include "module_parameter/parameter.h"
 #include "../para_json.h"
 #include "abacusjson.h"
 
@@ -21,10 +22,10 @@ void gen_init(UnitCell* ucell)
 
     int numAtoms = ucell->nat;
     AbacusJson::add_json({"init", "natom"}, numAtoms, false);
-    AbacusJson::add_json({"init", "nband"}, GlobalV::NBANDS, false);
+    AbacusJson::add_json({"init", "nband"}, PARAM.inp.nbands, false);
 
     // Json::AbacusJson::add_Json(numAtoms,false,"init", "natom");
-    // Json::AbacusJson::add_Json(GlobalV::NBANDS,false,"init", "nband");
+    // Json::AbacusJson::add_Json(PARAM.inp.nbands,false,"init", "nband");
 
     int ntype = ucell->ntype, nelec_total = 0;
     for (int it = 0; it < ntype; it++)
@@ -62,10 +63,10 @@ void gen_stru(UnitCell* ucell)
     int ntype = ucell->ntype;
 
     // array of pseudopotential file
-    std::string* pseudo_fn = ucell->pseudo_fn;
+    std::string* pseudo_fn = ucell->pseudo_fn.data();
 
     // array of orbital file
-    std::string* orbital_fn = ucell->orbital_fn;
+    std::string* orbital_fn = ucell->orbital_fn.data();
 
     // add atom element,orbital file and pseudopotential file
     for (int i = 0; i < ntype; i++)
@@ -98,10 +99,10 @@ void gen_stru(UnitCell* ucell)
 
     // atom coordinate, mag and label
     double lat0 = ucell->lat0;
-    std::string* label = ucell->atom_label;
+    std::string* label = ucell->atom_label.data();
     for (int i = 0; i < ntype; i++)
     {
-        ModuleBase::Vector3<double>* tau = ucell->atoms[i].tau;
+        ModuleBase::Vector3<double>* tau = ucell->atoms[i].tau.data();
         int na = ucell->atoms[i].na;
         for (int j = 0; j < na; j++)
         {

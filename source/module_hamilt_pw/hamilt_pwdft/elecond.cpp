@@ -97,7 +97,7 @@ void EleCond::KG(const int& smear_type, const double& fwhmin, const double& wcut
 void EleCond::jjresponse_ks(const int ik, const int nt, const double dt, const double decut, ModuleBase::matrix& wg,
                             hamilt::Velocity& velop, double* ct11, double* ct12, double* ct22)
 {
-    const int nbands = GlobalV::NBANDS;
+    const int nbands = PARAM.inp.nbands;
     if (wg(ik, 0) - wg(ik, nbands - 1) < 1e-8 || nbands == 0) {
         return;
 }
@@ -137,7 +137,7 @@ void EleCond::jjresponse_ks(const int ik, const int nt, const double dt, const d
     if (GlobalV::RANK_IN_POOL == 0)
     {
         int nkstot = this->p_kv->get_nkstot();
-        int ikglobal = K_Vectors::get_ik_global(ik, nkstot);
+        int ikglobal = p_kv->ik2iktot[ik];
         std::stringstream ss;
         ss << PARAM.globalv.global_out_dir << "vmatrix" << ikglobal + 1 << ".dat";
         Binstream binpij(ss.str(), "w");

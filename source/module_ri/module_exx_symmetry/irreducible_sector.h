@@ -67,9 +67,10 @@ namespace ModuleSymmetry
         TCdouble get_return_lattice(const Symmetry& symm,
             const ModuleBase::Matrix3& gmatd, const TCdouble gtransd,
             const TCdouble& posd_a1, const TCdouble& posd_a2)const;
-        void get_return_lattice_all(const Symmetry& symm, const Atom* atoms, const Statistics& st);
 
     protected:
+        void cal_return_lattice_all(const Symmetry& symm, const Atom* atoms, const Statistics& st);
+
         //--------------------------------------------------------------------------------
         /// The sub functions to find irreducible sector: {abR}
 
@@ -126,8 +127,6 @@ namespace ModuleSymmetry
 
         /// symmetry info for BvK supercell
         std::vector<int> isymbvk_to_isym_;
-        std::vector<ModuleBase::Matrix3> bvk_gmatrix_;
-        std::vector<ModuleBase::Vector3<double>> bvk_gtrans_;
         int bvk_nsym_;
 
         friend class Symmetry_rotation;

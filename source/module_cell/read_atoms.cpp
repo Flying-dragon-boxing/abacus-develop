@@ -1,5 +1,6 @@
 #include "unitcell.h"
 #include "module_parameter/parameter.h"
+#include "read_stru.h"
 #ifdef __LCAO
 #include "../module_basis/module_ao/ORB_read.h" // to use 'ORB' -- mohan 2021-01-30
 #endif
@@ -10,371 +11,6 @@
 #include <cstring>        // Peize Lin fix bug about strcmp 2016-08-02
 #include <cassert>
 #include <regex>
-int UnitCell::read_atom_species(std::ifstream &ifa, std::ofstream &ofs_running)
-{
-    ModuleBase::TITLE("UnitCell","read_atom_species");
-
-    int error = 0;//0 for correct, >0 for warning and quit
-
-    delete[] atom_label;
-    delete[] atom_mass;
-    delete[] pseudo_fn;
-    delete[] pseudo_type;
-    delete[] orbital_fn;
-    this->atom_mass  = new double[ntype]; //atom masses
-    this->atom_label = new std::string[ntype]; //atom labels
-    this->pseudo_fn  = new std::string[ntype]; //file name of pseudopotential
-    this->pseudo_type = new std::string[ntype]; // type of pseudopotential
-    this->orbital_fn = new std::string[ntype]; // filename of orbitals
-
-    std::string word;
-    //==========================================
-    // read in information of each type of atom
-    //==========================================
-    if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "ATOMIC_SPECIES") )
-    {    
-        ifa.ignore(300, '\n');
-        ModuleBase::GlobalFunc::OUT(ofs_running,"ntype",ntype);
-        for (int i = 0;i < ntype;i++)
-        {
-            std::string one_line, one_string;
-            std::getline(ifa, one_line);
-            std::stringstream ss;
-            ss << one_line;
-            ss >> atom_label[i] >> atom_mass[i];
-            pseudo_fn[i] = "auto";
-            pseudo_type[i] = "auto";
-
-            if(!PARAM.inp.use_paw)
-            {
-                bool end = false;
-                if (ss >> one_string)
-                {
-                    if (one_string[0] != '#')
-                    {
-                        pseudo_fn[i] = one_string;
-                    }
-                    else
-                    {
-                        end = true;
-                    }
-                }
-
-                if (!end && ss >> one_string && one_string[0] != '#')
-                {
-                    if (one_string == "auto" || one_string == "upf" || one_string == "vwr" || one_string == "upf201" || one_string == "blps")
-                    {
-                        pseudo_type[i] = one_string;
-                    }
-                    else if (one_string == "1/r")
-                    {
-                        atoms[i].coulomb_potential = true;
-                    }
-                    else
-                    {
-                        GlobalV::ofs_warning << "unrecongnized pseudopotential type: " << one_string << ", check your STRU file." << std::endl;
-                        ModuleBase::WARNING_QUIT("read_atom_species", "unrecongnized pseudo type.");
-                    }
-                }
-
-                if(PARAM.inp.test_pseudo_cell==2) 
-                {
-                    ofs_running << "\n" << std::setw(6) << atom_label[i] 
-                            << std::setw(12) << atom_mass[i] 
-                            << std::setw(18) << pseudo_fn[i]
-                            << std::setw(18) << pseudo_type[i];
-                }
-
-                // Peize Lin test for bsse 2021.04.07
-                const std::string bsse_label = "empty";
-                this->atoms[i].flag_empty_element = 
-                    (search( atom_label[i].begin(), atom_label[i].end(), bsse_label.begin(), bsse_label.end() ) != atom_label[i].end())
-                    ? true : false;
-            }
-        }
-    }
-
-    if(
-        (PARAM.inp.basis_type == "lcao")
-      ||(PARAM.inp.basis_type == "lcao_in_pw")
-      ||(
-          (PARAM.inp.basis_type == "pw")
-        &&(PARAM.inp.psi_initializer)
-        &&(PARAM.inp.init_wfc.substr(0, 3) == "nao")
-        )
-    )
-    {
-        if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "NUMERICAL_ORBITAL") )
-        {
-            for(int i=0; i<ntype; i++)
-            {
-                ifa >> orbital_fn[i];
-            }
-        }    
-        // caoyu add 2021-03-16
-        if(PARAM.globalv.deepks_setorb)
-        {
-            if (ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "NUMERICAL_DESCRIPTOR")) {
-                ifa >> descriptor_file;
-            }
-        }
-        else{
-            descriptor_file = PARAM.inp.orbital_dir + orbital_fn[0];
-        }
-    }
-#ifdef __LCAO
-    // Peize Lin add 2016-09-23
-#ifdef __MPI 
-#ifdef __EXX
-    if( GlobalC::exx_info.info_global.cal_exx || PARAM.inp.rpa )
-    {
-        if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "ABFS_ORBITAL") )
-        {
-            for(int i=0; i<ntype; i++)
-            {
-                std::string ofile;
-                ifa >> ofile;
-                GlobalC::exx_info.info_ri.files_abfs.push_back(ofile);
-            }
-        }
-    }
-
-#endif // __EXX
-#endif // __MPI
-#endif // __LCAO
-    //==========================
-    // read in lattice constant
-    //==========================
-    if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_CONSTANT") )
-    {
-        ModuleBase::GlobalFunc::READ_VALUE(ifa, lat0);
-        if(lat0<=0.0)
-        {
-            ModuleBase::WARNING_QUIT("read_atom_species","lat0<=0.0");
-        }
-        lat0_angstrom = lat0 * 0.529177 ;
-        ModuleBase::GlobalFunc::OUT(ofs_running,"lattice constant (Bohr)",lat0);
-        ModuleBase::GlobalFunc::OUT(ofs_running,"lattice constant (Angstrom)",lat0_angstrom);
-        this->tpiba  = ModuleBase::TWO_PI / lat0;
-        this->tpiba2 = tpiba * tpiba;
-    }
-
-    //===========================
-    // Read in latticies vector
-    //===========================
-    if(latName=="none"){
-        if (ModuleBase::GlobalFunc::SCAN_BEGIN(ifa,
-                                               "LATTICE_PARAMETERS",
-                                               true,
-                                               false)) {
-            ModuleBase::WARNING_QUIT("UnitCell::read_atom_species","do not use LATTICE_PARAMETERS without explicit specification of lattice type");
-        }
-        if( !ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_VECTORS") )
-        {
-            ModuleBase::WARNING_QUIT("UnitCell::read_atom_species","Please set LATTICE_VECTORS in STRU file");
-        }
-        else if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_VECTORS") )
-        {
-            // Reading lattice vectors. notice
-            // here that only one cpu read these
-            // parameters.
-            ifa >> latvec.e11 >> latvec.e12;
-            ModuleBase::GlobalFunc::READ_VALUE(ifa, latvec.e13);
-            ifa >> latvec.e21 >> latvec.e22;
-            ModuleBase::GlobalFunc::READ_VALUE(ifa, latvec.e23);
-            ifa >> latvec.e31 >> latvec.e32;
-            ModuleBase::GlobalFunc::READ_VALUE(ifa, latvec.e33);
-        }
-    }//supply lattice vectors
-    else{
-        if (ModuleBase::GlobalFunc::SCAN_BEGIN(ifa,
-                                               "LATTICE_VECTORS",
-                                               true,
-                                               false)) {
-            ModuleBase::WARNING_QUIT("UnitCell::read_atom_species","do not use LATTICE_VECTORS along with explicit specification of lattice type");
-        }
-        if(latName=="sc"){//simple-cubic, ibrav = 1
-            latvec.e11 = 1.0; latvec.e12 = 0.0; latvec.e13 = 0.0;
-            latvec.e21 = 0.0; latvec.e22 = 1.0;    latvec.e23 = 0.0;
-            latvec.e31 = 0.0; latvec.e32 = 0.0;    latvec.e33 = 1.0;
-        }
-        else if(latName=="fcc"){//face-centered cubic, ibrav = 2
-            latvec.e11 =-0.5; latvec.e12 = 0.0; latvec.e13 = 0.5;
-            latvec.e21 = 0.0; latvec.e22 = 0.5;    latvec.e23 = 0.5;
-            latvec.e31 =-0.5; latvec.e32 = 0.5;    latvec.e33 = 0.0;
-        }
-        else if(latName=="bcc"){//body-centered cubic, ibrav = 3
-            latvec.e11 = 0.5; latvec.e12 = 0.5; latvec.e13 = 0.5;
-            latvec.e21 =-0.5; latvec.e22 = 0.5;    latvec.e23 = 0.5;
-            latvec.e31 =-0.5; latvec.e32 =-0.5;    latvec.e33 = 0.5;
-        }
-        else if(latName=="hexagonal"){//hexagonal, ibrav = 4
-            double e22 = sqrt(3.0) / 2.0;
-            latvec.e11 = 1.0; latvec.e12 = 0.0; latvec.e13 = 0.0;
-            latvec.e21 =-0.5; latvec.e22 = e22; latvec.e23 = 0.0;
-            latvec.e31 = 0.0; latvec.e32 = 0.0;    latvec.e33 = 0.0;
-            if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS") )
-            {
-                ModuleBase::GlobalFunc::READ_VALUE(ifa, latvec.e33);
-            }
-        }
-        else if(latName=="trigonal"){//trigonal, ibrav = 5
-            double t1 = 0.0;
-            double t2 = 0.0;
-            if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS") )
-            {
-                double cosab=0.0;
-                ModuleBase::GlobalFunc::READ_VALUE(ifa, cosab);
-                t1 = sqrt(1.0 + 2.0*cosab);
-                t2 = sqrt(1.0 - cosab);
-            }
-            double e11 = t2 / sqrt(2.0);
-            double e12 = -t2 / sqrt(6.0);
-            double e13 = t1 / sqrt(3.0);
-            double e22 = sqrt(2.0) * t2 / sqrt(3.0);
-        
-            latvec.e11 = e11; latvec.e12 = e12; latvec.e13 = e13;
-            latvec.e21 = 0.0; latvec.e22 = e22;    latvec.e23 = e13;
-            latvec.e31 =-e11; latvec.e32 = e12;    latvec.e33 = e13;
-        }
-        else if(latName=="st"){//simple tetragonal, ibrav= 6
-            latvec.e11 = 1.0; latvec.e12 = 0.0; latvec.e13 = 0.0;
-            latvec.e21 = 0.0; latvec.e22 = 1.0; latvec.e23 = 0.0;
-            latvec.e31 = 0.0; latvec.e32 = 0.0;    latvec.e33 = 0.0;
-            if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS") )
-            {
-                ModuleBase::GlobalFunc::READ_VALUE(ifa, latvec.e33);
-            }
-        }
-        else if(latName=="bct"){//body-centered tetragonal, ibrav = 7
-            double cba = 0.0;
-            if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS") )
-            {
-                ModuleBase::GlobalFunc::READ_VALUE(ifa, cba);
-                cba = cba / 2.0;
-            }
-            latvec.e11 = 0.5; latvec.e12 =-0.5; latvec.e13 = cba;
-            latvec.e21 = 0.5; latvec.e22 = 0.5; latvec.e23 = cba;
-            latvec.e31 =-0.5; latvec.e32 =-0.5;    latvec.e33 = cba;
-        }
-        else if(latName=="so"){//simple orthorhombic, ibrav = 8
-            latvec.e11 = 1.0; latvec.e12 = 0.0; latvec.e13 = 0.0;
-            latvec.e21 = 0.0; latvec.e22 = 0.0;    latvec.e23 = 0.0;
-            latvec.e31 = 0.0; latvec.e32 = 0.0;    latvec.e33 = 0.0;
-            if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS") )
-            {
-                ifa >> latvec.e22;
-                ModuleBase::GlobalFunc::READ_VALUE(ifa, latvec.e33);
-            }
-        }
-        else if(latName=="baco"){//base-centered orthorhombic, ibrav = 9
-            latvec.e11 = 0.5; latvec.e12 = 0.0; latvec.e13 = 0.0;
-            latvec.e21 =-0.5; latvec.e22 = 0.0;    latvec.e23 = 0.0;
-            latvec.e31 = 0.0; latvec.e32 = 0.0;    latvec.e33 = 0.0;
-            if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS") )
-            {
-                ifa >> latvec.e12;
-                latvec.e12 = latvec.e12 / 2.0;
-                latvec.e22 = latvec.e12;
-                ModuleBase::GlobalFunc::READ_VALUE(ifa, latvec.e33);
-            }
-        }
-        else if(latName=="fco"){//face-centered orthorhombic, ibrav = 10
-            double bba = 0.0; double cba = 0.0;
-            if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS") )
-            {
-                ifa >> bba;
-                ModuleBase::GlobalFunc::READ_VALUE(ifa, cba);
-                bba = bba / 2.0; cba = cba / 2.0;
-            }
-            latvec.e11 = 0.5; latvec.e12 = 0.0; latvec.e13 = cba;
-            latvec.e21 = 0.5; latvec.e22 = bba;    latvec.e23 = 0.0;
-            latvec.e31 = 0.0; latvec.e32 = bba;    latvec.e33 = cba;
-        }
-        else if(latName=="bco"){//body-centered orthorhombic, ibrav = 11
-            double bba = 0.0; double cba = 0.0;
-            if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS") )
-            {
-                ifa >> bba;
-                ModuleBase::GlobalFunc::READ_VALUE(ifa, cba);
-                bba = bba / 2.0; cba = cba / 2.0;
-            }
-            latvec.e11 = 0.5; latvec.e12 = bba; latvec.e13 = cba;
-            latvec.e21 =-0.5; latvec.e22 = bba;    latvec.e23 = cba;
-            latvec.e31 =-0.5; latvec.e32 =-bba;    latvec.e33 = cba;
-        }
-        else if(latName=="sm"){//simple monoclinic, ibrav = 12
-            double bba = 0.0; double cba = 0.0;
-            double cosab = 0.0;
-            double e21 = 0.0; double e22 = 0.0;
-            if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS") )
-            {
-                ifa >> bba >> cba;
-                ModuleBase::GlobalFunc::READ_VALUE(ifa, cosab);
-                e21 = bba * cosab;
-                e22 = bba * sqrt(1.0-cosab*cosab);
-            }
-            latvec.e11 = 1.0; latvec.e12 = 0.0; latvec.e13 = 0.0;
-            latvec.e21 = e21; latvec.e22 = e22;    latvec.e23 = 0.0;
-            latvec.e31 = 0.0; latvec.e32 = 0.0;    latvec.e33 = cba;
-        }
-        else if(latName=="bacm"){//base-centered monoclinic, ibrav = 13
-            double bba = 0.0; double cba = 0.0;
-            double cosab = 0.0;
-            double e21 = 0.0; double e22 = 0.0;
-            if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS") )
-            {
-                ifa >> bba >> cba;
-                ModuleBase::GlobalFunc::READ_VALUE(ifa, cosab);
-                e21 = bba * cosab;
-                e22 = bba * sqrt(1.0-cosab*cosab);
-                cba = cba / 2.0;
-            }
-            latvec.e11 = 0.5; latvec.e12 = 0.0; latvec.e13 =-cba;
-            latvec.e21 = e21; latvec.e22 = e22;    latvec.e23 = 0.0;
-            latvec.e31 = 0.5; latvec.e32 = 0.0;    latvec.e33 = cba;
-        }
-        else if(latName=="triclinic"){//triclinic, ibrav = 14
-            double bba = 0.0; double cba = 0.0;
-            double cosab = 0.0; double cosac = 0.0;
-            double cosbc = 0.0; double sinab = 0.0;
-            double term = 0.0;
-            if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS") )
-            {
-                ifa >> bba >> cba >> cosab >> cosac;
-                ModuleBase::GlobalFunc::READ_VALUE(ifa, cosbc);
-                sinab = sqrt(1.0-cosab*cosab);
-            }
-            latvec.e11 = 1.0; latvec.e12 = 0.0; latvec.e13 = 0.0;
-            latvec.e21 = bba * cosab;
-            latvec.e22 = bba * sinab;
-            latvec.e23 = 0.0;
-            latvec.e31 = cba * cosac;
-            latvec.e32 = cba * (cosbc - cosac*cosab) / sinab;
-            term = 1.0 + 2.0 * cosab*cosac*cosbc - cosab*cosab - cosac*cosac - cosbc*cosbc;
-            term = sqrt(term)/sinab;
-            latvec.e33 = cba * term;
-        }
-        else{ 
-            std::cout << "latname is : " << latName << std::endl;
-            ModuleBase::WARNING_QUIT("UnitCell::read_atom_species","latname not supported!");
-        }
-    }
-
-    // lattice vectors in another form.
-    a1.x = latvec.e11;
-    a1.y = latvec.e12;
-    a1.z = latvec.e13;
-
-    a2.x = latvec.e21;
-    a2.y = latvec.e22;
-    a2.z = latvec.e23;
-
-    a3.x = latvec.e31;
-    a3.y = latvec.e32;
-    a3.z = latvec.e33;
-    return 0;
-}
 
 #include "../module_base/mathzone.h"
 // Read atomic positions
@@ -454,7 +90,7 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
             }
             else if(PARAM.inp.basis_type == "pw")
             {
-                if ((PARAM.inp.psi_initializer)&&(PARAM.inp.init_wfc.substr(0, 3) == "nao"))
+                if ((PARAM.inp.init_wfc.substr(0, 3) == "nao") || PARAM.inp.onsite_radius > 0.0)
                 {
                     std::string orbital_file = PARAM.inp.orbital_dir + orbital_fn[it];
                     this->read_orb_file(it, orbital_file, ofs_running, &(atoms[it]));
@@ -468,8 +104,7 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
                     {
                         this->atoms[it].nwl = lmaxmax;
                     }
-                    delete[] this->atoms[it].l_nchi;
-                    this->atoms[it].l_nchi = new int[ this->atoms[it].nwl+1];
+                    this->atoms[it].l_nchi.resize(this->atoms[it].nwl+1, 0);
                     for(int L=0; L<atoms[it].nwl+1; L++)
                     {
                         this->atoms[it].l_nchi[L] = 1;
@@ -504,28 +139,31 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
                 ModuleBase::WARNING("read_atom_positions", " atom number < 0.");
                 return false;
             }
-            if (na > 0)
+            else if (na == 0)
             {
-                delete[] atoms[it].tau;
-                delete[] atoms[it].dis;
-                delete[] atoms[it].taud;
-                delete[] atoms[it].vel;
-                delete[] atoms[it].mbl;
-                delete[] atoms[it].mag;
-                delete[] atoms[it].angle1;
-                delete[] atoms[it].angle2;
-                delete[] atoms[it].m_loc_;
-                   atoms[it].tau = new ModuleBase::Vector3<double>[na];
-                atoms[it].dis = new ModuleBase::Vector3<double>[na];
-                   atoms[it].taud = new ModuleBase::Vector3<double>[na];
-                atoms[it].vel = new ModuleBase::Vector3<double>[na];
-                   atoms[it].mbl = new ModuleBase::Vector3<int>[na];
-                atoms[it].mag = new double[na];
-                atoms[it].angle1 = new double[na];
-                atoms[it].angle2 = new double[na];
-                atoms[it].m_loc_ = new ModuleBase::Vector3<double>[na];
+                std::cout << "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
+                std::cout << " Warning: atom number is 0 for atom type: " << atoms[it].label << std::endl;
+                std::cout << " If you are confident that this is not a mistake, please ignore this warning." << std::endl;
+                std::cout << "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
+                ofs_running << "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
+                ofs_running << " Warning: atom number is 0 for atom type: " << atoms[it].label << std::endl;
+                ofs_running << " If you are confident that this is not a mistake, please ignore this warning." << std::endl;
+                ofs_running << "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
+            }
+            else if (na > 0)
+            {
+                atoms[it].tau.resize(na, ModuleBase::Vector3<double>(0,0,0));
+                atoms[it].dis.resize(na, ModuleBase::Vector3<double>(0,0,0));
+                atoms[it].taud.resize(na, ModuleBase::Vector3<double>(0,0,0));
+                atoms[it].vel.resize(na, ModuleBase::Vector3<double>(0,0,0));
+                atoms[it].mbl.resize(na, ModuleBase::Vector3<int>(0,0,0));
+                atoms[it].mag.resize(na, 0);
+                atoms[it].angle1.resize(na, 0);
+                atoms[it].angle2.resize(na, 0);
+                atoms[it].m_loc_.resize(na, ModuleBase::Vector3<double>(0,0,0));
+                atoms[it].lambda.resize(na, ModuleBase::Vector3<double>(0,0,0));
+                atoms[it].constrain.resize(na, ModuleBase::Vector3<int>(0,0,0));
                 atoms[it].mass = this->atom_mass[it]; //mohan add 2011-11-07 
-                ModuleBase::GlobalFunc::ZEROS(atoms[it].mag,na);
                 for (int ia = 0;ia < na; ia++)
                 {
                  // modify the reading of frozen ions and velocities  -- Yuanbo Li 2021/8/20
@@ -538,6 +176,8 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
                     atoms[it].angle1[ia]=0;
                     atoms[it].angle2[ia]=0;
                     atoms[it].m_loc_[ia].set(0,0,0);
+                    atoms[it].lambda[ia].set(0,0,0);
+                    atoms[it].constrain[ia].set(0,0,0);
 
                     std::string tmpid;
                     tmpid = ifpos.get();
@@ -616,7 +256,52 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
                                 atoms[it].angle2[ia]=atoms[it].angle2[ia]/180 *ModuleBase::PI;
                                 input_angle_mag=true;
                                 set_element_mag_zero = true;
-                        }    
+                        }   
+                        else if ( tmpid == "lambda")
+                        {
+                            double tmplam=0;
+                            ifpos >> tmplam;
+                            tmp=ifpos.get();
+                            while (tmp==' ')
+                            {
+                                tmp=ifpos.get();
+                            }
+                            if((tmp >= 48 && tmp <= 57) or tmp=='-')
+                            {
+                                ifpos.putback(tmp);
+                                ifpos >> atoms[it].lambda[ia].y>>atoms[it].lambda[ia].z;
+                                atoms[it].lambda[ia].x=tmplam;
+                            }
+                            else
+                            {
+                                ifpos.putback(tmp);
+                                atoms[it].lambda[ia].z=tmplam;
+                            }
+                            atoms[it].lambda[ia].x /= ModuleBase::Ry_to_eV;
+                            atoms[it].lambda[ia].y /= ModuleBase::Ry_to_eV;
+                            atoms[it].lambda[ia].z /= ModuleBase::Ry_to_eV;
+                        }
+                        else if ( tmpid == "sc")
+                        {
+                            double tmplam=0;
+                            ifpos >> tmplam;
+                            tmp=ifpos.get();
+                            while (tmp==' ')
+                            {
+                                tmp=ifpos.get();
+                            }
+                            if((tmp >= 48 && tmp <= 57) or tmp=='-')
+                            {
+                                ifpos.putback(tmp);
+                                ifpos >> atoms[it].constrain[ia].y>>atoms[it].constrain[ia].z;
+                                atoms[it].constrain[ia].x=tmplam;
+                            }
+                            else
+                            {
+                                ifpos.putback(tmp);
+                                atoms[it].constrain[ia].z=tmplam;
+                            }
+                        } 
                     }
                     // move to next line
                     while ( (tmpid != "\n") && (ifpos.good()) )
@@ -626,52 +311,51 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
                     std::string mags;
                     //cout<<"mag"<<atoms[it].mag[ia]<<"angle1"<<atoms[it].angle1[ia]<<"angle2"<<atoms[it].angle2[ia]<<'\n';
 
+                    // ----------------------------------------------------------------------------
+                    // recalcualte mag and m_loc_ from read in angle1, angle2 and mag or mx, my, mz
+                    if(input_angle_mag)
+                    {// angle1 or angle2 are given, calculate mx, my, mz from angle1 and angle2 and mag
+                        atoms[it].m_loc_[ia].z = atoms[it].mag[ia] *
+                            cos(atoms[it].angle1[ia]);
+                        if(std::abs(sin(atoms[it].angle1[ia])) > 1e-10 )
+                        {
+                            atoms[it].m_loc_[ia].x = atoms[it].mag[ia] *
+                                sin(atoms[it].angle1[ia]) * cos(atoms[it].angle2[ia]);
+                            atoms[it].m_loc_[ia].y = atoms[it].mag[ia] *
+                                sin(atoms[it].angle1[ia]) * sin(atoms[it].angle2[ia]);
+                        }
+                    }
+                    else if (input_vec_mag)
+                    {// mx, my, mz are given, calculate angle1 and angle2 from mx, my, mz
+                        double mxy=sqrt(pow(atoms[it].m_loc_[ia].x,2)+pow(atoms[it].m_loc_[ia].y,2));
+                        atoms[it].angle1[ia]=atan2(mxy,atoms[it].m_loc_[ia].z);
+                        if(mxy>1e-8)
+                        {
+                            atoms[it].angle2[ia]=atan2(atoms[it].m_loc_[ia].y,atoms[it].m_loc_[ia].x);
+                        }
+                    }
+                    else// only one mag is given, assume it is z
+                    {
+                        atoms[it].m_loc_[ia].x = 0;
+                        atoms[it].m_loc_[ia].y = 0;
+                        atoms[it].m_loc_[ia].z = atoms[it].mag[ia];
+                    }
+
                     if(PARAM.inp.nspin==4)
                     {
-                        if(PARAM.inp.noncolin)
+                        if(!PARAM.inp.noncolin)
                         {
-                            //if magnetization only along z-axis, default settings are DOMAG_Z=true and DOMAG=false
-                            if(input_angle_mag)
-                            {
-                                atoms[it].m_loc_[ia].z = atoms[it].mag[ia] *
-                                    cos(atoms[it].angle1[ia]);
-                                if(sin(atoms[it].angle1[ia]) > 1e-10 )
-                                {
-                                    atoms[it].m_loc_[ia].x = atoms[it].mag[ia] *
-                                        sin(atoms[it].angle1[ia]) * cos(atoms[it].angle2[ia]);
-                                    atoms[it].m_loc_[ia].y = atoms[it].mag[ia] *
-                                        sin(atoms[it].angle1[ia]) * sin(atoms[it].angle2[ia]);
-                                }
-                            }
-                            else if (input_vec_mag)
-                            {
-                                double mxy=sqrt(pow(atoms[it].m_loc_[ia].x,2)+pow(atoms[it].m_loc_[ia].y,2));
-                                atoms[it].angle1[ia]=atan2(mxy,atoms[it].m_loc_[ia].z);
-                                if(mxy>1e-8)
-                                {
-                                    atoms[it].angle2[ia]=atan2(atoms[it].m_loc_[ia].y,atoms[it].m_loc_[ia].x);
-                                }
-                            }
-                            else
-                            {
-                                atoms[it].m_loc_[ia].x = 0;
-                                atoms[it].m_loc_[ia].y = 0;
-                                atoms[it].m_loc_[ia].z = atoms[it].mag[ia];
-                            }
-                        }
-                        else
-                        {
+                            //collinear case with nspin = 4, only z component is used
                             atoms[it].m_loc_[ia].x = 0;
                             atoms[it].m_loc_[ia].y = 0;
-                            atoms[it].m_loc_[ia].z = atoms[it].mag[ia];
                         }
-
                         //print only ia==0 && mag>0 to avoid too much output
                         //print when ia!=0 && mag[ia] != mag[0] to avoid too much output
-                        if(ia==0 || (ia!=0 
-                            && (atoms[it].m_loc_[ia].x != atoms[it].m_loc_[0].x 
-                            || atoms[it].m_loc_[ia].y != atoms[it].m_loc_[0].y 
-                            || atoms[it].m_loc_[ia].z != atoms[it].m_loc_[0].z)))
+                        //  'A || (!A && B)' is equivalent to 'A || B',so the following 
+                        // code is equivalent to 'ia==0 || (...)'
+                        if(ia==0 || (atoms[it].m_loc_[ia].x != atoms[it].m_loc_[0].x 
+                                    || atoms[it].m_loc_[ia].y != atoms[it].m_loc_[0].y 
+                                    || atoms[it].m_loc_[ia].z != atoms[it].m_loc_[0].z))
                         {
                             //use a stringstream to generate string: "concollinear magnetization of element it is:"
                             std::stringstream ss;
@@ -685,11 +369,11 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
                         ModuleBase::GlobalFunc::ZEROS(magnet.ux_ ,3);
                     }
                     else if(PARAM.inp.nspin==2)
-                    {
-                        atoms[it].m_loc_[ia].x = atoms[it].mag[ia];
+                    {// collinear case with nspin = 2, only z component is used
+                        atoms[it].mag[ia] = atoms[it].m_loc_[ia].z;
                         //print only ia==0 && mag>0 to avoid too much output
                         //print when ia!=0 && mag[ia] != mag[0] to avoid too much output
-                        if(ia==0 || (ia!=0 && atoms[it].mag[ia] != atoms[it].mag[0]))
+                        if(ia==0 || (atoms[it].mag[ia] != atoms[it].mag[0]))
                         {
                             //use a stringstream to generate string: "cocollinear magnetization of element it is:"
                             std::stringstream ss;
@@ -701,6 +385,8 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
                             ModuleBase::GlobalFunc::OUT(ofs_running, ss.str(),atoms[it].mag[ia]);
                         }
                     }
+                    // end of calculating initial magnetization of each atom
+                    // ----------------------------------------------------------------------------
             
                     if(Coordinate=="Direct")
                     {
@@ -853,86 +539,28 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
     ofs_running << std::endl;
     ModuleBase::GlobalFunc::OUT(ofs_running,"TOTAL ATOM NUMBER",nat);
 
+    if (nat == 0)
+    {
+        ModuleBase::WARNING("read_atom_positions","no atom in the system!");
+        return false;
+    }
+
     // mohan add 2010-06-30    
     //xiaohui modify 2015-03-15, cancel outputfile "STRU_READIN.xyz"
     //this->print_cell_xyz("STRU_READIN.xyz");
     this->check_dtau();
 
-    if ( this->check_tau() )
+    if (unitcell::check_tau(this->atoms, this->ntype, this->lat0))
     {
-
-    }
-    else
-    {
-        return false;
-    }
-    this->print_tau();
+        this->print_tau();
     //xiaohui modify 2015-03-15, cancel outputfile "STRU_READIN.xyz"
     //this->print_cell_xyz("STRU_READIN_ADJUST.xyz");
+        return true;
+    }
+    return false;
 
-    return true;
 }//end read_atom_positions
 
-bool UnitCell::check_tau() const {
-    ModuleBase::TITLE("UnitCell","check_tau");
-    ModuleBase::timer::tick("UnitCell","check_tau");
-    
-    ModuleBase::Vector3<double> diff = 0.0;
-    double norm = 0.0;
-    double tolerence_bohr = 1.0e-3;
-
-    //GlobalV::ofs_running << "\n Output nearest atom not considering periodic boundary condition" << std::endl;
-    //GlobalV::ofs_running << " " << std::setw(5) << "TYPE" << std::setw(6) << "INDEX" 
-    //<< std::setw(20) << "NEAREST(Bohr)" 
-    //<< std::setw(20) << "NEAREST(Angstrom)" << std::endl; 
-    for(int T1=0; T1< this->ntype; T1++)
-    {
-        for(int I1=0; I1< this->atoms[T1].na; I1++)
-        {    
-            double shortest_norm = 10000.0; // a large number
-            //int nearest_atom_type = 0;
-            //int nearest_atom_index = 0;
-            for(int T2=0; T2<this->ntype; T2++)
-            {
-                for(int I2=0; I2<this->atoms[T2].na; I2++)
-                {
-                    if(T1==T2 && I1==I2)
-                    {
-                        shortest_norm = 0.0;
-                        //nearest_atom_type = T1;
-                        //nearest_atom_index = I2;
-                        // self atom
-                    }
-                    else
-                    {
-                        diff = atoms[T1].tau[I1] - atoms[T2].tau[I2];
-                        norm = diff.norm() * lat0;
-                        if( shortest_norm > norm )
-                        {
-                            shortest_norm = norm;
-                            //nearest_atom_type = T2;
-                            //nearest_atom_index = I2;
-                        }
-                        if( norm < tolerence_bohr ) // unit is Bohr
-                        {    
-                            GlobalV::ofs_warning << " two atoms are too close!" << std::endl;
-                            GlobalV::ofs_warning << " type:" << this->atoms[T1].label << " atom " << I1 + 1 << std::endl; 
-                            GlobalV::ofs_warning << " type:" << this->atoms[T2].label << " atom " << I2 + 1 << std::endl; 
-                            GlobalV::ofs_warning << " distance = " << norm << " Bohr" << std::endl;
-                            return false;
-                        }
-                    }
-                }
-            }
-            //GlobalV::ofs_running << " " << std::setw(5) << atoms[T1].label << std::setw(6) << I1+1 
-            //<< std::setw(20) << shortest_norm  
-            //<< std::setw(20) << shortest_norm * ModuleBase::BOHR_TO_A << std::endl;
-        }
-    }
-
-    ModuleBase::timer::tick("UnitCell","check_tau");
-    return true;
-}
 
 void UnitCell::print_stru_file(const std::string& fn, 
                                const int& nspin,
@@ -1125,84 +753,63 @@ void UnitCell::check_dtau() {
 
 void UnitCell::read_orb_file(int it, std::string &orb_file, std::ofstream &ofs_running, Atom* atom)
 {
+    // the maximum L is 9 like cc-pV9Z, according to the basissetexchange https://www.basissetexchange.org/
+    // there is no orbitals with L>9 presently
+    const std::string spectrum = "SPDFGHIKLM";
     std::ifstream ifs(orb_file.c_str(), std::ios::in);  // pengfei 2014-10-13
     // mohan add return 2021-04-26
     if (!ifs)
     {
         std::cout << " Element index " << it+1 << std::endl;
         std::cout << " orbital file: " << orb_file << std::endl;
-        ModuleBase::WARNING_QUIT("read_orb_file","ABACUS Cannot find the ORBITAL file (basis sets)");
+        ModuleBase::WARNING_QUIT("UnitCell::read_orb_file", "ABACUS Cannot find the ORBITAL file (basis sets)");
     }
-    char word[80];
+    std::string word;
     atom->nw = 0;
-    int L =0;
     while (ifs.good())
     {
         ifs >> word;
-        if (strcmp("Element", word) == 0)         // pengfei Li 16-2-29
+        if (word == "Element")         // pengfei Li 16-2-29
         {
             ModuleBase::GlobalFunc::READ_VALUE(ifs, atom->label_orb);
         }
-        if (strcmp("Lmax", word) == 0)
+        if (word == "Lmax")
         {
             ModuleBase::GlobalFunc::READ_VALUE(ifs, atom->nwl);
-            delete[] atom->l_nchi;
-            atom->l_nchi = new int[ atom->nwl+1];
+            atom->l_nchi.resize(atom->nwl+1, 0);
         }
-        assert(atom->nwl<10);
-        if (strcmp("Cutoff(a.u.)", word) == 0)         // pengfei Li 16-2-29
+        // assert(atom->nwl<10); // cannot understand why restrict the maximum value of atom->nwl
+        if (word == "Cutoff(a.u.)")         // pengfei Li 16-2-29
         {
             ModuleBase::GlobalFunc::READ_VALUE(ifs, atom->Rcut);
         }
-        if (strcmp("Sorbital-->", word) == 0)
+        if (FmtCore::endswith(word, "orbital-->"))
         {
-            ModuleBase::GlobalFunc::READ_VALUE(ifs, atom->l_nchi[L]);
-            atom->nw += (2*L + 1) * atom->l_nchi[L];
-            std::stringstream ss;
-            ss << "L=" << L << ", number of zeta";
-            ModuleBase::GlobalFunc::OUT(ofs_running,ss.str(),atom->l_nchi[L]);
-            L++;
-        }
-        if (strcmp("Porbital-->", word) == 0)
-        {
-            ModuleBase::GlobalFunc::READ_VALUE(ifs, atom->l_nchi[L]);
-            atom->nw += (2*L + 1) * atom->l_nchi[L];
-            std::stringstream ss;
-            ss << "L=" << L << ", number of zeta";
-            ModuleBase::GlobalFunc::OUT(ofs_running,ss.str(),atom->l_nchi[L]);
-            L++;
-        }
-        if (strcmp("Dorbital-->", word) == 0)
-        {
-            ModuleBase::GlobalFunc::READ_VALUE(ifs, atom->l_nchi[L]);
-            atom->nw += (2*L + 1) * atom->l_nchi[L];
-            std::stringstream ss;
-            ss << "L=" << L << ", number of zeta";
-            ModuleBase::GlobalFunc::OUT(ofs_running,ss.str(),atom->l_nchi[L]);
-            L++;
-        }
-        if (strcmp("Forbital-->", word) == 0)
-        {
-            ModuleBase::GlobalFunc::READ_VALUE(ifs, atom->l_nchi[L]);
-            atom->nw += (2*L + 1) * atom->l_nchi[L];
-            std::stringstream ss;
-            ss << "L=" << L << ", number of zeta";
-            ModuleBase::GlobalFunc::OUT(ofs_running,ss.str(),atom->l_nchi[L]);
-            L++;
-        }
-        if (strcmp("Gorbital-->", word) == 0)
-        {
-            ModuleBase::GlobalFunc::READ_VALUE(ifs, atom->l_nchi[L]);
-            atom->nw += (2*L + 1) * atom->l_nchi[L];
-            std::stringstream ss;
-            ss << "L=" << L << ", number of zeta";
-            ModuleBase::GlobalFunc::OUT(ofs_running,ss.str(),atom->l_nchi[L]);
-            L++;
+            bool valid = false;
+            for (int i = 0; i < spectrum.size(); i++)
+            {
+                if (word == spectrum.substr(i, 1) + "orbital-->")
+                {
+                    ModuleBase::GlobalFunc::READ_VALUE(ifs, atom->l_nchi[i]);
+                    atom->nw += (2*i + 1) * atom->l_nchi[i];
+                    std::stringstream ss;
+                    ss << "L=" << i << ", number of zeta";
+                    ModuleBase::GlobalFunc::OUT(ofs_running,ss.str(),atom->l_nchi[i]);
+                    valid = true;
+                    break;
+                }
+            }
+            if (!valid)
+            {
+                ModuleBase::WARNING_QUIT("UnitCell::read_orb_file", 
+                                         "ABACUS does not support numerical atomic orbital with L > 9, "
+                                         "or an invalid orbital label is found in the ORBITAL file.");
+            }
         }
     }
     ifs.close();
     if(!atom->nw)
     {
-        ModuleBase::WARNING_QUIT("read_orb_file","get nw = 0");
+        ModuleBase::WARNING_QUIT("UnitCell::read_orb_file","get nw = 0");
     }
 }

@@ -1,13 +1,13 @@
 #include "elecstate.h"
-#include "elecstate_getters.h"
-#include "module_parameter/parameter.h"
 #include "module_base/formatter.h"
 #include "module_base/global_variable.h"
+#include "module_base/parallel_common.h"
 #include "module_elecstate/potentials/H_Hartree_pw.h"
 #include "module_elecstate/potentials/efield.h"
 #include "module_elecstate/potentials/gatefield.h"
 #include "module_hamilt_general/module_xc/xc_functional.h"
 #include "module_hamilt_lcao/module_deepks/LCAO_deepks.h"
+#include "module_parameter/parameter.h"
 #include "occupy.h"
 namespace elecstate
 {
@@ -152,7 +152,9 @@ void print_scf_iterinfo(const std::string& ks_solver,
 void ElecState::print_eigenvalue(std::ofstream& ofs)
 {
     bool wrong = false;
-    for (int ik = 0; ik < this->klist->get_nks(); ++ik)
+    const int nks = this->klist->get_nks();
+    const int nkstot = this->klist->get_nkstot();
+    for (int ik = 0; ik < nks; ++ik)
     {
         for (int ib = 0; ib < this->ekb.nc; ++ib)
         {
@@ -164,76 +166,75 @@ void ElecState::print_eigenvalue(std::ofstream& ofs)
             }
         }
     }
+#ifdef __MPI
+    MPI_Allreduce(MPI_IN_PLACE, &wrong, 1, MPI_C_BOOL, MPI_LOR, MPI_COMM_WORLD);
+#endif
     if (wrong)
     {
         ModuleBase::WARNING_QUIT("print_eigenvalue", "Eigenvalues are too large!");
     }
 
-    if (GlobalV::MY_RANK != 0)
-    {
-        return;
-    }
+    std::string filename = PARAM.globalv.global_out_dir + PARAM.globalv.log_file;
+    std::vector<int> ngk_tot = this->klist->ngk;
+
+#ifdef __MPI
+    MPI_Allreduce(MPI_IN_PLACE, ngk_tot.data(), nks, MPI_INT, MPI_SUM, POOL_WORLD);
+#endif
 
     ModuleBase::TITLE("ESolver_KS_PW", "print_eigenvalue");
 
     ofs << "\n STATE ENERGY(eV) AND OCCUPATIONS ";
-    for (int ik = 0; ik < this->klist->get_nks(); ik++)
+    const int nk_fac = PARAM.inp.nspin == 2 ? 2 : 1;
+    const int nks_np = nks / nk_fac;
+    const int nkstot_np = nkstot / nk_fac;
+    ofs << "   NSPIN == " << PARAM.inp.nspin << std::endl;
+    for (int is = 0; is < nk_fac; ++is)
     {
-        ofs << std::setprecision(5);
-        ofs << std::setiosflags(std::ios::showpoint);
-        if (ik == 0)
+        if (is == 0 && nk_fac == 2)
         {
-            ofs << "   NSPIN == " << PARAM.inp.nspin << std::endl;
-            if (PARAM.inp.nspin == 2)
-            {
-                ofs << "SPIN UP : " << std::endl;
-            }
+            ofs << "SPIN UP : " << std::endl;
         }
-        else if (ik == this->klist->get_nks() / 2)
+        else if (is == 1 && nk_fac == 2)
         {
-            if (PARAM.inp.nspin == 2)
-            {
-                ofs << "SPIN DOWN : " << std::endl;
-            }
+            ofs << "SPIN DOWN : " << std::endl;
         }
 
-        if (PARAM.inp.nspin == 2)
+        for (int ip = 0; ip < GlobalV::KPAR; ++ip)
         {
-            if (this->klist->isk[ik] == 0)
+#ifdef __MPI
+            MPI_Barrier(MPI_COMM_WORLD);
+#endif
+            bool ip_flag = PARAM.inp.out_alllog || (GlobalV::RANK_IN_POOL == 0 && GlobalV::MY_BNDGROUP == 0);
+            if (GlobalV::MY_POOL == ip && ip_flag)
             {
-                ofs << " " << ik + 1 << "/" << this->klist->get_nks() / 2
-                    << " kpoint (Cartesian) = " << this->klist->kvec_c[ik].x << " " << this->klist->kvec_c[ik].y << " "
-                    << this->klist->kvec_c[ik].z << " (" << this->klist->ngk[ik] << " pws)" << std::endl;
+                const int start_ik = nks_np * is;
+                const int end_ik = nks_np * (is + 1);
+                for (int ik = start_ik; ik < end_ik; ++ik)
+                {
+                    std::ofstream ofs_eig(filename.c_str(), std::ios::app);
+                    ofs_eig << std::setprecision(5);
+                    ofs_eig << std::setiosflags(std::ios::showpoint);
+                    ofs_eig << " " << this->klist->ik2iktot[ik] + 1 - is * nkstot_np << "/" << nkstot_np
+                            << " kpoint (Cartesian) = " << this->klist->kvec_c[ik].x << " " << this->klist->kvec_c[ik].y
+                            << " " << this->klist->kvec_c[ik].z << " (" << ngk_tot[ik] << " pws)" << std::endl;
 
-                ofs << std::setprecision(6);
+                    ofs_eig << std::setprecision(6);
+                    ofs_eig << std::setiosflags(std::ios::showpoint);
+                    for (int ib = 0; ib < this->ekb.nc; ib++)
+                    {
+                        ofs_eig << std::setw(8) << ib + 1 << std::setw(15) << this->ekb(ik, ib) * ModuleBase::Ry_to_eV
+                                << std::setw(15) << this->wg(ik, ib) << std::endl;
+                    }
+                    ofs_eig << std::endl;
+                    ofs_eig.close();
+                }
             }
-            if (this->klist->isk[ik] == 1)
-            {
-                ofs << " " << ik + 1 - this->klist->get_nks() / 2 << "/" << this->klist->get_nks() / 2
-                    << " kpoint (Cartesian) = " << this->klist->kvec_c[ik].x << " " << this->klist->kvec_c[ik].y << " "
-                    << this->klist->kvec_c[ik].z << " (" << this->klist->ngk[ik] << " pws)" << std::endl;
-
-                ofs << std::setprecision(6);
-            }
-        } // Pengfei Li  added  14-9-9
-        else
-        {
-            ofs << " " << ik + 1 << "/" << this->klist->get_nks()
-                << " kpoint (Cartesian) = " << this->klist->kvec_c[ik].x << " " << this->klist->kvec_c[ik].y << " "
-                << this->klist->kvec_c[ik].z << " (" << this->klist->ngk[ik] << " pws)" << std::endl;
-
-            ofs << std::setprecision(6);
         }
-
-        ofs << std::setprecision(6);
-        ofs << std::setiosflags(std::ios::showpoint);
-        for (int ib = 0; ib < this->ekb.nc; ib++)
-        {
-            ofs << std::setw(8) << ib + 1 << std::setw(15) << this->ekb(ik, ib) * ModuleBase::Ry_to_eV << std::setw(15)
-                << this->wg(ik, ib) << std::endl;
-        }
-        ofs << std::endl;
-    } // end ik
+#ifdef __MPI
+            MPI_Barrier(MPI_COMM_WORLD);
+#endif
+        ofs.seekp(0, std::ios::end);
+    }
     return;
 }
 
@@ -245,7 +246,7 @@ void ElecState::print_band(const int& ik, const int& printe, const int& iter)
 {
     // check the band energy.
     bool wrong = false;
-    for (int ib = 0; ib < GlobalV::NBANDS; ++ib)
+    for (int ib = 0; ib < PARAM.globalv.nbands_l; ++ib)
     {
         if (std::abs(this->ekb(ik, ib)) > 1.0e10)
         {
@@ -267,7 +268,7 @@ void ElecState::print_band(const int& ik, const int& printe, const int& iter)
             GlobalV::ofs_running << " Energy (eV) & Occupations  for spin=" << this->klist->isk[ik] + 1
                                  << " K-point=" << ik + 1 << std::endl;
             GlobalV::ofs_running << std::setiosflags(std::ios::showpoint);
-            for (int ib = 0; ib < GlobalV::NBANDS; ib++)
+            for (int ib = 0; ib < PARAM.globalv.nbands_l; ib++)
             {
                 GlobalV::ofs_running << " " << std::setw(6) << ib + 1 << std::setw(15)
                                      << this->ekb(ik, ib) * ModuleBase::Ry_to_eV;
@@ -282,6 +283,7 @@ void ElecState::print_band(const int& ik, const int& printe, const int& iter)
 }
 
 /// @brief print total free energy and other energies
+/// @param ucell: unit cell
 /// @param converged: if converged
 /// @param iter_in: iter
 /// @param scf_thr: threshold for scf
@@ -289,7 +291,8 @@ void ElecState::print_band(const int& ik, const int& printe, const int& iter)
 /// @param pw_diag_thr: threshold for diagonalization
 /// @param avg_iter: averaged diagonalization iteration of each scf iteration
 /// @param print: if print to screen
-void ElecState::print_etot(const bool converged,
+void ElecState::print_etot(const Magnetism& magnet,
+                           const bool converged,
                            const int& iter_in,
                            const double& scf_thr,
                            const double& scf_thr_kin,
@@ -309,9 +312,10 @@ void ElecState::print_etot(const bool converged,
 
     GlobalV::ofs_running << "\n Density error is " << scf_thr << std::endl;
 
-    if (PARAM.inp.basis_type == "pw") {
+    if (PARAM.inp.basis_type == "pw")
+    {
         ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "Error Threshold", pw_diag_thr); // xiaohui add 2013-09-02
-}
+    }
 
     std::vector<std::string> titles;
     std::vector<double> energies_Ry;
@@ -339,7 +343,9 @@ void ElecState::print_etot(const bool converged,
         energies_Ry.push_back(this->f_en.demet);
         titles.push_back("E_descf");
         energies_Ry.push_back(this->f_en.descf);
-        std::string vdw_method = get_input_vdw_method();
+        titles.push_back("E_LocalPP");
+        energies_Ry.push_back(this->f_en.e_local_pp);
+        std::string vdw_method = PARAM.inp.vdw_method;
         if (vdw_method == "d2") // Peize Lin add 2014-04, update 2021-03-09
         {
             titles.push_back("E_vdwD2");
@@ -374,7 +380,7 @@ void ElecState::print_etot(const bool converged,
         if (PARAM.inp.deepks_scf) // caoyu add 2021-08-10
         {
             titles.push_back("E_DeePKS");
-            energies_Ry.push_back(GlobalC::ld.E_delta);
+            energies_Ry.push_back(this->f_en.edeepks_delta);
         }
 #endif
     }
@@ -429,24 +435,24 @@ void ElecState::print_etot(const bool converged,
         switch (PARAM.inp.nspin)
         {
         case 2:
-            mag = {get_ucell_tot_magnetization(), get_ucell_abs_magnetization()};
+            mag = {magnet.tot_magnetization, magnet.abs_magnetization};
             break;
         case 4:
-            mag = {get_ucell_tot_magnetization_nc_x(),
-                   get_ucell_tot_magnetization_nc_y(),
-                   get_ucell_tot_magnetization_nc_z(),
-                   get_ucell_abs_magnetization()};
+            mag = {magnet.tot_magnetization_nc[0],
+                   magnet.tot_magnetization_nc[1],
+                   magnet.tot_magnetization_nc[2],
+                   magnet.abs_magnetization};
             break;
         default:
             mag = {};
             break;
         }
         std::vector<double> drho = {scf_thr};
-        if (elecstate::get_xc_func_type() == 3 || elecstate::get_xc_func_type() == 5)
+        if (XC_Functional::get_ked_flag())
         {
             drho.push_back(scf_thr_kin);
         }
-        elecstate::print_scf_iterinfo(get_ks_solver_type(),
+        elecstate::print_scf_iterinfo(PARAM.inp.ks_solver,
                                       iter,
                                       6,
                                       mag,

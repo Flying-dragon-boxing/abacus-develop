@@ -43,11 +43,11 @@ UnitCell::UnitCell()
     tpiba2 = 0.0;
     omega = 0.0;
 
-    atom_label = new std::string[1];
-    atom_mass = nullptr;
-    pseudo_fn = new std::string[1];
-    pseudo_type = new std::string[1];
-    orbital_fn = new std::string[1];
+    atom_mass.shrink_to_fit();
+    atom_label.resize(1);
+    pseudo_fn.resize(1);
+    pseudo_type.resize(1);
+    orbital_fn.resize(1);
 
     atoms = new Atom[ntype];
     set_atom_flag = true;
@@ -68,10 +68,7 @@ UnitCell::UnitCell()
 UnitCell::~UnitCell()
 {
 }
-void UnitCell::update_pos_tau(const double* pos)
-{
-}
-void UnitCell::print_tau(void) const
+void UnitCell::print_tau() const
 {
 }
 Magnetism::Magnetism()
@@ -83,13 +80,13 @@ Magnetism::~Magnetism()
 Atom::Atom()
 {
     na = 2;
-    tau = new ModuleBase::Vector3<double>[na];
-    mbl = new ModuleBase::Vector3<int>[na];
+    tau.resize(na);
+    dis.resize(na);
+    mbl.resize(na);
+    taud.resize(na);
 }
 Atom::~Atom()
 {
-    delete[] tau;
-    delete[] mbl;
 }
 Atom_pseudo::Atom_pseudo()
 {

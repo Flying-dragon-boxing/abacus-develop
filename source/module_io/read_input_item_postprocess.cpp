@@ -15,6 +15,7 @@ void ReadInput::item_postprocess()
             para.sys.dos_setemin = true;
         };
         sync_double(input.dos_emin_ev);
+        add_bool_bcast(sys.dos_setemin);
         this->add_item(item);
     }
     {
@@ -25,6 +26,7 @@ void ReadInput::item_postprocess()
             para.sys.dos_setemax = true;
         };
         sync_double(input.dos_emax_ev);
+        add_bool_bcast(sys.dos_setemax);
         this->add_item(item);
     }
     {
@@ -129,6 +131,10 @@ void ReadInput::item_postprocess()
                 if (!(para.input.gdir == 1 || para.input.gdir == 2 || para.input.gdir == 3))
                 {
                     ModuleBase::WARNING_QUIT("ReadInput", "calculate berry phase, please set gdir = 1 or 2 or 3");
+                }
+                if (para.input.symmetry != "-1")
+                {
+                    ModuleBase::WARNING_QUIT("ReadInput", "calculate berry phase, please set symmetry = -1");
                 }
             }
         };

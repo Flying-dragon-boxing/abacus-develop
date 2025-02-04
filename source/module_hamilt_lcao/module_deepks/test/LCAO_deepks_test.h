@@ -13,6 +13,8 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <torch/script.h>
+#include <torch/torch.h>
 
 namespace Test_Deepks
 {
@@ -52,13 +54,15 @@ class test_deepks
 
     int lmax = 2;
     int ntype = 0;
-    int nnr;
 
     std::vector<ModuleBase::matrix> dm;
     std::vector<ModuleBase::ComplexMatrix> dm_k;
 
     std::vector<std::vector<double>> dm_new;
     std::vector<std::vector<std::complex<double>>> dm_k_new;
+
+    elecstate::DensityMatrix<double, double>* p_elec_DM;
+    elecstate::DensityMatrix<std::complex<double>, double>* p_elec_DM_k;
 
     // preparation
     void preparation();
@@ -70,32 +74,40 @@ class test_deepks
 
     void prep_neighbour();
     void setup_kpt();
-    void set_orbs(const double& lat0_in);
-
-    void cal_nnr();
-    void folding_nnr(const Test_Deepks::K_Vectors& kv);
+    void set_orbs();
 
     // tranfer Matrix into vector<T>
     void set_dm_new();
     void set_dm_k_new();
 
+    // tranfer vector<T> into DensityMatrix
+    void set_p_elec_DM();
+    void set_p_elec_DM_k();
+
     // checking
     void check_dstable();
-    void check_psialpha();
+    void check_phialpha();
 
     void read_dm();
     void read_dm_k(const int nks);
 
     void check_pdm();
-    void check_gdmx();
+    void check_descriptor(std::vector<torch::Tensor>& descriptor);
 
-    void check_descriptor();
-    void check_gvx();
+    void check_gdmx(torch::Tensor& gdmx);
+    void check_gdmepsl(torch::Tensor& gdmepsl);
 
-    void check_edelta();
+    void check_gvx(torch::Tensor& gdmx);
+    void check_gvepsl(torch::Tensor& gdmepsl);
+
+    void check_edelta(std::vector<torch::Tensor>& descriptor);
+
+    // calculate H_V_delta
+    void cal_H_V_delta();
+    void cal_H_V_delta_k();
 
     void check_e_deltabands();
-    void check_f_delta();
+    void check_f_delta_and_stress_delta();
 
     // compares numbers stored in two files
     void compare_with_ref(const std::string f1, const std::string f2);

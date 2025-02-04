@@ -7,10 +7,29 @@
  *  unit test of sto_tool.cpp
  ***********************************************/
 
-void Stochastic_hchi::hchi_norm(std::complex<double>* chig, std::complex<double>* hchig, const int m)
-{
-    return;
-}
+template <typename T, typename Device>
+hamilt::HamiltPW<T, Device>::HamiltPW(elecstate::Potential* pot_in, ModulePW::PW_Basis_K* wfc_basis, K_Vectors* p_kv,pseudopot_cell_vnl*,const UnitCell*){}
+template <typename T, typename Device>
+hamilt::HamiltPW<T, Device>::~HamiltPW(){};
+template <typename T, typename Device>
+void hamilt::HamiltPW<T, Device>::updateHk(int){}
+template <typename T, typename Device>
+void hamilt::HamiltPW<T, Device>::sPsi(T const*, T*, const int, const int, const int) const{}
+
+template <typename T, typename Device>
+hamilt::HamiltSdftPW<T, Device>::HamiltSdftPW(elecstate::Potential* pot_in,
+                                      ModulePW::PW_Basis_K* wfc_basis,
+                                      K_Vectors* p_kv,
+                                      pseudopot_cell_vnl* nlpp,
+                                      const UnitCell* ucell,
+                                      const int& npol,
+                                      double* emin_in,
+                                      double* emax_in): HamiltPW<T, Device>(pot_in, wfc_basis, p_kv, nlpp,ucell), ngk(p_kv->ngk){}
+template <typename T, typename Device>
+void hamilt::HamiltSdftPW<T, Device>::hPsi_norm(const T* psi_in, T* hpsi, const int& nbands){}
+
+template class hamilt::HamiltPW<std::complex<double>, base_device::DEVICE_CPU>;
+template class hamilt::HamiltSdftPW<std::complex<double>, base_device::DEVICE_CPU>;
 
 /**
  * - Tested Functions:
@@ -49,8 +68,8 @@ TEST_F(TestStoTool, parallel_distribution)
 
 TEST_F(TestStoTool, convert_psi)
 {
-    psi::Psi<std::complex<double>> psi_in(1, 1, 10);
-    psi::Psi<std::complex<float>> psi_out(1, 1, 10);
+    psi::Psi<std::complex<double>> psi_in(1, 1, 10, 10, true);
+    psi::Psi<std::complex<float>> psi_out(1, 1, 10, 10, true);
     for (int i = 0; i < 10; ++i)
     {
         psi_in.get_pointer()[i] = std::complex<double>(i, i);
@@ -64,8 +83,8 @@ TEST_F(TestStoTool, convert_psi)
 
 TEST_F(TestStoTool, gatherchi)
 {
-    psi::Psi<std::complex<float>> chi(1, 1, 10);
-    psi::Psi<std::complex<float>> chi_all(1, 1, 10);
+    psi::Psi<std::complex<float>> chi(1, 1, 10, 10, true);
+    psi::Psi<std::complex<float>> chi_all(1, 1, 10, 10, true);
     int npwx = 10;
     int nrecv_sto[4] = {1, 2, 3, 4};
     int displs_sto[4] = {0, 1, 3, 6};

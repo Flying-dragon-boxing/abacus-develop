@@ -2,6 +2,11 @@
 #define BLAS_CONNECTOR_H
 
 #include <complex>
+#include "module_base/module_device/types.h"
+#include "macros.h"
+
+// These still need to be linked in the header file
+// Because quite a lot of code will directly use the original cblas kernels.
 
 extern "C"
 {
@@ -35,7 +40,24 @@ extern "C"
 	double dnrm2_( const int *n, const double *X, const int *incX );
 	double dznrm2_( const int *n, const std::complex<double> *X, const int *incX );
 
+    // symmetric rank-k update
+    void dsyrk_(
+        const char* uplo,
+        const char* trans,
+        const int* n,
+        const int* k,
+        const double* alpha,
+        const double* a,
+        const int* lda,
+        const double* beta,
+        double* c,
+        const int* ldc
+    );
+
 	// level 2: matrix-std::vector operations, O(n^2) data and O(n^2) work.
+	void sgemv_(const char*const transa, const int*const m, const int*const n,
+		const float*const alpha, const float*const a, const int*const lda, const float*const x, const int*const incx,
+		const float*const beta, float*const y, const int*const incy);
 	void dgemv_(const char*const transa, const int*const m, const int*const n,
 		const double*const alpha, const double*const a, const int*const lda, const double*const x, const int*const incx,
 		const double*const beta, double*const y, const int*const incy);
@@ -90,11 +112,23 @@ extern "C"
 		const std::complex<double> *alpha, const std::complex<double> *a, const int *lda, const std::complex<double> *b, const int *ldb,
 		const std::complex<double> *beta, std::complex<double> *c, const int *ldc);
 
-	//a is symmetric
+	// A is symmetric. C = a * A.? * B.? + b * C
+	void ssymm_(const char *side, const char *uplo, const int *m, const int *n,
+		const float *alpha, const float *a, const int *lda, const float *b, const int *ldb,
+		const float *beta, float *c, const int *ldc);
 	void dsymm_(const char *side, const char *uplo, const int *m, const int *n,
 		const double *alpha, const double *a, const int *lda, const double *b, const int *ldb,
 		const double *beta, double *c, const int *ldc);
-	//a is hermitian
+	void csymm_(const char *side, const char *uplo, const int *m, const int *n,
+		const std::complex<float> *alpha, const std::complex<float> *a, const int *lda, const std::complex<float> *b, const int *ldb,
+		const std::complex<float> *beta, std::complex<float> *c, const int *ldc);
+	void zsymm_(const char *side, const char *uplo, const int *m, const int *n,
+		const std::complex<double> *alpha, const std::complex<double> *a, const int *lda, const std::complex<double> *b, const int *ldb,
+		const std::complex<double> *beta, std::complex<double> *c, const int *ldc);
+
+	// A is hermitian. C = a * A.? * B.? + b * C
+	void chemm_(char *side, char *uplo, int *m, int *n,std::complex<float> *alpha,
+		std::complex<float> *a,  int *lda,  std::complex<float> *b, int *ldb, std::complex<float> *beta, std::complex<float> *c, int *ldc);
 	void zhemm_(char *side, char *uplo, int *m, int *n,std::complex<double> *alpha,
 		std::complex<double> *a,  int *lda,  std::complex<double> *b, int *ldb, std::complex<double> *beta, std::complex<double> *c, int *ldc);
 
@@ -115,153 +149,192 @@ public:
 
 	// Peize Lin add 2016-08-04
 	// y=a*x+y
-	static inline
-	void axpy( const int n, const float alpha, const float *X, const int incX, float *Y, const int incY)
-	{
-		saxpy_(&n, &alpha, X, &incX, Y, &incY);
-	}
-	static inline
-	void axpy( const int n, const double alpha, const double *X, const int incX, double *Y, const int incY)
-	{
-		daxpy_(&n, &alpha, X, &incX, Y, &incY);
-	}
-	static inline
-	void axpy( const int n, const std::complex<float> alpha, const std::complex<float> *X, const int incX, std::complex<float> *Y, const int incY)
-	{
-		caxpy_(&n, &alpha, X, &incX, Y, &incY);
-	}
-	static inline
-	void axpy( const int n, const std::complex<double> alpha, const std::complex<double> *X, const int incX, std::complex<double> *Y, const int incY)
-	{
-		zaxpy_(&n, &alpha, X, &incX, Y, &incY);
-	}
+	static
+	void axpy( const int n, const float alpha, const float *X, const int incX, float *Y, const int incY, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void axpy( const int n, const double alpha, const double *X, const int incX, double *Y, const int incY, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void axpy( const int n, const std::complex<float> alpha, const std::complex<float> *X, const int incX, std::complex<float> *Y, const int incY, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void axpy( const int n, const std::complex<double> alpha, const std::complex<double> *X, const int incX, std::complex<double> *Y, const int incY, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
 
 	// Peize Lin add 2016-08-04
 	// x=a*x
-	static inline
-	void scal( const int n,  const float alpha, float *X, const int incX)
-	{
-		sscal_(&n, &alpha, X, &incX);
-	}
-	static inline
-	void scal( const int n, const double alpha, double *X, const int incX)
-	{
-		dscal_(&n, &alpha, X, &incX);
-	}
-	static inline
-	void scal( const int n, const std::complex<float> alpha, std::complex<float> *X, const int incX)
-	{
-		cscal_(&n, &alpha, X, &incX);
-	}
-	static inline
-	void scal( const int n, const std::complex<double> alpha, std::complex<double> *X, const int incX)
-	{
-		zscal_(&n, &alpha, X, &incX);
-	}
+	static
+	void scal( const int n,  const float alpha, float *X, const int incX, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void scal( const int n, const double alpha, double *X, const int incX, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void scal( const int n, const std::complex<float> alpha, std::complex<float> *X, const int incX, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void scal( const int n, const std::complex<double> alpha, std::complex<double> *X, const int incX, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
 
 	// Peize Lin add 2017-10-27
 	// d=x*y
-	static inline
-	float dot( const int n, const float *X, const int incX, const float *Y, const int incY)
-	{
-		return sdot_(&n, X, &incX, Y, &incY);
-	}
-	static inline
-	double dot( const int n, const double *X, const int incX, const double *Y, const int incY)
-	{
-		return ddot_(&n, X, &incX, Y, &incY);
-	}
+	static
+	float dot( const int n, const float *X, const int incX, const float *Y, const int incY, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	double dot( const int n, const double *X, const int incX, const double *Y, const int incY, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
 
 	// Peize Lin add 2017-10-27, fix bug trans 2019-01-17
 	// C = a * A.? * B.? + b * C
-	static inline
+	// Row Major by default
+	static
 	void gemm(const char transa, const char transb, const int m, const int n, const int k,
 		const float alpha, const float *a, const int lda, const float *b, const int ldb,
-		const float beta, float *c, const int ldc)
-	{
-		sgemm_(&transb, &transa, &n, &m, &k,
-			&alpha, b, &ldb, a, &lda,
-			&beta, c, &ldc);
-	}
-	static inline
+		const float beta, float *c, const int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
 	void gemm(const char transa, const char transb, const int m, const int n, const int k,
 		const double alpha, const double *a, const int lda, const double *b, const int ldb,
-		const double beta, double *c, const int ldc)
-	{
-		dgemm_(&transb, &transa, &n, &m, &k,
-			&alpha, b, &ldb, a, &lda,
-			&beta, c, &ldc);
-	}
-    static inline
+		const double beta, double *c, const int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+    static
     void gemm(const char transa, const char transb, const int m, const int n, const int k,
               const std::complex<float> alpha, const std::complex<float> *a, const int lda, const std::complex<float> *b, const int ldb,
-              const std::complex<float> beta, std::complex<float> *c, const int ldc)
-    {
-        cgemm_(&transb, &transa, &n, &m, &k,
-               &alpha, b, &ldb, a, &lda,
-               &beta, c, &ldc);
-    }
-	static inline
+              const std::complex<float> beta, std::complex<float> *c, const int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
 	void gemm(const char transa, const char transb, const int m, const int n, const int k,
 		const std::complex<double> alpha, const std::complex<double> *a, const int lda, const std::complex<double> *b, const int ldb,
-		const std::complex<double> beta, std::complex<double> *c, const int ldc)
-	{
-		zgemm_(&transb, &transa, &n, &m, &k,
-			&alpha, b, &ldb, a, &lda,
-			&beta, c, &ldc);
-    }
-    static inline
+		const std::complex<double> beta, std::complex<double> *c, const int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	// Col-Major if you need to use it
+
+	static
+	void gemm_cm(const char transa, const char transb, const int m, const int n, const int k,
+		const float alpha, const float *a, const int lda, const float *b, const int ldb,
+		const float beta, float *c, const int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void gemm_cm(const char transa, const char transb, const int m, const int n, const int k,
+		const double alpha, const double *a, const int lda, const double *b, const int ldb,
+		const double beta, double *c, const int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+    static
+    void gemm_cm(const char transa, const char transb, const int m, const int n, const int k,
+              const std::complex<float> alpha, const std::complex<float> *a, const int lda, const std::complex<float> *b, const int ldb,
+              const std::complex<float> beta, std::complex<float> *c, const int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void gemm_cm(const char transa, const char transb, const int m, const int n, const int k,
+		const std::complex<double> alpha, const std::complex<double> *a, const int lda, const std::complex<double> *b, const int ldb,
+		const std::complex<double> beta, std::complex<double> *c, const int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	// Because you cannot pack symm or hemm into a row-major kernel by exchanging parameters, so only col-major functions are provided.
+	static
+	void symm_cm(const char side, const char uplo, const int m, const int n,
+		const float alpha, const float *a, const int lda, const float *b, const int ldb,
+		const float beta, float *c, const int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void symm_cm(const char side, const char uplo, const int m, const int n,
+		const double alpha, const double *a, const int lda, const double *b, const int ldb,
+		const double beta, double *c, const int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+    static
+    void symm_cm(const char side, const char uplo, const int m, const int n,
+              const std::complex<float> alpha, const std::complex<float> *a, const int lda, const std::complex<float> *b, const int ldb,
+              const std::complex<float> beta, std::complex<float> *c, const int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void symm_cm(const char side, const char uplo, const int m, const int n,
+		const std::complex<double> alpha, const std::complex<double> *a, const int lda, const std::complex<double> *b, const int ldb,
+		const std::complex<double> beta, std::complex<double> *c, const int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+    void hemm_cm(char side, char uplo, int m, int n,
+            std::complex<float> alpha, std::complex<float> *a, int lda, std::complex<float> *b, int ldb,
+            std::complex<float> beta, std::complex<float> *c, int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void hemm_cm(char side, char uplo, int m, int n,
+		std::complex<double> alpha, std::complex<double> *a, int lda, std::complex<double> *b, int ldb,
+		std::complex<double> beta, std::complex<double> *c, int ldc, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	// y = A*x + beta*y
+
+	static
+	void gemv(const char trans, const int m, const int n,
+        const float alpha, const float* A, const int lda, const float* X, const int incx,
+        const float beta, float* Y, const int incy, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+    static
     void gemv(const char trans, const int m, const int n,
         const double alpha, const double* A, const int lda, const double* X, const int incx,
-        const double beta, double* Y, const int incy)
-    {
-        dgemv_(&trans, &m, &n, &alpha, A, &lda, X, &incx, &beta, Y, &incy);
-    }
-    static inline
-        void gemv(const char trans, const int m, const int n,
-              const std::complex<float> alpha, const std::complex<float> *A, const int lda, const std::complex<float> *X, const int incx,
-              const std::complex<float> beta, std::complex<float> *Y, const int incy)
-    {
-        cgemv_(&trans, &m, &n, &alpha, A, &lda, X, &incx, &beta, Y, &incy);
-    }
-    static inline
+        const double beta, double* Y, const int incy, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+    static
+    void gemv(const char trans, const int m, const int n,
+          const std::complex<float> alpha, const std::complex<float> *A, const int lda, const std::complex<float> *X, const int incx,
+          const std::complex<float> beta, std::complex<float> *Y, const int incy, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+    static
     void gemv(const char trans, const int m, const int n,
               const std::complex<double> alpha, const std::complex<double> *A, const int lda, const std::complex<double> *X, const int incx,
-              const std::complex<double> beta, std::complex<double> *Y, const int incy)
-    {
-        zgemv_(&trans, &m, &n, &alpha, A, &lda, X, &incx, &beta, Y, &incy);
-    }
+              const std::complex<double> beta, std::complex<double> *Y, const int incy, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+ 
 
 	// Peize Lin add 2018-06-12
 	// out = ||x||_2
-	static inline
-	float nrm2( const int n, const float *X, const int incX )
-	{
-		return snrm2_( &n, X, &incX );
-	}
-	static inline
-	double nrm2( const int n, const double *X, const int incX )
-	{
-		return dnrm2_( &n, X, &incX );
-	}
-	static inline
-	double nrm2( const int n, const std::complex<double> *X, const int incX )
-	{
-		return dznrm2_( &n, X, &incX );
-	}
+	static
+	float nrm2( const int n, const float *X, const int, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice );
+
+	static
+	double nrm2( const int n, const double *X, const int incX, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice );
+
+	static
+	double nrm2( const int n, const std::complex<double> *X, const int incX, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice );
+
 
 	// copies a into b
-	static inline
-	void copy(const long n, const double *a, const int incx, double *b, const int incy)
-	{
-		dcopy_(&n, a, &incx, b, &incy);
-	}
-	static inline
-	void copy(const long n, const std::complex<double> *a, const int incx, std::complex<double> *b, const int incy)
-	{
-		zcopy_(&n, a, &incx, b, &incy);
-	}
+	static
+	void copy(const long n, const double *a, const int incx, double *b, const int incy, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void copy(const long n, const std::complex<double> *a, const int incx, std::complex<double> *b, const int incy, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	// There is some other operators needed, so implemented manually here
+	template <typename T>
+	static
+	void vector_mul_vector(const int& dim, T* result, const T* vector1, const T* vector2, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	template <typename T>
+	static
+	void vector_div_vector(const int& dim, T* result, const T* vector1, const T* vector2, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	// y = alpha * x + beta * y
+	static
+	void vector_add_vector(const int& dim, float *result, const float *vector1, const float constant1, const float *vector2, const float constant2, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void vector_add_vector(const int& dim, double *result, const double *vector1, const double constant1, const double *vector2, const double constant2, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void vector_add_vector(const int& dim, std::complex<float> *result, const std::complex<float> *vector1, const float constant1, const std::complex<float> *vector2, const float constant2, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
+
+	static
+	void vector_add_vector(const int& dim, std::complex<double> *result, const std::complex<double> *vector1, const double constant1, const std::complex<double> *vector2, const double constant2, base_device::AbacusDevice_t device_type = base_device::AbacusDevice_t::CpuDevice);
 };
+
+#ifdef __CUDA
+
+namespace BlasUtils{
+	void createGpuBlasHandle();
+	void destoryBLAShandle();
+}
+
+#endif
 
 // If GATHER_INFO is defined, the original function is replaced with a "i" suffix,
 // preventing changes on the original code.

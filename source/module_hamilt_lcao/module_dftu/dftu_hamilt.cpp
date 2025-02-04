@@ -1,11 +1,13 @@
 #include "dftu.h"
 #include "module_base/scalapack_connector.h"
+#include "module_parameter/parameter.h"
 #include "module_base/timer.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 
 namespace ModuleDFTU
 {
 
+#ifdef __LCAO
 void DFTU::cal_eff_pot_mat_complex(const int ik, std::complex<double>* eff_pot, const std::vector<int>& isk, const std::complex<double>* sk)
 {
     ModuleBase::TITLE("DFTU", "cal_eff_pot_mat");
@@ -34,7 +36,7 @@ void DFTU::cal_eff_pot_mat_complex(const int ik, std::complex<double>* eff_pot, 
 
 #ifdef __MPI
 	pzgemm_(&transN, &transN,
-            &GlobalV::NLOCAL, &GlobalV::NLOCAL, &GlobalV::NLOCAL,
+            &PARAM.globalv.nlocal, &PARAM.globalv.nlocal, &PARAM.globalv.nlocal,
             &half, 
             ModuleBase::GlobalFunc::VECTOR_TO_PTR(VU), &one_int, &one_int, this->paraV->desc,
             sk, &one_int, &one_int, this->paraV->desc,
@@ -46,7 +48,7 @@ void DFTU::cal_eff_pot_mat_complex(const int ik, std::complex<double>* eff_pot, 
         VU[irc] = eff_pot[irc];
 
 #ifdef __MPI
-  	pztranc_(&GlobalV::NLOCAL, &GlobalV::NLOCAL, 
+  	pztranc_(&PARAM.globalv.nlocal, &PARAM.globalv.nlocal, 
             &one, 
             &VU[0], &one_int, &one_int, this->paraV->desc, 
             &one, 
@@ -83,7 +85,7 @@ void DFTU::cal_eff_pot_mat_real(const int ik, double* eff_pot, const std::vector
 
 #ifdef __MPI
 	pdgemm_(&transN, &transN,
-            &GlobalV::NLOCAL, &GlobalV::NLOCAL, &GlobalV::NLOCAL,
+            &PARAM.globalv.nlocal, &PARAM.globalv.nlocal, &PARAM.globalv.nlocal,
             &half, 
             ModuleBase::GlobalFunc::VECTOR_TO_PTR(VU), &one_int, &one_int, this->paraV->desc, 
             sk, &one_int, &one_int, this->paraV->desc,
@@ -95,7 +97,7 @@ void DFTU::cal_eff_pot_mat_real(const int ik, double* eff_pot, const std::vector
         VU[irc] = eff_pot[irc];
 
 #ifdef __MPI
-	pdtran_(&GlobalV::NLOCAL, &GlobalV::NLOCAL, 
+	pdtran_(&PARAM.globalv.nlocal, &PARAM.globalv.nlocal, 
             &one, 
             &VU[0], &one_int, &one_int, const_cast<int*>(this->paraV->desc), 
             &one, 
@@ -117,7 +119,7 @@ void DFTU::cal_eff_pot_mat_R_double(const int ispin, double* SR, double* HR)
 
 #ifdef __MPI
     pdgemm_(&transN, &transN,
-            &GlobalV::NLOCAL, &GlobalV::NLOCAL, &GlobalV::NLOCAL,
+            &PARAM.globalv.nlocal, &PARAM.globalv.nlocal, &PARAM.globalv.nlocal,
             &half, 
             ModuleBase::GlobalFunc::VECTOR_TO_PTR(VU), &one_int, &one_int, this->paraV->desc, 
             SR, &one_int, &one_int, this->paraV->desc,
@@ -125,7 +127,7 @@ void DFTU::cal_eff_pot_mat_R_double(const int ispin, double* SR, double* HR)
             HR, &one_int, &one_int, this->paraV->desc);
 
     pdgemm_(&transN, &transN,
-            &GlobalV::NLOCAL, &GlobalV::NLOCAL, &GlobalV::NLOCAL,
+            &PARAM.globalv.nlocal, &PARAM.globalv.nlocal, &PARAM.globalv.nlocal,
             &half, 
             SR, &one_int, &one_int, this->paraV->desc, 
             ModuleBase::GlobalFunc::VECTOR_TO_PTR(VU), &one_int, &one_int, this->paraV->desc,
@@ -147,7 +149,7 @@ void DFTU::cal_eff_pot_mat_R_complex_double(const int ispin, std::complex<double
 
 #ifdef __MPI
     pzgemm_(&transN, &transN,
-            &GlobalV::NLOCAL, &GlobalV::NLOCAL, &GlobalV::NLOCAL,
+            &PARAM.globalv.nlocal, &PARAM.globalv.nlocal, &PARAM.globalv.nlocal,
             &half, 
             ModuleBase::GlobalFunc::VECTOR_TO_PTR(VU), &one_int, &one_int, this->paraV->desc,
             SR, &one_int, &one_int, this->paraV->desc,
@@ -155,7 +157,7 @@ void DFTU::cal_eff_pot_mat_R_complex_double(const int ispin, std::complex<double
             HR, &one_int, &one_int, this->paraV->desc);
 
     pzgemm_(&transN, &transN,
-            &GlobalV::NLOCAL, &GlobalV::NLOCAL, &GlobalV::NLOCAL,
+            &PARAM.globalv.nlocal, &PARAM.globalv.nlocal, &PARAM.globalv.nlocal,
             &half, 
             SR, &one_int, &one_int, this->paraV->desc, 
             ModuleBase::GlobalFunc::VECTOR_TO_PTR(VU), &one_int, &one_int, this->paraV->desc,
@@ -166,4 +168,5 @@ void DFTU::cal_eff_pot_mat_R_complex_double(const int ispin, std::complex<double
     return;
 }
 
+#endif
 }

@@ -5,6 +5,7 @@
 #include "module_elecstate/potentials/gatefield.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 #include "module_parameter/parameter.h"
+#include "module_elecstate/cal_ux.h"
 
 namespace ModuleESolver
 {
@@ -27,8 +28,9 @@ void ESolver_OF::init_elecstate(UnitCell& ucell)
     this->pelec->pot = new elecstate::Potential(this->pw_rhod,
                                                 this->pw_rho,
                                                 &ucell,
-                                                &(GlobalC::ppcell.vloc),
+                                                &(this->locpp.vloc),
                                                 &(this->sf),
+                                                &(this->solvent),
                                                 &(this->pelec->f_en.etxc),
                                                 &(this->pelec->f_en.vtxc));
     // There is no Operator in ESolver_OF, register Potentials here!
@@ -69,7 +71,11 @@ void ESolver_OF::init_elecstate(UnitCell& ucell)
 void ESolver_OF::allocate_array()
 {
     // Initialize the "wavefunction", which is sqrt(rho)
-    this->psi_ = new psi::Psi<double>(1, PARAM.inp.nspin, this->pw_rho->nrxx);
+    this->psi_ = new psi::Psi<double>(1, 
+                                      PARAM.inp.nspin, 
+                                      this->pw_rho->nrxx,
+                                      this->pw_rho->nrxx,
+                                      true);
     ModuleBase::Memory::record("OFDFT::Psi", sizeof(double) * PARAM.inp.nspin * this->pw_rho->nrxx);
     this->pphi_ = new double*[PARAM.inp.nspin];
     for (int is = 0; is < PARAM.inp.nspin; ++is)
@@ -110,7 +116,7 @@ void ESolver_OF::allocate_array()
  * @param [in] ptemp_phi phi
  * @param [out] rdLdphi dL/dphi
  */
-void ESolver_OF::cal_potential(double* ptemp_phi, double* rdLdphi)
+void ESolver_OF::cal_potential(double* ptemp_phi, double* rdLdphi, UnitCell& ucell)
 {
     double** dEdtemp_phi = new double*[PARAM.inp.nspin];
     double** temp_phi = new double*[PARAM.inp.nspin];
@@ -132,11 +138,8 @@ void ESolver_OF::cal_potential(double* ptemp_phi, double* rdLdphi)
         }
     }
 
-    if (PARAM.inp.nspin == 4) 
-    {
-        GlobalC::ucell.cal_ux();
-    }
-    this->pelec->pot->update_from_charge(this->ptemp_rho_, &GlobalC::ucell);
+    elecstate::cal_ux(ucell);
+    this->pelec->pot->update_from_charge(this->ptemp_rho_, &ucell);
     ModuleBase::matrix& vr_eff = this->pelec->pot->get_effective_v();
 
     this->kinetic_potential(this->ptemp_rho_->rho, temp_phi, vr_eff);
@@ -172,9 +175,7 @@ void ESolver_OF::cal_dEdtheta(double** ptemp_phi, Charge* temp_rho, UnitCell& uc
 {
     double* dphi_dtheta = new double[this->pw_rho->nrxx];
 
-    if (PARAM.inp.nspin == 4) {
-        ucell.cal_ux();
-}
+    elecstate::cal_ux(ucell);
     this->pelec->pot->update_from_charge(temp_rho, &ucell);
     ModuleBase::matrix& vr_eff = this->pelec->pot->get_effective_v();
 
@@ -430,8 +431,8 @@ void ESolver_OF::print_info()
     std::vector<std::string> titles;
     std::vector<double> energies_Ry;
     std::vector<double> energies_eV;
-    if (PARAM.inp.printe > 0
-        && ((this->iter_ + 1) % PARAM.inp.printe == 0 || this->conv_elec || this->iter_ == PARAM.inp.scf_nmax))
+    if ((PARAM.inp.printe > 0
+        && ((this->iter_ + 1) % PARAM.inp.printe == 0 || this->conv_esolver || this->iter_ == PARAM.inp.scf_nmax)) || PARAM.inp.init_chg == "file")
     {
         titles.push_back("E_Total");
         energies_Ry.push_back(this->pelec->f_en.etot);
@@ -441,8 +442,8 @@ void ESolver_OF::print_info()
         energies_Ry.push_back(this->pelec->f_en.hartree_energy);
         titles.push_back("E_xc");
         energies_Ry.push_back(this->pelec->f_en.etxc - this->pelec->f_en.etxcc);
-        titles.push_back("E_IonElec");
-        energies_Ry.push_back(this->pelec->f_en.eion_elec);
+        titles.push_back("E_LocalPP");
+        energies_Ry.push_back(this->pelec->f_en.e_local_pp);
         titles.push_back("E_Ewald");
         energies_Ry.push_back(this->pelec->f_en.ewald_energy);
         if (this->of_kinetic_ == "tf" || this->of_kinetic_ == "tf+" || this->of_kinetic_ == "wt")
@@ -451,7 +452,7 @@ void ESolver_OF::print_info()
             energies_Ry.push_back(this->tf_->tf_energy);
         }
         if (this->of_kinetic_ == "vw" || this->of_kinetic_ == "tf+" || this->of_kinetic_ == "wt"
-            || this->of_kinetic_ == "lkt")
+            || this->of_kinetic_ == "lkt" || this->of_kinetic_ == "ml")
         {
             titles.push_back("vW KEDF");
             energies_Ry.push_back(this->vw_->vw_energy);
@@ -466,6 +467,13 @@ void ESolver_OF::print_info()
             titles.push_back("LKT KEDF");
             energies_Ry.push_back(this->lkt_->lkt_energy);
         }
+#ifdef __MLKEDF
+        if (this->of_kinetic_ == "ml")
+        {
+            titles.push_back("MPN KEDF");
+            energies_Ry.push_back(this->ml_->ml_energy);
+        }
+#endif
         std::string vdw_method = PARAM.inp.vdw_method;
         if (vdw_method == "d2") // Peize Lin add 2014-04, update 2021-03-09
         {

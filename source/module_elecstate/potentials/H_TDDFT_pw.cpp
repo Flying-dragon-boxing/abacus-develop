@@ -1,17 +1,18 @@
 #include "H_TDDFT_pw.h"
 
-#include "module_parameter/parameter.h"
 #include "module_base/constants.h"
 #include "module_base/math_integral.h"
 #include "module_base/timer.h"
 #include "module_hamilt_lcao/module_tddft/evolve_elec.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 #include "module_io/input_conv.h"
+#include "module_parameter/parameter.h"
 
 namespace elecstate
 {
 
 int H_TDDFT_pw::istep = -1;
+bool H_TDDFT_pw::is_initialized = false;
 
 double H_TDDFT_pw::amp;
 double H_TDDFT_pw::bmod;
@@ -76,6 +77,21 @@ int H_TDDFT_pw::heavi_count;
 std::vector<double> H_TDDFT_pw::heavi_t0;
 std::vector<double> H_TDDFT_pw::heavi_amp; // Ry/bohr
 
+void H_TDDFT_pw::current_step_info(const std::string& file_dir, int& istep)
+{
+    std::stringstream ssc;
+    ssc << file_dir << "Restart_md.dat";
+    std::ifstream file(ssc.str().c_str());
+
+    if (!file)
+    {
+        ModuleBase::WARNING_QUIT("H_TDDFT_pw::current_step_info", "No Restart_md.dat!");
+    }
+
+    file >> istep;
+    file.close();
+}
+
 void H_TDDFT_pw::cal_fixed_v(double* vl_pseudo)
 {
     ModuleBase::TITLE("H_TDDFT_pw", "cal_fixed_v");
@@ -91,7 +107,7 @@ void H_TDDFT_pw::cal_fixed_v(double* vl_pseudo)
     H_TDDFT_pw::istep_int = istep;
 
     // judgement to skip vext
-    if (!module_tddft::Evolve_elec::td_vext || istep > tend || istep < tstart)
+    if (!PARAM.inp.td_vext || istep > tend || istep < tstart)
     {
         return;
     }
@@ -105,12 +121,12 @@ void H_TDDFT_pw::cal_fixed_v(double* vl_pseudo)
     trigo_count = 0;
     heavi_count = 0;
 
-    for (auto direc: module_tddft::Evolve_elec::td_vext_dire_case)
+    for (auto direc: PARAM.inp.td_vext_dire)
     {
         std::vector<double> vext_space(this->rho_basis_->nrxx, 0.0);
         double vext_time = cal_v_time(ttype[count], true);
 
-        if (module_tddft::Evolve_elec::out_efield && GlobalV::MY_RANK == 0)
+        if (PARAM.inp.out_efield && GlobalV::MY_RANK == 0)
         {
             std::stringstream as;
             as << PARAM.globalv.global_out_dir << "efield_" << count << ".dat";
@@ -156,7 +172,7 @@ void H_TDDFT_pw::cal_v_space_length(std::vector<double>& vext_space, int direc)
     ModuleBase::TITLE("H_TDDFT_pw", "cal_v_space_length");
     ModuleBase::timer::tick("H_TDDFT_pw", "cal_v_space_length");
 
-    prepare(GlobalC::ucell, direc);
+    prepare(ucell_->G, direc);
 
     for (int ir = 0; ir < this->rho_basis_->nrxx; ++ir)
     {
@@ -227,7 +243,7 @@ int H_TDDFT_pw::check_ncut(int t_type)
         break;
 
     case 3:
-        ncut = 1;
+        ncut = 2;
         break;
 
         // case 4:
@@ -248,7 +264,7 @@ void H_TDDFT_pw::update_At()
     H_TDDFT_pw::istep++;
 
     // judgement to skip vext
-    if (!module_tddft::Evolve_elec::td_vext || istep > tend || istep < tstart)
+    if (!PARAM.inp.td_vext || istep > tend || istep < tstart)
     {
         return;
     }
@@ -262,7 +278,7 @@ void H_TDDFT_pw::update_At()
     bool last = false;
     double out = 0.0;
 
-    for (auto direc: module_tddft::Evolve_elec::td_vext_dire_case)
+    for (auto direc: PARAM.inp.td_vext_dire)
     {
         last = false;
         // cut the integral space and initialize relevant parameters
@@ -297,7 +313,7 @@ void H_TDDFT_pw::update_At()
         }
 
         // output Efield
-        if (module_tddft::Evolve_elec::out_efield && GlobalV::MY_RANK == 0)
+        if (PARAM.inp.out_efield && GlobalV::MY_RANK == 0)
         {
             std::stringstream as;
             as << PARAM.globalv.global_out_dir << "efield_" << count << ".dat";
@@ -436,25 +452,25 @@ double H_TDDFT_pw::cal_v_time_heaviside()
     return vext_time;
 }
 
-void H_TDDFT_pw::prepare(const UnitCell& cell, int& dir)
+void H_TDDFT_pw::prepare(const ModuleBase::Matrix3& G, int& dir)
 {
     if (dir == 1)
     {
-        bvec[0] = cell.G.e11;
-        bvec[1] = cell.G.e12;
-        bvec[2] = cell.G.e13;
+        bvec[0] = G.e11;
+        bvec[1] = G.e12;
+        bvec[2] = G.e13;
     }
     else if (dir == 2)
     {
-        bvec[0] = cell.G.e21;
-        bvec[1] = cell.G.e22;
-        bvec[2] = cell.G.e23;
+        bvec[0] = G.e21;
+        bvec[1] = G.e22;
+        bvec[2] = G.e23;
     }
     else if (dir == 3)
     {
-        bvec[0] = cell.G.e31;
-        bvec[1] = cell.G.e32;
-        bvec[2] = cell.G.e33;
+        bvec[0] = G.e31;
+        bvec[1] = G.e32;
+        bvec[2] = G.e33;
     }
     else
     {

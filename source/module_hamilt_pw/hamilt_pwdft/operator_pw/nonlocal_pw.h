@@ -5,7 +5,7 @@
 
 #include "module_cell/unitcell.h"
 #include "module_hamilt_pw/hamilt_pwdft/kernels/nonlocal_op.h"
-#include "module_hsolver/kernels/math_kernel_op.h"
+#include "module_base/kernels/math_kernel_op.h"
 
 #include "module_hamilt_pw/hamilt_pwdft/VNL_in_pw.h"
 
@@ -43,7 +43,8 @@ class Nonlocal<OperatorPW<T, Device>> : public OperatorPW<T, Device>
         const int npol,
         const T* tmpsi_in,
         T* tmhpsi,
-        const int ngk = 0)const override;
+        const int ngk_ik = 0,
+        const bool is_first_node = false)const override;
 
     const int *get_isk() const {return this->isk;}
     const pseudopot_cell_vnl *get_ppcell() const {return this->ppcell;}
@@ -84,8 +85,8 @@ class Nonlocal<OperatorPW<T, Device>> : public OperatorPW<T, Device>
     Real * deeq = nullptr;
     T * deeq_nc = nullptr;
     // using nonlocal_op = nonlocal_pw_op<Real, Device>;
-    using gemv_op = hsolver::gemv_op<T, Device>;
-    using gemm_op = hsolver::gemm_op<T, Device>;
+    using gemv_op = ModuleBase::gemv_op<T, Device>;
+    using gemm_op = ModuleBase::gemm_op<T, Device>;
     using nonlocal_op = nonlocal_pw_op<Real, Device>;
     using setmem_complex_op = base_device::memory::set_memory_op<T, Device>;
     using resmem_complex_op = base_device::memory::resize_memory_op<T, Device>;

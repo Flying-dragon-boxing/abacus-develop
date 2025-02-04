@@ -26,10 +26,16 @@ The following references are required to be cited when using ABACUS. Specificall
 
 - **If DeePKS is used:**
 
-    Wenfei Li, Qi Ou, et al. "DeePKS+ABACUS as a Bridge between Expensive Quantum Mechanical Models and Machine Learning Potentials." <https://arxiv.org/abs/2206.10093>.
+    Wenfei Li, Qi Ou, et al. "DeePKS+ABACUS as a Bridge between Expensive Quantum Mechanical Models and Machine Learning Potentials." J. Phys. Chem. A 126.49 (2022): 9154-9164.
 
 - **If hybrid functional is used:**
 
     Peize Lin, Xinguo Ren, and Lixin He. "Efficient Hybrid Density Functional Calculations for Large Periodic Systems Using Numerical Atomic Orbitals." Journal of Chemical Theory and Computation 2021, 17(1), 222–239.
 
     Peize Lin, Xinguo Ren, and Lixin He. "Accuracy of Localized Resolution of the Identity in Periodic Hybrid Functional Calculations with Numerical Atomic Orbitals." Journal of Physical Chemistry Letters 2020, 11, 3082-3088.
+
+- **If ML-KEDF is used:**
+
+    Sun, Liang, and Mohan Chen. "Machine learning based nonlocal kinetic energy density functional for simple metals and alloys." Physical Review B 109.11 (2024): 115135.
+
+    Sun, Liang, and Mohan Chen. "Multi-channel machine learning based nonlocal kinetic energy density functional for semiconductors." Electronic Structure 6.4 (2024): 045006.

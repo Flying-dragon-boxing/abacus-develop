@@ -16,26 +16,30 @@
 
 Structure_Factor::Structure_Factor()
 {
-
+    // LCAO basis doesn't support GPU acceleration on this function currently.
+    if(PARAM.inp.basis_type == "pw")
+    {
+        this->device = PARAM.inp.device;
+    }
 }
 
 Structure_Factor::~Structure_Factor()
 {
-    if (PARAM.globalv.device_flag == "gpu") {
+    if (device == "gpu") {
         if (PARAM.inp.precision == "single") {
-            delmem_cd_op()(gpu_ctx, this->c_eigts1);
-            delmem_cd_op()(gpu_ctx, this->c_eigts2);
-            delmem_cd_op()(gpu_ctx, this->c_eigts3);
+            delmem_cd_op()(this->c_eigts1);
+            delmem_cd_op()(this->c_eigts2);
+            delmem_cd_op()(this->c_eigts3);
         }
-        delmem_zd_op()(gpu_ctx, this->z_eigts1);
-        delmem_zd_op()(gpu_ctx, this->z_eigts2);
-        delmem_zd_op()(gpu_ctx, this->z_eigts3);
+        delmem_zd_op()(this->z_eigts1);
+        delmem_zd_op()(this->z_eigts2);
+        delmem_zd_op()(this->z_eigts3);
     }
     else {
         if (PARAM.inp.precision == "single") {
-            delmem_ch_op()(cpu_ctx, this->c_eigts1);
-            delmem_ch_op()(cpu_ctx, this->c_eigts2);
-            delmem_ch_op()(cpu_ctx, this->c_eigts3);
+            delmem_ch_op()(this->c_eigts1);
+            delmem_ch_op()(this->c_eigts2);
+            delmem_ch_op()(this->c_eigts3);
         }
         // There's no need to delete double precision pointers while in a CPU environment.
     }
@@ -52,12 +56,12 @@ void Structure_Factor::set(const ModulePW::PW_Basis* rho_basis_in, const int& nb
 
 // Peize Lin optimize and add OpenMP 2021.04.01
 //  Calculate structure factor
-void Structure_Factor::setup_structure_factor(UnitCell* Ucell, const ModulePW::PW_Basis* rho_basis)
+void Structure_Factor::setup_structure_factor(const UnitCell* Ucell, const Parallel_Grid& pgrid, const ModulePW::PW_Basis* rho_basis)
 {
     ModuleBase::TITLE("PW_Basis","setup_structure_factor");
     ModuleBase::timer::tick("PW_Basis","setup_struc_factor");
     const std::complex<double> ci_tpi = ModuleBase::NEG_IMAG_UNIT * ModuleBase::TWO_PI;
-
+    this->ucell = Ucell;
     this->strucFac.create(Ucell->ntype, rho_basis->npw);
     ModuleBase::Memory::record("SF::strucFac", sizeof(std::complex<double>) * Ucell->ntype*rho_basis->npw);
 
@@ -72,14 +76,14 @@ void Structure_Factor::setup_structure_factor(UnitCell* Ucell, const ModulePW::P
     if(usebspline)
     {
         nbspline = int((nbspline+1)/2)*2; // nbspline must be a positive even number.
-        this->bspline_sf(nbspline,Ucell, rho_basis);
+        this->bspline_sf(nbspline, Ucell, pgrid, rho_basis);
     }
     else
     {
         for (int it=0; it<Ucell->ntype; it++)
         {
 	    	const int na = Ucell->atoms[it].na;
-	    	const ModuleBase::Vector3<double> * const tau = Ucell->atoms[it].tau;
+	    	const ModuleBase::Vector3<double> * const tau = Ucell->atoms[it].tau.data();
 #ifdef _OPENMP
 		    #pragma omp parallel for
 #endif
@@ -145,30 +149,30 @@ void Structure_Factor::setup_structure_factor(UnitCell* Ucell, const ModulePW::P
             inat++;
         }
     }
-    if (PARAM.globalv.device_flag == "gpu") {
+    if (device == "gpu") {
         if (PARAM.inp.precision == "single") {
-            resmem_cd_op()(gpu_ctx, this->c_eigts1, Ucell->nat * (2 * rho_basis->nx + 1));
-            resmem_cd_op()(gpu_ctx, this->c_eigts2, Ucell->nat * (2 * rho_basis->ny + 1));
-            resmem_cd_op()(gpu_ctx, this->c_eigts3, Ucell->nat * (2 * rho_basis->nz + 1));
-            castmem_z2c_h2d_op()(gpu_ctx, cpu_ctx, this->c_eigts1, this->eigts1.c, Ucell->nat * (2 * rho_basis->nx + 1));
-            castmem_z2c_h2d_op()(gpu_ctx, cpu_ctx, this->c_eigts2, this->eigts2.c, Ucell->nat * (2 * rho_basis->ny + 1));
-            castmem_z2c_h2d_op()(gpu_ctx, cpu_ctx, this->c_eigts3, this->eigts3.c, Ucell->nat * (2 * rho_basis->nz + 1));
+            resmem_cd_op()(this->c_eigts1, Ucell->nat * (2 * rho_basis->nx + 1));
+            resmem_cd_op()(this->c_eigts2, Ucell->nat * (2 * rho_basis->ny + 1));
+            resmem_cd_op()(this->c_eigts3, Ucell->nat * (2 * rho_basis->nz + 1));
+            castmem_z2c_h2d_op()(this->c_eigts1, this->eigts1.c, Ucell->nat * (2 * rho_basis->nx + 1));
+            castmem_z2c_h2d_op()(this->c_eigts2, this->eigts2.c, Ucell->nat * (2 * rho_basis->ny + 1));
+            castmem_z2c_h2d_op()(this->c_eigts3, this->eigts3.c, Ucell->nat * (2 * rho_basis->nz + 1));
         }
-        resmem_zd_op()(gpu_ctx, this->z_eigts1, Ucell->nat * (2 * rho_basis->nx + 1));
-        resmem_zd_op()(gpu_ctx, this->z_eigts2, Ucell->nat * (2 * rho_basis->ny + 1));
-        resmem_zd_op()(gpu_ctx, this->z_eigts3, Ucell->nat * (2 * rho_basis->nz + 1));
-        syncmem_z2z_h2d_op()(gpu_ctx, cpu_ctx, this->z_eigts1, this->eigts1.c, Ucell->nat * (2 * rho_basis->nx + 1));
-        syncmem_z2z_h2d_op()(gpu_ctx, cpu_ctx, this->z_eigts2, this->eigts2.c, Ucell->nat * (2 * rho_basis->ny + 1));
-        syncmem_z2z_h2d_op()(gpu_ctx, cpu_ctx, this->z_eigts3, this->eigts3.c, Ucell->nat * (2 * rho_basis->nz + 1));
+        resmem_zd_op()(this->z_eigts1, Ucell->nat * (2 * rho_basis->nx + 1));
+        resmem_zd_op()(this->z_eigts2, Ucell->nat * (2 * rho_basis->ny + 1));
+        resmem_zd_op()(this->z_eigts3, Ucell->nat * (2 * rho_basis->nz + 1));
+        syncmem_z2z_h2d_op()(this->z_eigts1, this->eigts1.c, Ucell->nat * (2 * rho_basis->nx + 1));
+        syncmem_z2z_h2d_op()(this->z_eigts2, this->eigts2.c, Ucell->nat * (2 * rho_basis->ny + 1));
+        syncmem_z2z_h2d_op()(this->z_eigts3, this->eigts3.c, Ucell->nat * (2 * rho_basis->nz + 1));
     }
     else {
         if (PARAM.inp.precision == "single") {
-            resmem_ch_op()(cpu_ctx, this->c_eigts1, Ucell->nat * (2 * rho_basis->nx + 1));
-            resmem_ch_op()(cpu_ctx, this->c_eigts2, Ucell->nat * (2 * rho_basis->ny + 1));
-            resmem_ch_op()(cpu_ctx, this->c_eigts3, Ucell->nat * (2 * rho_basis->nz + 1));
-            castmem_z2c_h2h_op()(cpu_ctx, cpu_ctx, this->c_eigts1, this->eigts1.c, Ucell->nat * (2 * rho_basis->nx + 1));
-            castmem_z2c_h2h_op()(cpu_ctx, cpu_ctx, this->c_eigts2, this->eigts2.c, Ucell->nat * (2 * rho_basis->ny + 1));
-            castmem_z2c_h2h_op()(cpu_ctx, cpu_ctx, this->c_eigts3, this->eigts3.c, Ucell->nat * (2 * rho_basis->nz + 1));
+            resmem_ch_op()(this->c_eigts1, Ucell->nat * (2 * rho_basis->nx + 1));
+            resmem_ch_op()(this->c_eigts2, Ucell->nat * (2 * rho_basis->ny + 1));
+            resmem_ch_op()(this->c_eigts3, Ucell->nat * (2 * rho_basis->nz + 1));
+            castmem_z2c_h2h_op()(this->c_eigts1, this->eigts1.c, Ucell->nat * (2 * rho_basis->nx + 1));
+            castmem_z2c_h2h_op()(this->c_eigts2, this->eigts2.c, Ucell->nat * (2 * rho_basis->ny + 1));
+            castmem_z2c_h2h_op()(this->c_eigts3, this->eigts3.c, Ucell->nat * (2 * rho_basis->nz + 1));
         }
         this->z_eigts1 = this->eigts1.c;
         this->z_eigts2 = this->eigts2.c;
@@ -190,7 +194,10 @@ void Structure_Factor::setup_structure_factor(UnitCell* Ucell, const ModulePW::P
 //    1. Use "r2c" fft
 //    2. Add parallel algorithm for fftw or na loop
 //
-void Structure_Factor::bspline_sf(const int norder, UnitCell* Ucell, const ModulePW::PW_Basis* rho_basis)
+void Structure_Factor::bspline_sf(const int norder,
+                                  const UnitCell* Ucell,
+                                  const Parallel_Grid& pgrid,
+                                  const ModulePW::PW_Basis* rho_basis)
 {
     double *r = new double [rho_basis->nxyz]; 
     double *tmpr = new double[rho_basis->nrxx];
@@ -202,7 +209,7 @@ void Structure_Factor::bspline_sf(const int norder, UnitCell* Ucell, const Modul
     for (int it=0; it<Ucell->ntype; it++)
     {
 		const int na = Ucell->atoms[it].na;
-		const ModuleBase::Vector3<double> * const taud = Ucell->atoms[it].taud;
+		const ModuleBase::Vector3<double> * const taud = Ucell->atoms[it].taud.data();
         ModuleBase::GlobalFunc::ZEROS(r,rho_basis->nxyz);
 
         //A parallel algorithm can be added in the future.
@@ -263,7 +270,7 @@ void Structure_Factor::bspline_sf(const int norder, UnitCell* Ucell, const Modul
 	    	}
         
         #ifdef __MPI
-	    	GlobalC::Pgrid.zpiece_to_all(zpiece, iz, tmpr);
+	    	pgrid.zpiece_to_all(zpiece, iz, tmpr);
         #endif
         
 	    }

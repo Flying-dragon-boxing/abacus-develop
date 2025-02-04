@@ -20,27 +20,27 @@ void Symmetry_rho::begin(const int& spin_now,
     if (ModuleSymmetry::Symmetry::symm_flag != 1) {
         return;
 }
-    // both parallel and serial
-    // if(symm.nrot==symm.nrotk) //pure point-group, do rho_symm in real space
-    // {
-    // 	psymm(CHR.rho[spin_now], rho_basis, Pgrid, symm);
-    // 	if(XC_Functional::get_func_type() == 3 || XC_Functional::get_func_type() == 5) psymm(CHR.kin_r[spin_now],
-    // rho_basis,Pgrid,symm);
-    // }
-    // else	//space group, do rho_symm in reciprocal space
-    {
-        rho_basis->real2recip(CHR.rho[spin_now], CHR.rhog[spin_now]);
-        psymmg(CHR.rhog[spin_now], rho_basis, symm); // need to modify
-        rho_basis->recip2real(CHR.rhog[spin_now], CHR.rho[spin_now]);
+// both parallel and serial
+// if(symm.nrot==symm.nrotk) //pure point-group, do rho_symm in real space
+// {
+// 	psymm(CHR.rho[spin_now], rho_basis, Pgrid, symm);
+// 	if(XC_Functional::get_ked_flag()) psymm(CHR.kin_r[spin_now],
+// rho_basis,Pgrid,symm);
+// }
+// else	//space group, do rho_symm in reciprocal space
+{
+    rho_basis->real2recip(CHR.rho[spin_now], CHR.rhog[spin_now]);
+    psymmg(CHR.rhog[spin_now], rho_basis, symm); // need to modify
+    rho_basis->recip2real(CHR.rhog[spin_now], CHR.rho[spin_now]);
 
-        if (XC_Functional::get_func_type() == 3 || XC_Functional::get_func_type() == 5 || CHR.cal_elf)
-        {
-            // Use std::vector to manage kin_g instead of raw pointer
-            std::vector<std::complex<double>> kin_g(CHR.ngmc);
-            rho_basis->real2recip(CHR.kin_r[spin_now], kin_g.data());
-            psymmg(kin_g.data(), rho_basis, symm);
-            rho_basis->recip2real(kin_g.data(), CHR.kin_r[spin_now]);
-        }
+    if (XC_Functional::get_ked_flag() || CHR.cal_elf)
+    {
+        // Use std::vector to manage kin_g instead of raw pointer
+        std::vector<std::complex<double>> kin_g(CHR.ngmc);
+        rho_basis->real2recip(CHR.kin_r[spin_now], kin_g.data());
+        psymmg(kin_g.data(), rho_basis, symm);
+        rho_basis->recip2real(kin_g.data(), CHR.kin_r[spin_now]);
+    }
     }
     return;
 }
@@ -63,7 +63,7 @@ void Symmetry_rho::begin(const int& spin_now,
     // if(symm.nrot==symm.nrotk) //pure point-group, do rho_symm in real space
     // {
     // 	psymm(CHR.rho[spin_now], rho_basis, Pgrid, symm);
-    // 	if(XC_Functional::get_func_type() == 3 || XC_Functional::get_func_type() == 5) psymm(CHR.kin_r[spin_now],
+    // 	if(XC_Functional::get_ked_flag()) psymm(CHR.kin_r[spin_now],
     // rho_basis,Pgrid,symm);
     // }
     // else	//space group, do rho_symm in reciprocal space
@@ -72,7 +72,7 @@ void Symmetry_rho::begin(const int& spin_now,
         psymmg(rhog[spin_now], rho_basis, symm);
         rho_basis->recip2real(rhog[spin_now], rho[spin_now]);
 
-        if (XC_Functional::get_func_type() == 3 || XC_Functional::get_func_type() == 5)
+        if (XC_Functional::get_ked_flag())
         {
             // Use std::vector to manage kin_g instead of raw pointer
             std::vector<std::complex<double>> kin_g(ngmc);
@@ -97,7 +97,7 @@ void Symmetry_rho::psymm(double* rho_part,
         rhotot.resize(rho_basis->nxyz);
         ModuleBase::GlobalFunc::ZEROS(rhotot.data(), rho_basis->nxyz);
     }
-    Pgrid.reduce_to_fullrho(rhotot.data(), rho_part);
+    Pgrid.reduce(rhotot.data(), rho_part);
 
     // (2)
     if (GlobalV::MY_RANK == 0)
@@ -127,24 +127,7 @@ void Symmetry_rho::psymm(double* rho_part,
     }
 
     // (3)
-    const int ncxy = rho_basis->nx * rho_basis->ny;
-    std::vector<double> zpiece(ncxy);
-    for (int iz = 0; iz < rho_basis->nz; iz++)
-    {
-        ModuleBase::GlobalFunc::ZEROS(zpiece.data(), ncxy);
-        if (GlobalV::MY_RANK == 0)
-        {
-            for (int ix = 0; ix < rho_basis->nx; ix++)
-            {
-                for (int iy = 0; iy < rho_basis->ny; iy++)
-                {
-                    const int ir = ix * rho_basis->ny + iy;
-                    zpiece[ir] = rhotot[ix * rho_basis->ny * rho_basis->nz + iy * rho_basis->nz + iz];
-                }
-            }
-        }
-        Pgrid.zpiece_to_all(zpiece.data(), iz, rho_part);
-    }
+Pgrid.bcast(rhotot.data(), rho_part, GlobalV::MY_RANK);
 #endif
     return;
 }

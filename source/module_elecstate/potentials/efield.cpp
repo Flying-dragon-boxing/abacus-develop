@@ -34,7 +34,7 @@ ModuleBase::matrix Efield::add_efield(const UnitCell& cell,
                                       const ModulePW::PW_Basis* rho_basis,
                                       const int& nspin,
                                       const double* const* const rho,
-                                      surchem& solvent)
+                                      const surchem& solvent)
 {
     ModuleBase::TITLE("Efield", "add_efield");
     ModuleBase::timer::tick("Efield", "add_efield");
@@ -159,7 +159,7 @@ double Efield::cal_ion_dipole(const UnitCell &cell, const double &bmod)
         {
             ion_charge += cell.atoms[it].na * cell.atoms[it].ncpp.zv;
         }
-        ion_dipole += (GlobalV::nelec - ion_charge) * saw_function(efield_pos_max, efield_pos_dec, Gatefield::zgate);
+        ion_dipole += (PARAM.inp.nelec - ion_charge) * saw_function(efield_pos_max, efield_pos_dec, Gatefield::zgate);
     }
 
     ion_dipole *= cell.lat0 / bmod * ModuleBase::FOUR_PI / cell.omega;
@@ -202,7 +202,7 @@ double Efield::cal_elec_dipole(const UnitCell& cell,
 
 double Efield::cal_induced_dipole(const UnitCell& cell,
                                   const ModulePW::PW_Basis* rho_basis,
-                                  surchem& solvent,
+                                  const surchem& solvent,
                                   const double& bmod)
 {
     double induced_dipole = 0;

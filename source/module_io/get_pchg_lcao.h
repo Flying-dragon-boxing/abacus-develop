@@ -1,6 +1,7 @@
 #ifndef ISTATE_CHARGE_H
 #define ISTATE_CHARGE_H
 #include "module_basis/module_pw/pw_basis.h"
+#include "module_cell/klist.h"
 #include "module_elecstate/module_dm/density_matrix.h"
 #include "module_hamilt_lcao/module_gint/gint.h"
 #include "module_hamilt_lcao/module_gint/gint_gamma.h"
@@ -28,7 +29,7 @@ class IState_Charge
 
     ~IState_Charge();
 
-    // for gamma only
+    // For gamma_only
     void begin(Gint_Gamma& gg,
                double** rho,
                const ModuleBase::matrix& wg,
@@ -43,16 +44,16 @@ class IState_Charge
                const int bigpw_nbz,
                const bool gamma_only_local,
                const int nbands_istate,
-               const std::vector<int>& out_band_kb,
+               const std::vector<int>& out_pchg,
                const int nbands,
                const double nelec,
                const int nspin,
                const int nlocal,
                const std::string& global_out_dir,
-               const int my_rank,
                std::ofstream& ofs_warning,
                const UnitCell* ucell_in,
-               Grid_Driver* GridD_in,
+               const Parallel_Grid& pgrid,
+               const Grid_Driver* GridD_in,
                const K_Vectors& kv);
 
     // For multi-k
@@ -72,16 +73,16 @@ class IState_Charge
                const int bigpw_nbz,
                const bool gamma_only_local,
                const int nbands_istate,
-               const std::vector<int>& out_band_kb,
+               const std::vector<int>& out_pchg,
                const int nbands,
                const double nelec,
                const int nspin,
                const int nlocal,
                const std::string& global_out_dir,
-               const int my_rank,
                std::ofstream& ofs_warning,
                UnitCell* ucell_in,
-               Grid_Driver* GridD_in,
+               const Parallel_Grid& pgrid,
+               const Grid_Driver* GridD_in,
                const K_Vectors& kv,
                const bool if_separate_k,
                Parallel_Grid* Pgrid,
@@ -92,14 +93,14 @@ class IState_Charge
      * @brief Set this->bands_picked_ according to the mode, and process an error if the mode is not recognized.
      *
      * @param nbands_istate INPUT parameter nbands_istate.
-     * @param out_band_kb Calculated from INPUT parameter bands_to_print, vector.
+     * @param out_pchg INPUT parameter out_pchg, vector.
      * @param nbands INPUT parameter nbands.
      * @param nelec Total number of electrons.
      * @param mode Selected mode.
      * @param fermi_band Calculated Fermi band.
      */
     void select_bands(const int nbands_istate,
-                      const std::vector<int>& out_band_kb,
+                      const std::vector<int>& out_pchg,
                       const int nbands,
                       const double nelec,
                       const int mode,
@@ -140,8 +141,8 @@ class IState_Charge
 
 #endif
     std::vector<int> bands_picked_;
-    psi::Psi<double>* psi_gamma;
-    psi::Psi<std::complex<double>>* psi_k;
+    psi::Psi<double>* psi_gamma=nullptr;
+    psi::Psi<std::complex<double>>* psi_k=nullptr;
     const Parallel_Orbitals* ParaV;
 };
 #endif

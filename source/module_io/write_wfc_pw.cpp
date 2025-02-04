@@ -66,16 +66,11 @@ void ModuleIO::write_wfc_pw(const std::string& fn,
                 int ikstot = 0;  // ikstot : the index within all k-points
                 const int ng = kv.ngk[ik];
                 const int ng_max = wfcpw->npwk_max;
+                ikstot = kv.ik2iktot[ik];
 #ifdef __MPI
                 MPI_Allreduce(&kv.ngk[ik], &ikngtot, 1, MPI_INT, MPI_SUM, POOL_WORLD);
-
-                // ikstot=GlobalC::Pkpoints.startk_pool[ip]+ik;
-                // In the future, Pkpoints should be moved into Klist
-                // To avoid GlobalC, we use get_ik_global instead
-                ikstot = K_Vectors::get_ik_global(ik, nkstot);
 #else
-        ikngtot = kv.ngk[ik];
-        ikstot = ik;
+                ikngtot = kv.ngk[ik];
 #endif
                 const int ikngtot_npol = ikngtot * PARAM.globalv.npol;
 #ifdef __MPI
@@ -101,7 +96,7 @@ void ModuleIO::write_wfc_pw(const std::string& fn,
                                 ofs2 << std::setw(10) << ikstot + 1 << std::setw(10) << nkstot << std::setw(10)
                                      << kv.kvec_c[ik].x << std::setw(10) << kv.kvec_c[ik].y << std::setw(10)
                                      << kv.kvec_c[ik].z << std::setw(10) << kv.wk[ik] << std::setw(10) << ikngtot
-                                     << std::setw(10) << GlobalV::NBANDS << std::setw(10) << PARAM.inp.ecutwfc
+                                     << std::setw(10) << PARAM.inp.nbands << std::setw(10) << PARAM.inp.ecutwfc
                                      << std::setw(10) << wfcpw->lat0 << std::setw(10) << wfcpw->tpiba << std::endl;
                                 ofs2 << "\n<Reciprocal Lattice Vector>" << std::endl;
                                 ofs2 << std::setw(10) << wfcpw->G.e11 << std::setw(10) << wfcpw->G.e12 << std::setw(10)
@@ -136,7 +131,7 @@ void ModuleIO::write_wfc_pw(const std::string& fn,
                             if (id == 0)
                             {
                                 wfs2 << int(72) << ikstot + 1 << nkstot << kv.kvec_c[ik].x << kv.kvec_c[ik].y
-                                     << kv.kvec_c[ik].z << kv.wk[ik] << ikngtot << GlobalV::NBANDS << PARAM.inp.ecutwfc
+                                     << kv.kvec_c[ik].z << kv.wk[ik] << ikngtot << PARAM.inp.nbands << PARAM.inp.ecutwfc
                                      << wfcpw->lat0 << wfcpw->tpiba << 72; // 4 int + 7 double is 72B
                                 wfs2 << 72 << wfcpw->G.e11 << wfcpw->G.e12 << wfcpw->G.e13 << wfcpw->G.e21
                                      << wfcpw->G.e22 << wfcpw->G.e23 << wfcpw->G.e31 << wfcpw->G.e32 << wfcpw->G.e33
@@ -167,7 +162,7 @@ void ModuleIO::write_wfc_pw(const std::string& fn,
                     }
                 } // end id
 #endif
-                for (int ib = 0; ib < GlobalV::NBANDS; ib++)
+                for (int ib = 0; ib < PARAM.inp.nbands; ib++)
                 {
 #ifdef __MPI
                     for (int id = 0; id < GlobalV::NPROC_IN_POOL; id++)

@@ -26,6 +26,12 @@ void ReadInput::item_exx()
                 {
                     para.input.exx_hybrid_alpha = "0.25";
                 }
+                // added by jghan 2024-07-06
+                else if (dft_functional_lower == "muller" || dft_functional_lower == "power" 
+                        || dft_functional_lower == "wp22" || dft_functional_lower == "cwp22")
+                {
+                    para.input.exx_hybrid_alpha = "1";
+                }
                 else
                 { // no exx in scf, but will change to non-zero in
                     // postprocess like rpa
@@ -88,7 +94,7 @@ void ReadInput::item_exx()
         read_sync_string(input.exx_real_number);
         item.reset_value = [](const Input_Item& item, Parameter& para) {
             if (para.input.exx_real_number == "default")
-            {
+            {  // to run through here, the default value of para.input.exx_real_number should be "default"
                 if (para.input.gamma_only)
                 {
                     para.input.exx_real_number = "1";
@@ -181,7 +187,7 @@ void ReadInput::item_exx()
         read_sync_string(input.exx_ccp_rmesh_times);
         item.reset_value = [](const Input_Item& item, Parameter& para) {
             if (para.input.exx_ccp_rmesh_times == "default")
-            {
+            {   // to run through here, the default value of para.input.exx_ccp_rmesh_times should be "default"
                 std::string& dft_functional = para.input.dft_functional;
                 std::string dft_functional_lower = dft_functional;
                 std::transform(dft_functional.begin(), dft_functional.end(), dft_functional_lower.begin(), tolower);
@@ -190,6 +196,20 @@ void ReadInput::item_exx()
                     para.input.exx_ccp_rmesh_times = "5";
                 }
                 else if (dft_functional_lower == "hse")
+                {
+                    para.input.exx_ccp_rmesh_times = "1.5";
+                }
+                // added by jghan 2024-07-06
+                else if (dft_functional_lower == "muller" || dft_functional_lower == "power")
+                {
+                    para.input.exx_ccp_rmesh_times = "5";
+                }
+                else if (dft_functional_lower == "wp22")
+                {
+                    para.input.exx_ccp_rmesh_times = "5";
+                    // exx_ccp_rmesh_times = "1.5";
+                }
+                else if (dft_functional_lower == "cwp22")
                 {
                     para.input.exx_ccp_rmesh_times = "1.5";
                 }
@@ -319,16 +339,9 @@ void ReadInput::item_dftu()
             const Input_para& input = para.input;
             if (input.dft_plus_u != 0)
             {
-                if (input.basis_type != "lcao")
+                if (input.basis_type == "pw" && input.nspin != 4)
                 {
-                    ModuleBase::WARNING_QUIT("ReadInput", "WRONG ARGUMENTS OF basis_type, only lcao is support");
-                }
-                if (input.ks_solver != "genelpa" && input.ks_solver != "scalapack_gvx" && input.ks_solver != "default")
-                {
-                    std::cout << " You'are using " << input.ks_solver << std::endl;
-                    ModuleBase::WARNING_QUIT("ReadInput",
-                                             "WRONG ARGUMENTS OF ks_solver in DFT+U routine, only "
-                                             "genelpa and scalapack_gvx are supported ");
+                    ModuleBase::WARNING_QUIT("ReadInput", "WRONG ARGUMENTS, only nspin2 with PW base is not supported now");
                 }
             }
         };
@@ -385,6 +398,7 @@ void ReadInput::item_dftu()
             }
         };
         sync_double(input.uramping_eV);
+        add_double_bcast(sys.uramping);
         this->add_item(item);
     }
     {
@@ -398,10 +412,10 @@ void ReadInput::item_dftu()
         item.annotation = "radius of the sphere for onsite projection (Bohr)";
         read_sync_double(input.onsite_radius);
         item.reset_value = [](const Input_Item& item, Parameter& para) {
-            if (para.input.dft_plus_u == 1 && para.input.onsite_radius == 0.0)
+            if ((para.input.dft_plus_u == 1 || para.input.sc_mag_switch) && para.input.onsite_radius == 0.0)
             {
-                // autoset onsite_radius to 5.0 as default
-                para.input.onsite_radius = 5.0;
+                // autoset onsite_radius to 3.0 as default, this default value comes from the systematic atomic magnetism test
+                para.input.onsite_radius = 3.0;
             }
         };
         this->add_item(item);

@@ -4,6 +4,7 @@
 #include "module_basis/module_nao/two_center_integrator.h"
 #include "module_cell/module_neighbor/sltk_grid_driver.h"
 #include "module_elecstate/module_dm/density_matrix.h"
+#include "module_hamilt_lcao/module_deepks/LCAO_deepks.h"
 #include "module_hamilt_lcao/module_hcontainer/hcontainer.h"
 #include "operator_lcao.h"
 
@@ -33,11 +34,16 @@ class DeePKS<OperatorLCAO<TK, TR>> : public OperatorLCAO<TK, TR>
                                  const std::vector<ModuleBase::Vector3<double>>& kvec_d_in,
                                  HContainer<TR>* hR_in,
                                  const UnitCell* ucell_in,
-                                 Grid_Driver* GridD_in,
+                                 const Grid_Driver* GridD_in,
                                  const TwoCenterIntegrator* intor_orb_alpha,
                                  const LCAO_Orbitals* ptr_orb,
                                  const int& nks_in,
-                                 elecstate::DensityMatrix<TK, double>* DM_in);
+                                 elecstate::DensityMatrix<TK, double>* DM_in
+#ifdef __DEEPKS
+                                 ,
+                                 LCAO_Deepks* ld_in
+#endif
+                                 );
     ~DeePKS();
 
     /**
@@ -58,6 +64,9 @@ class DeePKS<OperatorLCAO<TK, TR>> : public OperatorLCAO<TK, TR>
     elecstate::DensityMatrix<TK, double>* DM;
 
     const UnitCell* ucell = nullptr;
+    Grid_Driver* gridD = nullptr;
+
+    const Grid_Driver* gd = nullptr;
 
     HContainer<TR>* H_V_delta = nullptr;
 
@@ -67,12 +76,14 @@ class DeePKS<OperatorLCAO<TK, TR>> : public OperatorLCAO<TK, TR>
 
 #ifdef __DEEPKS
 
+    LCAO_Deepks* ld = nullptr;
+
     /**
      * @brief initialize HR, search the nearest neighbor atoms
      * HContainer is used to store the DeePKS real space Hamiltonian correction with specific <I,J,R> atom-pairs
      * the size of HR will be fixed after initialization
      */
-    void initialize_HR(Grid_Driver* GridD);
+    void initialize_HR(const Grid_Driver* GridD);
 
     /**
      * @brief calculate the DeePKS correction matrix with specific <I,J,R> atom-pairs

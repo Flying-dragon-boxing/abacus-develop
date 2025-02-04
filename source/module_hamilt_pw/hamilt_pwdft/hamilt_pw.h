@@ -7,7 +7,7 @@
 #include "module_esolver/esolver_ks_pw.h"
 #include "module_hamilt_general/hamilt.h"
 #include "module_hamilt_pw/hamilt_pwdft/VNL_in_pw.h"
-#include "module_hsolver/kernels/math_kernel_op.h"
+#include "module_base/kernels/math_kernel_op.h"
 
 namespace hamilt
 {
@@ -21,7 +21,7 @@ class HamiltPW : public Hamilt<T, Device>
     // otherwise return the real type of T(complex<float>, complex<double>)
     using Real = typename GetTypeReal<T>::type;
   public:
-    HamiltPW(elecstate::Potential* pot_in, ModulePW::PW_Basis_K* wfc_basis, K_Vectors* p_kv);
+    HamiltPW(elecstate::Potential* pot_in, ModulePW::PW_Basis_K* wfc_basis, K_Vectors* p_kv, pseudopot_cell_vnl* nlpp,const UnitCell* ucell);
     template<typename T_in, typename Device_in = Device>
     explicit HamiltPW(const HamiltPW<T_in, Device_in>* hamilt);
     ~HamiltPW();
@@ -43,6 +43,7 @@ class HamiltPW : public Hamilt<T, Device>
 protected:
     // used in sPhi, which are calculated in hPsi or sPhi
     const pseudopot_cell_vnl* ppcell = nullptr;
+    const UnitCell* const ucell = nullptr;
     mutable T* vkb = nullptr;
     Real* qq_nt = nullptr;
     T* qq_so = nullptr;
@@ -52,8 +53,8 @@ protected:
 #endif
 
     Device* ctx = {};
-    using gemv_op = hsolver::gemv_op<T, Device>;
-    using gemm_op = hsolver::gemm_op<T, Device>;
+    using gemv_op = ModuleBase::gemv_op<T, Device>;
+    using gemm_op = ModuleBase::gemm_op<T, Device>;
     using setmem_complex_op = base_device::memory::set_memory_op<T, Device>;
     using resmem_complex_op = base_device::memory::resize_memory_op<T, Device>;
     using delmem_complex_op = base_device::memory::delete_memory_op<T, Device>;

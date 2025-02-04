@@ -112,8 +112,8 @@ void Numerical_Basis::output_overlap(const psi::Psi<std::complex<double>>& psi,
         std::vector<ModuleBase::ComplexArray> overlap_Sq(kv.get_nks());
 
         ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "number of k points", kv.get_nks());
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "number of bands", GlobalV::NBANDS);
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "number of local orbitals", GlobalV::NLOCAL);
+        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "number of bands", PARAM.inp.nbands);
+        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "number of local orbitals", PARAM.globalv.nlocal);
         ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "number of eigenvalues of Jl(x)",
                                     this->bessel_basis.get_ecut_number());
 
@@ -232,7 +232,7 @@ ModuleBase::ComplexArray Numerical_Basis::cal_overlap_Q(const int& ik, const int
                          << std::endl;
     GlobalV::ofs_running << " Q = < J_mu, q | Psi_n, k > " << std::endl;
 
-    ModuleBase::ComplexArray overlap_Q(GlobalV::NBANDS, GlobalV::NLOCAL, this->bessel_basis.get_ecut_number());
+    ModuleBase::ComplexArray overlap_Q(PARAM.inp.nbands, PARAM.globalv.nlocal, this->bessel_basis.get_ecut_number());
     overlap_Q.zero_out();
 
     const double normalization = (4 * ModuleBase::PI) / sqrt(ucell.omega); // Peize Lin add normalization 2015-12-29
@@ -273,7 +273,7 @@ ModuleBase::ComplexArray Numerical_Basis::cal_overlap_Q(const int& ik, const int
                     for (int m = 0; m < 2 * L + 1; m++)
                     {
                         const int lm = L * L + m;
-                        for (int ib = 0; ib < GlobalV::NBANDS; ib++)
+                        for (int ib = 0; ib < PARAM.inp.nbands; ib++)
                         {
                             std::complex<double> overlap_tmp = ModuleBase::ZERO;
                             for (int ig = 0; ig < np; ig++)
@@ -309,7 +309,7 @@ ModuleBase::ComplexArray Numerical_Basis::cal_overlap_Sq(const int& ik, const in
     GlobalV::ofs_running << " S = < J_mu,q1 | J_nu,q2 >" << std::endl;
 
     const int enumber = this->bessel_basis.get_ecut_number();
-    ModuleBase::ComplexArray overlap_Sq(GlobalV::NLOCAL, GlobalV::NLOCAL, enumber, enumber);
+    ModuleBase::ComplexArray overlap_Sq(PARAM.globalv.nlocal, PARAM.globalv.nlocal, enumber, enumber);
     overlap_Sq.zero_out();
 
     const double normalization
@@ -424,7 +424,7 @@ ModuleBase::matrix Numerical_Basis::cal_overlap_V(const ModulePW::PW_Basis_K* wf
                                                   const double derivative_order, const K_Vectors& kv,
                                                   const double tpiba)
 {
-    ModuleBase::matrix overlap_V(kv.get_nks(), GlobalV::NBANDS);
+    ModuleBase::matrix overlap_V(kv.get_nks(), PARAM.inp.nbands);
     for (int ik = 0; ik < kv.get_nks(); ++ik)
     {
         std::vector<ModuleBase::Vector3<double>> gk(kv.ngk[ik]);
@@ -434,7 +434,7 @@ ModuleBase::matrix Numerical_Basis::cal_overlap_V(const ModulePW::PW_Basis_K* wf
 
         const std::vector<double> gpow = Numerical_Basis::cal_gpow(gk, derivative_order);
 
-        for (int ib = 0; ib < GlobalV::NBANDS; ++ib) {
+        for (int ib = 0; ib < PARAM.inp.nbands; ++ib) {
             for (int ig = 0; ig < kv.ngk[ik]; ++ig) {
                 overlap_V(ik, ib) += norm(psi(ik, ib, ig)) * gpow[ig];
 }
@@ -629,8 +629,8 @@ void Numerical_Basis::output_info(std::ofstream& ofs, const Bessel_Basis& bessel
     if (GlobalV::MY_RANK == 0)
     {
         ofs << kv.get_nkstot() << " nks" << std::endl;
-        ofs << GlobalV::NBANDS << " nbands" << std::endl;
-        ofs << GlobalV::NLOCAL << " nwfc" << std::endl;
+        ofs << PARAM.inp.nbands << " nbands" << std::endl;
+        ofs << PARAM.globalv.nlocal << " nwfc" << std::endl;
         ofs << bessel_basis.get_ecut_number() << " ne " << std::endl;
     }
 }
@@ -654,9 +654,9 @@ void Numerical_Basis::output_k(std::ofstream& ofs, const K_Vectors& kv)
         // temprary restrict kpar=1 for NSPIN=2 case for generating_orbitals
         int pool = 0;
         if (PARAM.inp.nspin != 2) {
-            pool = GlobalC::Pkpoints.whichpool[ik];
+            pool = kv.para_k.whichpool[ik];
 }
-        const int iknow = ik - GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL];
+        const int iknow = ik - kv.para_k.startk_pool[GlobalV::MY_POOL];
         if (GlobalV::RANK_IN_POOL == 0)
         {
             if (GlobalV::MY_POOL == 0)
@@ -671,7 +671,7 @@ void Numerical_Basis::output_k(std::ofstream& ofs, const K_Vectors& kv)
                 else
                 {
 
-                    int startpro_pool = GlobalC::Pkpoints.get_startpro_pool(pool);
+                    int startpro_pool = kv.para_k.get_startpro_pool(pool);
                     MPI_Status ierror;
                     MPI_Recv(&kx, 1, MPI_DOUBLE, startpro_pool, ik * 4, MPI_COMM_WORLD, &ierror);
                     MPI_Recv(&ky, 1, MPI_DOUBLE, startpro_pool, ik * 4 + 1, MPI_COMM_WORLD, &ierror);
@@ -755,7 +755,7 @@ void Numerical_Basis::output_overlap_Q(std::ofstream& ofs, const std::vector<Mod
     {
         ModuleBase::ComplexArray Qtmp(overlap_Q[ik].getBound1(), overlap_Q[ik].getBound2(), overlap_Q[ik].getBound3());
         Qtmp.zero_out();
-        GlobalC::Pkpoints.pool_collection(Qtmp.ptr, overlap_Q_k, ik);
+        kv.para_k.pool_collection(Qtmp.ptr, overlap_Q_k, ik);
         if (GlobalV::MY_RANK == 0)
         {
             //        ofs << "\n ik=" << ik;
@@ -803,12 +803,12 @@ void Numerical_Basis::output_overlap_Sq(const std::string& name, std::ofstream& 
     {
         for (int ik = 0; ik < nkstot; ik++)
         {
-            if (GlobalV::MY_POOL == GlobalC::Pkpoints.whichpool[ik])
+            if (GlobalV::MY_POOL == kv.para_k.whichpool[ik])
             {
                 if (GlobalV::RANK_IN_POOL == 0)
                 {
                     ofs.open(name.c_str(), std::ios::app);
-                    const int ik_now = ik - GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL] + is * nkstot;
+                    const int ik_now = ik - kv.para_k.startk_pool[GlobalV::MY_POOL] + is * nkstot;
 
                     const int size = overlap_Sq[ik_now].getSize();
                     for (int i = 0; i < size; i++)

@@ -18,7 +18,9 @@ extern int omp_number;
 //---------------------------
 // call at the very first.
 //---------------------------
-void read_mpi_parameters(int argc, char** argv, int& NPROC, int& MY_RANK);
+
+// changed from read_mpi_parameters in 2024-1018
+void read_pal_param(int argc, char** argv, int& NPROC, int& NTHREAD_PER_PROC, int& MY_RANK);
 #ifdef __MPI
 void myProd(std::complex<double>* in, std::complex<double>* inout, int* len, MPI_Datatype* dptr);
 #endif
@@ -44,22 +46,22 @@ void split_grid_world(const int diag_np, const int& nproc, const int& my_rank, i
  */
 void init_pools(const int& NPROC,
                 const int& MY_RANK,
-                const int& NSTOGROUP,
+                const int& BNDPAR,
                 const int& KPAR,
-                int& NPROC_IN_STOGROUP,
-                int& RANK_IN_STOGROUP,
-                int& MY_STOGROUP,
+                int& NPROC_IN_BNDGROUP,
+                int& RANK_IN_BPGROUP,
+                int& MY_BNDGROUP,
                 int& NPROC_IN_POOL,
                 int& RANK_IN_POOL,
                 int& MY_POOL);
 
 void divide_pools(const int& NPROC,
                   const int& MY_RANK,
-                  const int& NSTOGROUP,
+                  const int& BNDPAR,
                   const int& KPAR,
-                  int& NPROC_IN_STOGROUP,
-                  int& RANK_IN_STOGROUP,
-                  int& MY_STOGROUP,
+                  int& NPROC_IN_BNDGROUP,
+                  int& RANK_IN_BPGROUP,
+                  int& MY_BNDGROUP,
                   int& NPROC_IN_POOL,
                   int& RANK_IN_POOL,
                   int& MY_POOL);

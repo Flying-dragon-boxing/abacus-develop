@@ -8,6 +8,7 @@
 #include "module_base/mathzone.h"
 #include "module_cell/check_atomic_stru.h"
 #include "module_cell/unitcell.h"
+#include "module_elecstate/read_pseudo.h"
 #include <valarray>
 #include <vector>
 #ifdef __MPI
@@ -71,7 +72,7 @@ Magnetism::~Magnetism() { delete[] this->start_magnetization; }
  *     - cal_nwfc(): calcuate the total number of local basis: NSPIN != 4
  *     - this corresponds to number_of_proj, PP_BETA in pp file, and
  * atoms[it].l_nchi[nw], nw from orb file
- *     - setup GlobalV::NLOCAL
+ *     - setup PARAM.sys.nlocal
  *     - interfaces initialed in this function:
  *       - itia2iat
  *       - iat2iwt
@@ -89,7 +90,7 @@ Magnetism::~Magnetism() { delete[] this->start_magnetization; }
  * possible of an element
  *   - CalNelec: UnitCell::cal_nelec
  *     - calculate the total number of valence electrons from psp files
- *   - CalNbands: elecstate::ElecState::cal_nbands()
+ *   - CalNbands: elecstate::cal_nbands()
  *     - calculate the number of bands
  */
 
@@ -120,11 +121,11 @@ class UcellTest : public ::testing::Test {
         PARAM.input.test_pseudo_cell = true;
         PARAM.input.nspin = 1;
         PARAM.input.basis_type = "pw";
-        GlobalV::nelec = 10.0;
-        GlobalV::nupdown = 0.0;
+        PARAM.input.nelec = 10.0;
+        PARAM.input.nupdown  = 0.0;
         PARAM.sys.two_fermi = false;
-        GlobalV::NBANDS = 6;
-        GlobalV::NLOCAL = 6;
+        PARAM.input.nbands = 6;
+        PARAM.sys.nlocal = 6;
         PARAM.input.lspinorb = false;
     }
     void TearDown() { ofs.close(); }
@@ -136,8 +137,8 @@ TEST_F(UcellDeathTest, ReadCellPPWarning1) {
     PARAM.input.lspinorb = true;
     ucell->pseudo_fn[1] = "H_sr.upf";
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->read_cell_pseudopots(pp_dir, ofs),
-                ::testing::ExitedWithCode(0),
+    EXPECT_EXIT(elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell),
+                ::testing::ExitedWithCode(1),
                 "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output,
@@ -147,8 +148,8 @@ TEST_F(UcellDeathTest, ReadCellPPWarning1) {
 TEST_F(UcellDeathTest, ReadCellPPWarning2) {
     pp_dir = "./arbitrary/";
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->read_cell_pseudopots(pp_dir, ofs),
-                ::testing::ExitedWithCode(0),
+    EXPECT_EXIT(elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell),
+                ::testing::ExitedWithCode(1),
                 "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output,
@@ -158,8 +159,8 @@ TEST_F(UcellDeathTest, ReadCellPPWarning2) {
 TEST_F(UcellDeathTest, ReadCellPPWarning3) {
     ucell->pseudo_type[0] = "upf";
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->read_cell_pseudopots(pp_dir, ofs),
-                ::testing::ExitedWithCode(0),
+    EXPECT_EXIT(elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell),
+                ::testing::ExitedWithCode(1),
                 "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output,
@@ -169,7 +170,7 @@ TEST_F(UcellDeathTest, ReadCellPPWarning3) {
 TEST_F(UcellDeathTest, ReadCellPPWarning4) {
     PARAM.input.dft_functional = "LDA";
     testing::internal::CaptureStdout();
-    EXPECT_NO_THROW(ucell->read_cell_pseudopots(pp_dir, ofs));
+    EXPECT_NO_THROW(elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell));
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("dft_functional readin is: LDA"));
     EXPECT_THAT(output,
@@ -181,8 +182,8 @@ TEST_F(UcellDeathTest, ReadCellPPWarning4) {
 TEST_F(UcellDeathTest, ReadCellPPWarning5) {
     ucell->pseudo_type[0] = "upf0000";
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->read_cell_pseudopots(pp_dir, ofs),
-                ::testing::ExitedWithCode(0),
+    EXPECT_EXIT(elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell),
+                ::testing::ExitedWithCode(1),
                 "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("Unknown pseudopotential type."));
@@ -190,7 +191,7 @@ TEST_F(UcellDeathTest, ReadCellPPWarning5) {
 
 TEST_F(UcellTest, ReadCellPP) {
     ucell->atoms[1].flag_empty_element = true;
-    ucell->read_cell_pseudopots(pp_dir, ofs);
+    elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell);
     EXPECT_EQ(ucell->atoms[0].ncpp.pp_type, "NC");
     EXPECT_FALSE(ucell->atoms[0].ncpp.has_so); // becomes false in average_p
     EXPECT_FALSE(ucell->atoms[1].ncpp.has_so);
@@ -213,7 +214,7 @@ TEST_F(UcellTest, ReadCellPP) {
 }
 
 TEST_F(UcellTest, CalMeshx) {
-    ucell->read_cell_pseudopots(pp_dir, ofs);
+    elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell);
     ucell->cal_meshx();
     EXPECT_EQ(ucell->atoms[0].ncpp.msh, 1247);
     EXPECT_EQ(ucell->atoms[1].ncpp.msh, 1165);
@@ -221,7 +222,7 @@ TEST_F(UcellTest, CalMeshx) {
 }
 
 TEST_F(UcellTest, CalNatomwfc1) {
-    ucell->read_cell_pseudopots(pp_dir, ofs);
+    elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell);
     EXPECT_FALSE(ucell->atoms[0].ncpp.has_so);
     EXPECT_FALSE(ucell->atoms[1].ncpp.has_so);
     ucell->cal_natomwfc(ofs);
@@ -235,7 +236,7 @@ TEST_F(UcellTest, CalNatomwfc1) {
 TEST_F(UcellTest, CalNatomwfc2) {
     PARAM.input.lspinorb = false;
     PARAM.input.nspin = 4;
-    ucell->read_cell_pseudopots(pp_dir, ofs);
+    elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell);
     EXPECT_FALSE(ucell->atoms[0].ncpp.has_so);
     EXPECT_FALSE(ucell->atoms[1].ncpp.has_so);
     ucell->cal_natomwfc(ofs);
@@ -249,7 +250,7 @@ TEST_F(UcellTest, CalNatomwfc2) {
 TEST_F(UcellTest, CalNatomwfc3) {
     PARAM.input.lspinorb = true;
     PARAM.input.nspin = 4;
-    ucell->read_cell_pseudopots(pp_dir, ofs);
+    elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell);
     EXPECT_TRUE(ucell->atoms[0].ncpp.has_so);
     EXPECT_TRUE(ucell->atoms[1].ncpp.has_so);
     ucell->cal_natomwfc(ofs);
@@ -262,10 +263,10 @@ TEST_F(UcellTest, CalNatomwfc3) {
 }
 
 TEST_F(UcellTest, CalNwfc1) {
-    ucell->read_cell_pseudopots(pp_dir, ofs);
+    elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell);
     EXPECT_FALSE(ucell->atoms[0].ncpp.has_so);
     EXPECT_FALSE(ucell->atoms[1].ncpp.has_so);
-    GlobalV::NLOCAL = 3 * 9;
+    PARAM.sys.nlocal = 3 * 9;
     ucell->cal_nwfc(ofs);
     EXPECT_EQ(ucell->atoms[0].iw2l[8], 2);
     EXPECT_EQ(ucell->atoms[0].iw2n[8], 0);
@@ -328,15 +329,15 @@ TEST_F(UcellTest, CalNwfc1) {
 TEST_F(UcellTest, CalNwfc2) {
     PARAM.input.nspin = 4;
     PARAM.input.basis_type = "lcao";
-    ucell->read_cell_pseudopots(pp_dir, ofs);
+    elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell);
     EXPECT_FALSE(ucell->atoms[0].ncpp.has_so);
     EXPECT_FALSE(ucell->atoms[1].ncpp.has_so);
-    GlobalV::NLOCAL = 3 * 9 * 2;
+    PARAM.sys.nlocal = 3 * 9 * 2;
     EXPECT_NO_THROW(ucell->cal_nwfc(ofs));
 }
 
 TEST_F(UcellDeathTest, CheckStructure) {
-    ucell->read_cell_pseudopots(pp_dir, ofs);
+    elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell);
     EXPECT_FALSE(ucell->atoms[0].ncpp.has_so);
     EXPECT_FALSE(ucell->atoms[1].ncpp.has_so);
     // trial 1
@@ -350,7 +351,7 @@ TEST_F(UcellDeathTest, CheckStructure) {
     testing::internal::CaptureStdout();
     factor = 0.4;
     EXPECT_EXIT(Check_Atomic_Stru::check_atomic_stru(*ucell, factor),
-                ::testing::ExitedWithCode(0),
+                ::testing::ExitedWithCode(1),
                 "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("The structure is unreasonable!"));
@@ -379,7 +380,7 @@ TEST_F(UcellDeathTest, ReadPseudoWarning1) {
     PARAM.input.out_element_info = true;
     ucell->pseudo_fn[1] = "H_sr_lda.upf";
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->read_pseudo(ofs), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(elecstate::read_pseudo(ofs, *ucell), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output,
                 testing::HasSubstr("All DFT functional must consistent."));
@@ -390,7 +391,7 @@ TEST_F(UcellDeathTest, ReadPseudoWarning2) {
     PARAM.input.out_element_info = true;
     ucell->pseudo_fn[0] = "Al_ONCV_PBE-1.0.upf";
     testing::internal::CaptureStdout();
-    EXPECT_NO_THROW(ucell->read_pseudo(ofs));
+    EXPECT_NO_THROW(elecstate::read_pseudo(ofs, *ucell));
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(
         output,
@@ -399,71 +400,71 @@ TEST_F(UcellDeathTest, ReadPseudoWarning2) {
 }
 
 TEST_F(UcellTest, CalNelec) {
-    ucell->read_cell_pseudopots(pp_dir, ofs);
+    elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell);
     EXPECT_EQ(4, ucell->atoms[0].ncpp.zv);
     EXPECT_EQ(1, ucell->atoms[1].ncpp.zv);
     EXPECT_EQ(1, ucell->atoms[0].na);
     EXPECT_EQ(2, ucell->atoms[1].na);
     double nelec = 0;
-    cal_nelec(ucell->atoms, ucell->ntype, nelec);
+    elecstate::cal_nelec(ucell->atoms, ucell->ntype, nelec);
     EXPECT_DOUBLE_EQ(6, nelec);
 }
 
 TEST_F(UcellTest, CalNbands)
 {
     std::vector<double> nelec_spin(2, 5.0);
-    cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS);
-    EXPECT_EQ(GlobalV::NBANDS, 6);
+    elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands);
+    EXPECT_EQ(PARAM.input.nbands, 6);
 }
 
 TEST_F(UcellTest, CalNbandsFractionElec)
 {
-    GlobalV::nelec = 9.5;
+    PARAM.input.nelec = 9.5;
     std::vector<double> nelec_spin(2, 5.0);
-    cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS);
-    EXPECT_EQ(GlobalV::NBANDS, 6);
+    elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands);
+    EXPECT_EQ(PARAM.input.nbands, 6);
 }
 
 TEST_F(UcellTest, CalNbandsSOC)
 {
     PARAM.input.lspinorb = true;
-    GlobalV::NBANDS = 0;
+    PARAM.input.nbands = 0;
     std::vector<double> nelec_spin(2, 5.0);
-    cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS);
-    EXPECT_EQ(GlobalV::NBANDS, 20);
+    elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands);
+    EXPECT_EQ(PARAM.input.nbands, 20);
 }
 
 TEST_F(UcellTest, CalNbandsSDFT)
 {
     PARAM.input.esolver_type = "sdft";
     std::vector<double> nelec_spin(2, 5.0);
-    EXPECT_NO_THROW(cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS));
+    EXPECT_NO_THROW(elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands));
 }
 
 TEST_F(UcellTest, CalNbandsLCAO)
 {
     PARAM.input.basis_type = "lcao";
     std::vector<double> nelec_spin(2, 5.0);
-    EXPECT_NO_THROW(cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS));
+    EXPECT_NO_THROW(elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands));
 }
 
 TEST_F(UcellTest, CalNbandsLCAOINPW)
 {
     PARAM.input.basis_type = "lcao_in_pw";
-    GlobalV::NLOCAL = GlobalV::NBANDS - 1;
+    PARAM.sys.nlocal = PARAM.input.nbands - 1;
     std::vector<double> nelec_spin(2, 5.0);
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("NLOCAL < NBANDS"));
 }
 
 TEST_F(UcellTest, CalNbandsWarning1)
 {
-    GlobalV::NBANDS = GlobalV::nelec / 2 - 1;
+    PARAM.input.nbands = PARAM.input.nelec / 2 - 1;
     std::vector<double> nelec_spin(2, 5.0);
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("Too few bands!"));
 }
@@ -471,12 +472,12 @@ TEST_F(UcellTest, CalNbandsWarning1)
 TEST_F(UcellTest, CalNbandsWarning2)
 {
     PARAM.input.nspin = 2;
-    GlobalV::nupdown = 4.0;
+    PARAM.input.nupdown  = 4.0;
     std::vector<double> nelec_spin(2);
-    nelec_spin[0] = (GlobalV::nelec + GlobalV::nupdown) / 2.0;
-    nelec_spin[1] = (GlobalV::nelec - GlobalV::nupdown) / 2.0;
+    nelec_spin[0] = (PARAM.input.nelec + PARAM.input.nupdown ) / 2.0;
+    nelec_spin[1] = (PARAM.input.nelec - PARAM.input.nupdown ) / 2.0;
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("Too few spin up bands!"));
 }
@@ -484,12 +485,12 @@ TEST_F(UcellTest, CalNbandsWarning2)
 TEST_F(UcellTest, CalNbandsWarning3)
 {
     PARAM.input.nspin = 2;
-    GlobalV::nupdown = -4.0;
+    PARAM.input.nupdown  = -4.0;
     std::vector<double> nelec_spin(2);
-    nelec_spin[0] = (GlobalV::nelec + GlobalV::nupdown) / 2.0;
-    nelec_spin[1] = (GlobalV::nelec - GlobalV::nupdown) / 2.0;
+    nelec_spin[0] = (PARAM.input.nelec + PARAM.input.nupdown ) / 2.0;
+    nelec_spin[1] = (PARAM.input.nelec - PARAM.input.nupdown ) / 2.0;
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("Too few spin down bands!"));
 }
@@ -497,67 +498,67 @@ TEST_F(UcellTest, CalNbandsWarning3)
 TEST_F(UcellTest, CalNbandsSpin1)
 {
     PARAM.input.nspin = 1;
-    GlobalV::NBANDS = 0;
+    PARAM.input.nbands = 0;
     std::vector<double> nelec_spin(2, 5.0);
-    cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS);
-    EXPECT_EQ(GlobalV::NBANDS, 15);
+    elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands);
+    EXPECT_EQ(PARAM.input.nbands, 15);
 }
 
 TEST_F(UcellTest, CalNbandsSpin1LCAO)
 {
     PARAM.input.nspin = 1;
-    GlobalV::NBANDS = 0;
+    PARAM.input.nbands = 0;
     PARAM.input.basis_type = "lcao";
     std::vector<double> nelec_spin(2, 5.0);
-    cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS);
-    EXPECT_EQ(GlobalV::NBANDS, 6);
+    elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands);
+    EXPECT_EQ(PARAM.input.nbands, 6);
 }
 
 TEST_F(UcellTest, CalNbandsSpin4)
 {
     PARAM.input.nspin = 4;
-    GlobalV::NBANDS = 0;
+    PARAM.input.nbands = 0;
     std::vector<double> nelec_spin(2, 5.0);
-    cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS);
-    EXPECT_EQ(GlobalV::NBANDS, 30);
+    elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands);
+    EXPECT_EQ(PARAM.input.nbands, 30);
 }
 
 TEST_F(UcellTest, CalNbandsSpin4LCAO)
 {
     PARAM.input.nspin = 4;
-    GlobalV::NBANDS = 0;
+    PARAM.input.nbands = 0;
     PARAM.input.basis_type = "lcao";
     std::vector<double> nelec_spin(2, 5.0);
-    cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS);
-    EXPECT_EQ(GlobalV::NBANDS, 6);
+    elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands);
+    EXPECT_EQ(PARAM.input.nbands, 6);
 }
 
 TEST_F(UcellTest, CalNbandsSpin2)
 {
     PARAM.input.nspin = 2;
-    GlobalV::NBANDS = 0;
+    PARAM.input.nbands = 0;
     std::vector<double> nelec_spin(2, 5.0);
-    cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS);
-    EXPECT_EQ(GlobalV::NBANDS, 16);
+    elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands);
+    EXPECT_EQ(PARAM.input.nbands, 16);
 }
 
 TEST_F(UcellTest, CalNbandsSpin2LCAO)
 {
     PARAM.input.nspin = 2;
-    GlobalV::NBANDS = 0;
+    PARAM.input.nbands = 0;
     PARAM.input.basis_type = "lcao";
     std::vector<double> nelec_spin(2, 5.0);
-    cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS);
-    EXPECT_EQ(GlobalV::NBANDS, 6);
+    elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands);
+    EXPECT_EQ(PARAM.input.nbands, 6);
 }
 
 TEST_F(UcellTest, CalNbandsGaussWarning)
 {
-    GlobalV::NBANDS = 5;
+    PARAM.input.nbands = 5;
     std::vector<double> nelec_spin(2, 5.0);
     PARAM.input.smearing_method = "gaussian";
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(cal_nbands(GlobalV::nelec, GlobalV::NLOCAL, nelec_spin, GlobalV::NBANDS), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(elecstate::cal_nbands(PARAM.input.nelec, PARAM.sys.nlocal, nelec_spin, PARAM.input.nbands), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("for smearing, num. of bands > num. of occupied bands"));
 }

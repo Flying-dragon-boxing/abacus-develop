@@ -402,26 +402,15 @@ void HamiltPW<T, Device>::sPsi(const T* psi_in, // psi
 }
 
 template<typename T, typename Device>
-void HamiltPW<T, Device>::set_exx_helper(psi::Psi<T, Device> *psi_in, typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper *exx_helper)
+void HamiltPW<T, Device>::set_exx_helper(typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper *exx_helper)
 {
-    if (psi_in != nullptr)
-    {
-        this->psi = *psi_in;
-    }
-//    print the address of psi_in
-//    printf("psi_in address: %p\n", psi_in);
-
     auto op = this->ops;
     while (op != nullptr)
     {
         if (op->get_cal_type() == calculation_type::pw_exx)
         {
-            if (psi_in != nullptr)
-            {
-                reinterpret_cast<OperatorEXXPW<T, Device>*>(op)->set_psi(&this->psi);
-            }
-//            reinterpret_cast<OperatorEXXPW<T, Device>*>(op)->set_psi(&this->psi);
             reinterpret_cast<OperatorEXXPW<T, Device>*>(op)->set_exx_helper(exx_helper);
+
         }
         op = op->next_op;
     }

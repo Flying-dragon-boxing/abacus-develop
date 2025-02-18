@@ -37,7 +37,7 @@ void OperatorEXXPW<T, Device>::exx_divergence()
 
     // here we follow the exx_divergence subroutine in q-e (PW/src/exx_base.f90)
     double alpha = 10.0 / wfcpw->gk_ecut;
-    std::cout << "alpha: " << alpha << std::endl;
+//    std::cout << "alpha: " << alpha << std::endl;
     // double alpha = GlobalC::exx_info.info_lip.lambda; // alternative way set by user
 //    double tpiba2 = elecstate::get_ucell_tpiba() * elecstate::get_ucell_tpiba();
     double tpiba2 = tpiba * tpiba;
@@ -246,6 +246,8 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
 {
     if (p_exx_helper->first_iter) return;
     // return;
+
+    set_psi(&p_exx_helper->psi);
 
     ModuleBase::timer::tick("OperatorEXXPW", "act");
 

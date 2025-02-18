@@ -51,8 +51,6 @@
 #include "module_hamilt_pw/hamilt_ofdft/ml_data.h"
 #endif
 
-#include "module_elecstate/elecstate_getters.h"
-
 #include <ATen/kernels/blas.h>
 #include <ATen/kernels/lapack.h>
 
@@ -93,7 +91,7 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
         // here we follow the exx_divergence subroutine in q-e (PW/src/exx_base.f90)
         // double alpha = GlobalC::exx_info.info_lip.lambda;
         double alpha = 10.0 / wfcpw->gk_ecut;
-        double tpiba2 = elecstate::get_ucell_tpiba() * elecstate::get_ucell_tpiba();
+        double tpiba2 = this->pw_rhod->tpiba2;
         double div = 0;
 
         // this is the \sum_q F(q) part
@@ -158,7 +156,7 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
         aa *= 8 / ModuleBase::FOUR_PI;
         aa += 1.0 / std::sqrt(alpha * ModuleBase::PI);
 
-        double omega = elecstate::get_ucell_omega();
+        double omega = this->pelec->omega;
         div -= ModuleBase::e2 * omega * aa;
         return div * wfcpw->nks;
 
@@ -167,7 +165,7 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
 
     double exx_div = exx_divergence();
 
-    if (exx_helper.wg == nullptr) return 0.0;
+    if (exx_helper.wf_wg == nullptr) return 0.0;
     ModuleBase::timer::tick("OperatorEXXPW", "get_Eexx");
     // evaluate the Eexx
     // T Eexx_ik = 0.0;
@@ -176,15 +174,15 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
     {
 //        auto k = this->pw_wfc->kvec_c[ik];
 //        std::cout << k << std::endl;
-        for (int n_iband = 0; n_iband < GlobalV::NBANDS; n_iband++)
+        for (int n_iband = 0; n_iband < psi.get_nbands(); n_iband++)
         {
-            setmem_complex_op()(this->ctx, h_psi_recip, 0, this->pw_wfc->npwk_max);
-            setmem_complex_op()(this->ctx, h_psi_real, 0, rhopw->nrxx);
-            setmem_complex_op()(this->ctx, density_real, 0, rhopw->nrxx);
-            setmem_complex_op()(this->ctx, density_recip, 0, rhopw->npw);
+            setmem_complex_op()(h_psi_recip, 0, this->pw_wfc->npwk_max);
+            setmem_complex_op()(h_psi_real, 0, rhopw->nrxx);
+            setmem_complex_op()(density_real, 0, rhopw->nrxx);
+            setmem_complex_op()(density_recip, 0, rhopw->npw);
 
             // double wg_ikb_real = GlobalC::exx_helper.wg(this->ik, n_iband);
-            double wg_ikb_real = (*exx_helper.wg)(ik, n_iband);
+            double wg_ikb_real = (*exx_helper.wf_wg)(ik, n_iband);
             T wg_ikb = wg_ikb_real;
             if (wg_ikb_real < 1e-12)
             {
@@ -213,10 +211,10 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
             {
                 double min_gg = 200;
                 double max_gg = -1e8;
-                for (int m_iband = 0; m_iband < GlobalV::NBANDS; m_iband++)
+                for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
                 {
                     // double wg_f = GlobalC::exx_helper.wg(iq, m_iband);
-                    double wg_iqb_real = (*exx_helper.wg)(iq, m_iband);
+                    double wg_iqb_real = (*exx_helper.wf_wg)(iq, m_iband);
                     T wg_iqb = wg_iqb_real;
                     if (wg_iqb_real < 1e-12)
                     {
@@ -230,7 +228,7 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
                     // const T* psi_mq = get_pw(m_iband, iq);
                     this->pw_wfc->recip_to_real(ctx, psi_mq, psi_mq_real, iq);
 
-                    Real omega_inv = 1.0 / elecstate::get_ucell_omega();
+                    Real omega_inv = 1.0 / this->pelec->omega;
 
                     // direct multiplication in real space, \psi_nk(r) * \psi_mq(r)
                     #ifdef _OPENMP
@@ -247,7 +245,7 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
                     // bring the density to recip space
                     rhopw->real2recip(density_real, density_recip);
 
-                    Real tpiba2 = elecstate::get_ucell_tpiba(); tpiba2 *= tpiba2;
+                    Real tpiba2 = this->pw_rhod->tpiba2;
 //                    std::cout << tpiba2 << std::endl;
                     Real hse_omega2 = GlobalC::exx_info.info_global.hse_omega * GlobalC::exx_info.info_global.hse_omega;
 
@@ -296,7 +294,7 @@ double ESolver_KS_PW<T, Device>::cal_exx_energy(psi::Psi<T, Device> psi)
         } // n_iband
 
     } // ik
-    Eexx_ik_real *= 0.5 * elecstate::get_ucell_omega();
+    Eexx_ik_real *= 0.5 * this->pelec->omega;
     Parallel_Reduce::reduce_pool(Eexx_ik_real);
 //    std::cout << "Eexx: " << Eexx_ik_real << std::endl;
 
@@ -417,38 +415,6 @@ void ESolver_KS_PW<T, Device>::before_all_runners(UnitCell& ucell, const Input_p
     //! 4) inititlize the charge density.
     this->pelec->charge->allocate(PARAM.inp.nspin);
 
-    // EXX Todo: Fix the control flow
-//#ifdef __EXX
-//    // 7) initialize exx
-//    // PLEASE simplify the Exx_Global interface
-//    if (PARAM.inp.calculation == "scf"
-//        || PARAM.inp.calculation == "relax"
-//        || PARAM.inp.calculation == "cell-relax"
-//        || PARAM.inp.calculation == "md")
-//    {
-//        if (GlobalC::exx_info.info_global.cal_exx)
-//        {
-//            /* In the special "two-level" calculation case,
-//            first scf iteration only calculate the functional without exact exchange.
-//            but in "nscf" calculation, there is no need of "two-level" method. */
-//            if (ucell.atoms[0].ncpp.xc_func == "HF"
-//             || ucell.atoms[0].ncpp.xc_func == "PBE0"
-//             || ucell.atoms[0].ncpp.xc_func == "HSE")
-//            {
-//                XC_Functional::set_xc_type("pbe");
-//            }
-//            else if (ucell.atoms[0].ncpp.xc_func == "SCAN0")
-//            {
-//                XC_Functional::set_xc_type("scan");
-//            }
-//
-//            GlobalC::exx_info.info_global.hybrid_alpha = 0.25;
-////            XC_Functional::get_hybrid_alpha(0);
-//
-//        }
-//    }
-//#endif
-
     //! 5) set the cell volume variable in pelec
     this->pelec->omega = ucell.omega;
 
@@ -458,8 +424,9 @@ void ESolver_KS_PW<T, Device>::before_all_runners(UnitCell& ucell, const Input_p
         this->pelec->pot = new elecstate::Potential(this->pw_rhod,
                                                     this->pw_rho,
                                                     &ucell,
-                                                    &GlobalC::ppcell.vloc,
+                                                    &this->locpp.vloc,
                                                     &(this->sf),
+                                                    &(this->solvent),
                                                     &(this->pelec->f_en.etxc),
                                                     &(this->pelec->f_en.vtxc));
     }
@@ -502,6 +469,26 @@ void ESolver_KS_PW<T, Device>::before_all_runners(UnitCell& ucell, const Input_p
     {
         this->pelec->fixed_weights(PARAM.inp.ocp_kb, PARAM.globalv.nbands_l, PARAM.inp.nelec);
     }
+
+
+    // EXX Todo: Fix the control flow
+#ifdef __EXX
+    // 10) initialize exx pw
+    if (PARAM.inp.calculation == "scf"
+        || PARAM.inp.calculation == "relax"
+        || PARAM.inp.calculation == "cell-relax"
+        || PARAM.inp.calculation == "md")
+    {
+        if (GlobalC::exx_info.info_global.cal_exx)
+        {
+            XC_Functional::set_xc_first_loop(ucell);
+
+            exx_helper.wf_wg = &(this->pelec->wg);
+            exx_helper.first_iter = true;
+        }
+    }
+#endif
+
 }
 
 template <typename T, typename Device>
@@ -555,7 +542,7 @@ void ESolver_KS_PW<T, Device>::before_scf(UnitCell& ucell, const int istep)
         {
             std::cout << "setting psi for exx before scf" << std::endl;
             auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
-            hamilt_pw->set_exx_vars(this->kspw_psi[0], exx_helper);
+            hamilt_pw->set_exx_vars(this->kspw_psi, &exx_helper);
         }
 
     }
@@ -839,6 +826,13 @@ void ESolver_KS_PW<T, Device>::hamilt2density_single(UnitCell& ucell,
     // need 'rho(out)' and 'vr (v_h(in) and v_xc(in))'
     this->pelec->f_en.deband = this->pelec->cal_delta_eband(ucell);
 
+#ifdef __EXX
+    if (GlobalC::exx_info.info_global.cal_exx && !exx_helper.first_iter)
+    {
+        this->pelec->set_exx(this->cal_exx_energy(this->kspw_psi[0]));
+    }
+#endif
+
     ModuleBase::timer::tick("ESolver_KS_PW", "hamilt2density_single");
 }
 
@@ -877,29 +871,31 @@ void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int
         ModuleBase::matrix veff = this->pelec->pot->get_effective_v();
         this->ppcell.cal_effective_D(veff, this->pw_rhod, ucell);
     }
-//#ifdef __EXX
-//    if (GlobalC::exx_info.info_global.cal_exx)
-//    {
-//        if (GlobalC::exx_info.info_global.separate_loop)
-//        {
-//            if (this->conv_elec)
-//            {
-//                std::cout << "setting psi for exx inner loop" << std::endl;
-//                auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
-//                hamilt_pw->set_exx_vars(this->kspw_psi[0], exx_helper);
-//
-//                this->conv_elec = exx_helper.exx_after_converge(iter);
-//            }
-//        }
-//        else
-//        {
-//            std::cout << "setting psi for each iter" << std::endl;
-//            auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
-//            hamilt_pw->set_exx_vars(this->kspw_psi[0], exx_helper);
-//        }
-//
-//    }
-//#endif // __EXX
+
+#ifdef __EXX
+    if (GlobalC::exx_info.info_global.cal_exx)
+    {
+        if (GlobalC::exx_info.info_global.separate_loop)
+        {
+            if (this->conv_esolver)
+            {
+                std::cout << "setting psi for exx inner loop" << std::endl;
+                auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
+                hamilt_pw->set_exx_vars(this->kspw_psi, &exx_helper);
+
+                this->conv_esolver = exx_helper.exx_after_converge(iter);
+                exx_helper.first_iter = false;
+            }
+        }
+        else
+        {
+            std::cout << "setting psi for each iter" << std::endl;
+            auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
+            hamilt_pw->set_exx_vars(this->kspw_psi, &exx_helper);
+        }
+
+    }
+#endif // __EXX
 
     // 4) Print out electronic wavefunctions
     if (PARAM.inp.out_wfc_pw == 1 || PARAM.inp.out_wfc_pw == 2)

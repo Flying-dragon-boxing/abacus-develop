@@ -229,8 +229,8 @@ void Psi<T, Device>::set_all_psi(const T* another_pointer, const std::size_t siz
 template <typename T, typename Device>
 Psi<T, Device>& Psi<T, Device>::operator=(const Psi<T, Device>& psi_in)
 {
-    this->ngk = psi_in.get_ngk_pointer();
-    this->npol = psi_in.npol;
+//    printf("%d\n", &psi_in);
+    this->ngk = psi_in.ngk;
     this->nk = psi_in.get_nk();
     this->nbands = psi_in.get_nbands();
     this->nbasis = psi_in.get_nbasis();
@@ -238,19 +238,16 @@ Psi<T, Device>& Psi<T, Device>::operator=(const Psi<T, Device>& psi_in)
     this->current_b = psi_in.get_current_b();
     this->k_first = psi_in.get_k_first();
     // this function will copy psi_in.psi to this->psi no matter the device types of each other.
-    this->device = base_device::get_device_type<Device>(this->ctx);
+
     this->resize(psi_in.get_nk(), psi_in.get_nbands(), psi_in.get_nbasis());
-    base_device::memory::synchronize_memory_op<T, Device, Device>()(this->ctx,
-                                                       psi_in.get_device(),
-                                                       this->psi,
-                                                       psi_in.get_pointer() - psi_in.get_psi_bias(),
-                                                       psi_in.size());
+    base_device::memory::synchronize_memory_op<T, Device, Device>()(this->psi,
+                                                                    psi_in.get_pointer() - psi_in.get_psi_bias(),
+                                                                    psi_in.size());
     this->psi_bias = psi_in.get_psi_bias();
     this->current_nbasis = psi_in.get_current_nbas();
     this->psi_current = this->psi + psi_in.get_psi_bias();
-    // this->psi_current = psi_in.psi_current;
-    return *this;
 
+    return *this;
 }
 
 template <typename T, typename Device>

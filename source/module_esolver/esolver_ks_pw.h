@@ -34,11 +34,13 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
     void after_all_runners(UnitCell& ucell) override;
 
 #ifdef __EXX
-    class Exx_Helper
+    struct Exx_Helper
     {
       public:
         Exx_Helper() = default;
-        ModuleBase::matrix *wg;
+        ModuleBase::matrix * wf_wg;
+        double* ucell_omega;
+        double* ucell_tpiba;
         bool exx_after_converge(int &iter)
         {
             if (first_iter)
@@ -49,7 +51,6 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
             {
                 return true;
             }
-            // if (std::abs(exx_energy[0] - exx_lip.get_exx_energy()) < 1e-5)
             else if (iter == 1)
             {
                 return true;

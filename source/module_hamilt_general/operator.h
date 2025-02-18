@@ -90,6 +90,11 @@ class Operator
         return this->act_type;
     }
 
+    calculation_type get_cal_type() const
+    {
+        return this->cal_type;
+    }
+
   protected:
     int ik = 0;
     int act_type = 1; ///< determine which act() interface would be called in hPsi()

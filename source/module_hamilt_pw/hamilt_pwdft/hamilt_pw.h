@@ -37,7 +37,8 @@ class HamiltPW : public Hamilt<T, Device>
     ) const override;
 
 #ifdef __EXX
-    void set_exx_vars(psi::Psi<T, Device>& psi_in, typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper& exx_helper_in);
+    void set_exx_vars(psi::Psi<T, Device>* psi_in, typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper* exx_helper_in);
+    typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper* p_exx_helper;
 #endif
 
 protected:

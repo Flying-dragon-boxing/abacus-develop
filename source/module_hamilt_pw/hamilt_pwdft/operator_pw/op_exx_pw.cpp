@@ -3,7 +3,7 @@
 #include "module_base/parallel_reduce.h"
 #include "module_base/timer.h"
 #include "module_cell/klist.h"
-#include "module_elecstate/elecstate_getters.h"
+//#include "module_elecstate/elecstate_getters.h"
 #include "module_hamilt_general/operator.h"
 #include "module_psi/psi.h"
 #include "module_base/tool_quit.h"
@@ -39,7 +39,8 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     double alpha = 10.0 / wfcpw->gk_ecut;
     std::cout << "alpha: " << alpha << std::endl;
     // double alpha = GlobalC::exx_info.info_lip.lambda; // alternative way set by user
-    double tpiba2 = elecstate::get_ucell_tpiba() * elecstate::get_ucell_tpiba();
+//    double tpiba2 = elecstate::get_ucell_tpiba() * elecstate::get_ucell_tpiba();
+    double tpiba2 = tpiba * tpiba;
     double div = 0;
     
     // this is the \sum_q F(q) part
@@ -105,7 +106,8 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     aa *= 8 / ModuleBase::FOUR_PI;
     aa += 1.0 / std::sqrt(alpha * ModuleBase::PI);
 
-    double omega = elecstate::get_ucell_omega();
+//    printf("ucell: %p\n", ucell);
+    double omega = ucell->omega;
     div -= ModuleBase::e2 * omega * aa;
     exx_div = div * wfcpw->nks;
     // std::cout << "EXX divergence: " << exx_div << std::endl;
@@ -118,8 +120,9 @@ template <typename T, typename Device>
 OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
                                         const ModulePW::PW_Basis_K* wfcpw_in,
                                         const ModulePW::PW_Basis* rhopw_in,
-                                        K_Vectors *kv_in)
-    : isk(isk_in), wfcpw(wfcpw_in), rhopw(rhopw_in), kv(kv_in)
+                                        K_Vectors *kv_in,
+                                        const UnitCell *ucell)
+    : isk(isk_in), wfcpw(wfcpw_in), rhopw(rhopw_in), kv(kv_in), ucell(ucell)
 {
 
     if (GlobalV::KPAR != 1)
@@ -135,22 +138,23 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
 
     // allocate real space memory
     // assert(wfcpw->nrxx == rhopw->nrxx);
-    resmem_complex_op()(this->ctx, psi_nk_real, wfcpw->nrxx);
-    resmem_complex_op()(this->ctx, psi_mq_real, wfcpw->nrxx);
-    resmem_complex_op()(this->ctx, density_real, rhopw->nrxx);
-    resmem_complex_op()(this->ctx, h_psi_real, rhopw->nrxx);
+    resmem_complex_op()(psi_nk_real, wfcpw->nrxx);
+    resmem_complex_op()(psi_mq_real, wfcpw->nrxx);
+    resmem_complex_op()(density_real, rhopw->nrxx);
+    resmem_complex_op()(h_psi_real, rhopw->nrxx);
     // allocate density recip space memory
-    resmem_complex_op()(this->ctx, density_recip, rhopw->npw);
+    resmem_complex_op()(density_recip, rhopw->npw);
     // allocate h_psi recip space memory
-    resmem_complex_op()(this->ctx, h_psi_recip, wfcpw->npwk_max);
+    resmem_complex_op()(h_psi_recip, wfcpw->npwk_max);
     // resmem_complex_op()(this->ctx, psi_all_real, wfcpw->nrxx * GlobalV::NBANDS);
     int nks = wfcpw->nks;
-    resmem_complex_op()(this->ctx, pot, rhopw->npw * nks * nks);
+    resmem_complex_op()(pot, rhopw->npw * nks * nks);
 
+    tpiba = ucell->tpiba;
+    Real tpiba2 = tpiba * tpiba;
     // calculate the exx_divergence
     exx_divergence();
 
-    double tpiba2 = elecstate::get_ucell_tpiba() * elecstate::get_ucell_tpiba();
     // calculate the pot
     for (int ik = 0; ik < nks; ik++)
     {
@@ -205,12 +209,12 @@ template <typename T, typename Device>
 OperatorEXXPW<T, Device>::~OperatorEXXPW()
 {
     // use delete_memory_op to delete the allocated pws
-    delmem_complex_op()(this->ctx, psi_nk_real);
-    delmem_complex_op()(this->ctx, psi_mq_real);
-    delmem_complex_op()(this->ctx, density_real);
-    delmem_complex_op()(this->ctx, h_psi_real);
-    delmem_complex_op()(this->ctx, density_recip);
-    delmem_complex_op()(this->ctx, h_psi_recip);
+    delmem_complex_op()(psi_nk_real);
+    delmem_complex_op()(psi_mq_real);
+    delmem_complex_op()(density_real);
+    delmem_complex_op()(h_psi_real);
+    delmem_complex_op()(density_recip);
+    delmem_complex_op()( h_psi_recip);
 }
 
 template <typename T>
@@ -237,15 +241,16 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
                                    const int npol,
                                    const T *tmpsi_in,
                                    T *tmhpsi,
-                                   const int ngk_ik) const
+                                   const int ngk_ik,
+                                   const bool is_first_node) const
 {
-//    if (GlobalC::exx_helper.first_iter) return;
+    if (p_exx_helper->first_iter) return;
     // return;
 
     ModuleBase::timer::tick("OperatorEXXPW", "act");
 
-    setmem_complex_op()(this->ctx, h_psi_recip, 0, wfcpw->npwk_max);
-    setmem_complex_op()(this->ctx, h_psi_real, 0, rhopw->nrxx);
+    setmem_complex_op()(h_psi_recip, 0, wfcpw->npwk_max);
+    setmem_complex_op()(h_psi_real, 0, rhopw->nrxx);
 
     // ik fixed here, select band n
     for (int n_iband = 0; n_iband < nbands; n_iband++)
@@ -259,10 +264,10 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
         Real nqs = q_points.size();
         for (int iq: q_points)
         {
-            for (int m_iband = 0; m_iband < GlobalV::NBANDS; m_iband++)
+            for (int m_iband = 0; m_iband < psi->get_nbands(); m_iband++)
             {
                 // double wg_mqb_real = GlobalC::exx_helper.wg(iq, m_iband);
-                double wg_mqb_real = (*p_exx_helper->wg)(this->ik, m_iband);
+                double wg_mqb_real = (*p_exx_helper->wf_wg)(this->ik, m_iband);
                 T wg_mqb = wg_mqb_real;
                 if (wg_mqb_real < 1e-12)
                 {
@@ -291,7 +296,7 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
                 {
                     // assert(is_finite(psi_nk_real[ir]));
                     // assert(is_finite(psi_mq_real[ir]));
-                    Real ucell_omega = elecstate::get_ucell_omega();
+                    Real ucell_omega = ucell->omega;
                     density_real[ir] = psi_nk_real[ir] * std::conj(psi_mq_real[ir]) / ucell_omega; // Phase e^(i(q-k)r)
                 }
                 // to be changed into kernel function
@@ -328,16 +333,16 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
                 }
 
             } // end of m_iband
-            setmem_complex_op()(this->ctx, density_real, 0, rhopw->nrxx);
-            setmem_complex_op()(this->ctx, density_recip, 0, rhopw->npw);
-            setmem_complex_op()(this->ctx, psi_mq_real, 0, wfcpw->nrxx);
+            setmem_complex_op()(density_real, 0, rhopw->nrxx);
+            setmem_complex_op()(density_recip, 0, rhopw->npw);
+            setmem_complex_op()(psi_mq_real, 0, wfcpw->nrxx);
 
         } // end of iq
         auto h_psi_nk = tmhpsi + n_iband * nbasis;
         Real hybrid_alpha = GlobalC::exx_info.info_global.hybrid_alpha;
         // wfcpw->real_to_recip(ctx, h_psi_real, h_psi_recip, this->ik);
         wfcpw->real_to_recip(ctx, h_psi_real, h_psi_nk, this->ik, true, hybrid_alpha);
-        setmem_complex_op()(this->ctx, h_psi_real, 0, rhopw->nrxx);
+        setmem_complex_op()(h_psi_real, 0, rhopw->nrxx);
 
         // add the h|psi_ik> to tmhpsi
         
@@ -398,8 +403,8 @@ void OperatorEXXPW<T, Device>::multiply_potential(T *density_recip, int ik, int 
     int npw = rhopw->npw;
     auto k = wfcpw->kvec_c[ik];
     auto q = wfcpw->kvec_c[iq];
-    double ucell_omega = elecstate::get_ucell_omega();
-    double tpiba2 = elecstate::get_ucell_tpiba() * elecstate::get_ucell_tpiba();
+    double ucell_omega = ucell->omega;
+    double tpiba2 = tpiba * tpiba;
     // double e2 = 2.0;
     // screen not yet implemented
     #ifdef _OPENMP

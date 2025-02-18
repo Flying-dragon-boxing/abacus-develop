@@ -124,7 +124,7 @@ HamiltPW<T, Device>::HamiltPW(elecstate::Potential* pot_in,
     }
     if (GlobalC::exx_info.info_global.cal_exx)
     {
-        auto exx = new OperatorEXXPW<T, Device>(isk, wfc_basis, pot_in->get_rho_basis(), pkv);
+        auto exx = new OperatorEXXPW<T, Device>(isk, wfc_basis, pot_in->get_rho_basis(), pkv, ucell);
         if (this->ops == nullptr)
         {
             this->ops = exx;
@@ -402,16 +402,26 @@ void HamiltPW<T, Device>::sPsi(const T* psi_in, // psi
 }
 
 template<typename T, typename Device>
-void HamiltPW<T, Device>::set_exx_vars(psi::Psi<T, Device>& psi_in, typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper &exx_helper)
+void HamiltPW<T, Device>::set_exx_vars(psi::Psi<T, Device> *psi_in, typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper *exx_helper)
 {
-    this->psi = psi_in;
+    if (psi_in != nullptr)
+    {
+        this->psi = *psi_in;
+    }
+//    print the address of psi_in
+//    printf("psi_in address: %p\n", psi_in);
+
     auto op = this->ops;
     while (op != nullptr)
     {
         if (op->get_cal_type() == calculation_type::pw_exx)
         {
-            reinterpret_cast<OperatorEXXPW<T, Device>*>(op)->set_psi(&this->psi);
-            reinterpret_cast<OperatorEXXPW<T, Device>*>(op)->set_exx_helper(&exx_helper);
+            if (psi_in != nullptr)
+            {
+                reinterpret_cast<OperatorEXXPW<T, Device>*>(op)->set_psi(&this->psi);
+            }
+//            reinterpret_cast<OperatorEXXPW<T, Device>*>(op)->set_psi(&this->psi);
+            reinterpret_cast<OperatorEXXPW<T, Device>*>(op)->set_exx_helper(exx_helper);
         }
         op = op->next_op;
     }

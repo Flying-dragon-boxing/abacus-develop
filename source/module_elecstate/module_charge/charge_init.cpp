@@ -83,12 +83,12 @@ void Charge::init_rho(elecstate::efermi& eferm_iout,
 //                }
 //            Todo: Fix Comparison
 
-            }
+//            }
 
-            // compare the two charge density
-            Charge_Mixing chm;
-            chm.set_rhopw(rhopw, rhopw);
-            std::cout << chm.get_drho(this, GlobalV::nelec) << std::endl;
+//            // compare the two charge density
+//            Charge_Mixing chm;
+//            chm.set_rhopw(rhopw, rhopw);
+//            std::cout << chm.get_drho(this, GlobalV::nelec) << std::endl;
         }
         else
         {

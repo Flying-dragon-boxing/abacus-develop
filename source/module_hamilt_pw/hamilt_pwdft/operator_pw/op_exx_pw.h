@@ -34,7 +34,8 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     OperatorEXXPW(const int* isk_in,
                   const ModulePW::PW_Basis_K* wfcpw_in,
                   const ModulePW::PW_Basis* rhopw_in,
-                  K_Vectors* kv_in);
+                  K_Vectors* kv_in,
+                  const UnitCell* ucell);
 
     template <typename T_in, typename Device_in = Device>
     explicit OperatorEXXPW(const OperatorEXXPW<T_in, Device_in> *op_exx);
@@ -46,7 +47,8 @@ class OperatorEXXPW : public OperatorPW<T, Device>
                      const int npol,
                      const T *tmpsi_in,
                      T *tmhpsi,
-                     const int ngk_ik = 0) const override;
+                     const int ngk_ik = 0,
+                     const bool is_first_node = false) const override;
 
     void set_psi(const psi::Psi<T, Device> *psi_in) const 
     { 
@@ -62,7 +64,9 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     const int *isk = nullptr;
     const ModulePW::PW_Basis_K *wfcpw = nullptr;
     const ModulePW::PW_Basis   *rhopw = nullptr;
+    const UnitCell *ucell = nullptr;
     Real exx_div = 0;
+    Real tpiba = 0;
     
     std::vector<int> get_q_points(const int ik) const;
     const T *get_pw(const int m, const int iq) const;

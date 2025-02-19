@@ -402,7 +402,7 @@ void HamiltPW<T, Device>::sPsi(const T* psi_in, // psi
 }
 
 template<typename T, typename Device>
-void HamiltPW<T, Device>::set_exx_vars(psi::Psi<T, Device> *psi_in, typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper *exx_helper)
+void HamiltPW<T, Device>::set_exx_helper(psi::Psi<T, Device> *psi_in, typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper *exx_helper)
 {
     if (psi_in != nullptr)
     {

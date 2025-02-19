@@ -40,6 +40,9 @@ method. */
     else if (ucell.atoms[0].ncpp.xc_func == "SCAN0") {
         XC_Functional::set_xc_type("scan");
     }
+    else if (ucell.atoms[0].ncpp.xc_func == "B3LYP") {
+        XC_Functional::set_xc_type("blyp");
+    }
 }
 
 // The setting values of functional id according to the index in LIBXC
@@ -242,6 +245,12 @@ void XC_Functional::set_xc_type(const std::string xc_func_in)
         scaling_factor_xc[XC_GGA_X_B88] = 1.0;
 
         func_type = 2;
+        use_libxc = true;
+    }
+    else if (xc_func == "B3LYP")
+    {
+        func_id.push_back(XC_HYB_GGA_XC_B3LYP);
+        func_type = 4;
         use_libxc = true;
     }
 #endif

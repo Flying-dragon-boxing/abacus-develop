@@ -17,6 +17,7 @@ void ReadInput::item_exx()
                 std::string& dft_functional = para.input.dft_functional;
                 std::string dft_functional_lower = dft_functional;
                 std::transform(dft_functional.begin(), dft_functional.end(), dft_functional_lower.begin(), tolower);
+                printf("dft_functional_lower = %s\n", dft_functional_lower.c_str());
                 if (dft_functional_lower == "hf")
                 {
                     para.input.exx_hybrid_alpha = "1";
@@ -31,6 +32,10 @@ void ReadInput::item_exx()
                         || dft_functional_lower == "wp22" || dft_functional_lower == "cwp22")
                 {
                     para.input.exx_hybrid_alpha = "1";
+                }
+                else if (dft_functional_lower == "b3lyp")
+                {
+                    para.input.exx_hybrid_alpha = "0.2";
                 }
                 else
                 { // no exx in scf, but will change to non-zero in

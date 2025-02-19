@@ -353,6 +353,12 @@ void Input_Conv::Convert()
         GlobalC::exx_info.info_global.cal_exx = true;
         GlobalC::exx_info.info_global.ccp_type = Conv_Coulomb_Pot_K::Ccp_Type::Erfc; // use the erfc(w|r-r'|), exx just has the short-range part
     }
+    else if (dft_functional_lower == "b3lyp")
+    {
+        GlobalC::exx_info.info_global.cal_exx = true;
+        GlobalC::exx_info.info_global.ccp_type
+            = Conv_Coulomb_Pot_K::Ccp_Type::Hf;
+    }
     else {
         GlobalC::exx_info.info_global.cal_exx = false;
     }

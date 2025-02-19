@@ -60,7 +60,7 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
             return false;
 
         }
-        bool first_iter = true;
+        bool first_iter = false;
     };
 #endif
 

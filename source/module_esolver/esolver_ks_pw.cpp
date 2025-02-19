@@ -479,13 +479,14 @@ void ESolver_KS_PW<T, Device>::before_all_runners(UnitCell& ucell, const Input_p
         || PARAM.inp.calculation == "cell-relax"
         || PARAM.inp.calculation == "md")
     {
-        if (GlobalC::exx_info.info_global.cal_exx)
+        if (GlobalC::exx_info.info_global.cal_exx && GlobalC::exx_info.info_global.separate_loop == true)
         {
             XC_Functional::set_xc_first_loop(ucell);
-
-            exx_helper.wf_wg = &(this->pelec->wg);
             exx_helper.first_iter = true;
         }
+
+        exx_helper.wf_wg = &(this->pelec->wg);
+
     }
 #endif
 
@@ -540,9 +541,9 @@ void ESolver_KS_PW<T, Device>::before_scf(UnitCell& ucell, const int istep)
     {
         if (GlobalC::exx_info.info_global.cal_exx && PARAM.inp.basis_type == "pw")
         {
-            std::cout << "setting psi for exx before scf" << std::endl;
+//            std::cout << "setting psi for exx before scf" << std::endl;
             auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
-            hamilt_pw->set_exx_vars(this->kspw_psi, &exx_helper);
+            hamilt_pw->set_exx_helper(this->kspw_psi, &exx_helper);
         }
 
     }
@@ -881,17 +882,19 @@ void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int
             {
                 std::cout << "setting psi for exx inner loop" << std::endl;
                 auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
-                hamilt_pw->set_exx_vars(this->kspw_psi, &exx_helper);
+                hamilt_pw->set_exx_helper(this->kspw_psi, &exx_helper);
 
                 this->conv_esolver = exx_helper.exx_after_converge(iter);
                 exx_helper.first_iter = false;
+
+                XC_Functional::set_xc_type(ucell.atoms[0].ncpp.xc_func);
             }
         }
         else
         {
             std::cout << "setting psi for each iter" << std::endl;
             auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
-            hamilt_pw->set_exx_vars(this->kspw_psi, &exx_helper);
+            hamilt_pw->set_exx_helper(this->kspw_psi, &exx_helper);
         }
 
     }

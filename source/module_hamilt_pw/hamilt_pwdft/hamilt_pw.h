@@ -49,10 +49,6 @@ protected:
     Real* qq_nt = nullptr;
     T* qq_so = nullptr;
 
-#ifdef __EXX
-    psi::Psi<T, Device> psi;
-#endif
-
     Device* ctx = {};
     using gemv_op = ModuleBase::gemv_op<T, Device>;
     using gemm_op = ModuleBase::gemm_op<T, Device>;

@@ -1,6 +1,5 @@
 #include "td_velocity.h"
 
-#include "module_parameter/parameter.h"
 #include "module_elecstate/potentials/H_TDDFT_pw.h"
 #include "module_parameter/parameter.h"
 

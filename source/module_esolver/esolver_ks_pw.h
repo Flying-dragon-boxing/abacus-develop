@@ -109,7 +109,8 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
                         auto q = k + rhopw->gcar[ig];
                         double qq = q.norm2();
                         if (qq <= 1e-8) continue;
-                        else if (PARAM.inp.dft_functional == "hse")
+                        // else if (PARAM.inp.dft_functional == "hse")
+                        else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
                         {
                             double omega = GlobalC::exx_info.info_global.hse_omega;
                             double omega2 = omega * omega;
@@ -313,6 +314,13 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
     };
 #endif
 
+    // EXX Todo: verify current implementation for after_converge
+    // virtual bool do_after_converge(int &iter) override;
+#ifdef __EXX
+    Exx_Helper exx_helper;
+#endif
+
+
   protected:
     virtual void before_scf(UnitCell& ucell, const int istep) override;
 
@@ -327,11 +335,6 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
     virtual void others(UnitCell& ucell, const int istep) override;
 
     virtual void hamilt2density_single(UnitCell& ucell, const int istep, const int iter, const double ethr) override;
-    // EXX Todo: verify current implementation for after_converge
-    // virtual bool do_after_converge(int &iter) override;
-#ifdef __EXX
-    Exx_Helper exx_helper;
-#endif
 
     virtual void allocate_hamilt(const UnitCell& ucell);
     virtual void deallocate_hamilt();

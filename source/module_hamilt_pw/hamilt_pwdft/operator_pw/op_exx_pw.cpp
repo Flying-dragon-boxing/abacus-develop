@@ -56,7 +56,8 @@ void OperatorEXXPW<T, Device>::exx_divergence()
             auto q = k + rhopw->gcar[ig];
             double qq = q.norm2();
             if (qq <= 1e-8) continue;
-            else if (PARAM.inp.dft_functional == "hse")
+            // else if (PARAM.inp.dft_functional == "hse")
+            else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
             {
                 double omega = GlobalC::exx_info.info_global.hse_omega;
                 double omega2 = omega * omega;
@@ -72,7 +73,8 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     Parallel_Reduce::reduce_pool(div);
     // std::cout << "EXX div: " << div << std::endl;
 
-    if (PARAM.inp.dft_functional == "hse")
+    // if (PARAM.inp.dft_functional == "hse")
+    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
     {
         double omega = GlobalC::exx_info.info_global.hse_omega;
         div += tpiba2 / 4.0 / omega / omega; // compensate for the finite value when qq = 0
@@ -90,7 +92,8 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     int nqq = 100000;
     double dq = 5.0 / std::sqrt(alpha) / nqq;
     double aa = 0.0;
-    if (PARAM.inp.dft_functional == "hse")
+    // if (PARAM.inp.dft_functional == "hse")
+    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
     {
         double omega = GlobalC::exx_info.info_global.hse_omega;
         double omega2 = omega * omega;
@@ -174,7 +177,8 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
                 {
                     Real fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg;
                     // density_recip[ig] *= fac;
-                    if (PARAM.inp.dft_functional == "hse")
+                    // if (PARAM.inp.dft_functional == "hse")
+                    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
                     {
                         pot[ik * nks * nks + iq * nks + ig] = fac * (1.0 - std::exp(-gg / 4.0 / hse_omega2));
                     }
@@ -187,7 +191,8 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
                 else
                 {
                     // std::cout << "div at " << ig << std::endl;
-                    if (PARAM.inp.dft_functional == "hse")
+                    // if (PARAM.inp.dft_functional == "hse")
+                    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
                     {
                         // std::cout << "Factor: " << -ModuleBase::PI * ModuleBase::e2 / hse_omega2 << std::endl;
                         pot[ik * nks * nks + iq * nks + ig] = exx_div - ModuleBase::PI * ModuleBase::e2 / hse_omega2;

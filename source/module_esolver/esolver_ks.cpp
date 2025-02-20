@@ -2,6 +2,7 @@
 
 #include "module_base/timer.h"
 #include "module_cell/cal_atoms_info.h"
+#include "module_hamilt_general/module_xc/xc_functional.h"
 #include "module_io/cube_io.h"
 #include "module_io/json_output/init_info.h"
 #include "module_io/json_output/output_info.h"
@@ -21,6 +22,8 @@
 #include "module_base/parallel_common.h"
 #include "module_cell/module_paw/paw_cell.h"
 #endif
+
+#include "esolver_ks_pw.h"
 
 namespace ModuleESolver
 {
@@ -648,6 +651,22 @@ void ESolver_KS<T, Device>::iter_finish(UnitCell& ucell, const int istep, int& i
     // 2 means Kohn-Sham functional
     this->pelec->cal_energies(1);
     this->pelec->cal_energies(2);
+
+    // for separate loop in hybrid functionals in pw
+    // this gives correct energy for the first "pure" functional loop
+    // and update the functional for the next loop
+    if (PARAM.inp.basis_type == "pw")
+    {
+        auto p_esolver_ks_pw = dynamic_cast<ESolver_KS_PW<T, Device>*>(this);
+
+        if (this->conv_esolver && GlobalC::exx_info.info_global.cal_exx && GlobalC::exx_info.info_global.separate_loop && p_esolver_ks_pw->exx_helper.first_iter)
+        {
+            this->conv_esolver = false;
+            XC_Functional::set_xc_type(ucell.atoms[0].ncpp.xc_func);
+            this->update_pot(ucell, istep, iter);
+            this->conv_esolver = true;
+        }
+    }
 
     if (iter == 1)
     {

@@ -47,6 +47,7 @@ add_library(
     hamilt_pwdft
     OBJECT
     ${objects}
+        stress_func_exx.cpp
 )
 
 if(ENABLE_COVERAGE)

@@ -26,6 +26,7 @@ add_library(
     esolver
     OBJECT
     ${objects}
+        module_exx_helper/exx_helper.cpp
 )
 
 if(ENABLE_COVERAGE)

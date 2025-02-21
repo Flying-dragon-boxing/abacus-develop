@@ -793,6 +793,9 @@ void ESolver_KS_PW<T, Device>::after_scf(UnitCell& ucell, const int istep)
                                   this->pelec->wg);
     }
 
+    // 10) reset exx_helper
+    this->exx_helper.reset_div();
+
     ModuleBase::timer::tick("ESolver_KS_PW", "after_scf");
 }
 

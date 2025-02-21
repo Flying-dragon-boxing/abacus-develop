@@ -19,8 +19,6 @@
 #define __EXX_PW
 #endif
 
-#define __EXX_PW
-
 #ifdef __EXX_PW
 #include "op_exx_pw.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
@@ -37,9 +35,6 @@ void OperatorEXXPW<T, Device>::exx_divergence()
 
     // here we follow the exx_divergence subroutine in q-e (PW/src/exx_base.f90)
     double alpha = 10.0 / wfcpw->gk_ecut;
-//    std::cout << "alpha: " << alpha << std::endl;
-    // double alpha = GlobalC::exx_info.info_lip.lambda; // alternative way set by user
-//    double tpiba2 = elecstate::get_ucell_tpiba() * elecstate::get_ucell_tpiba();
     double tpiba2 = tpiba * tpiba;
     double div = 0;
     
@@ -49,7 +44,7 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     {
         auto k = wfcpw->kvec_c[ik];
         #ifdef _OPENMP
-//        #pragma omp parallel for reduction(+:div)
+        #pragma omp parallel for reduction(+:div)
         #endif
         for (int ig = 0; ig < rhopw->npw; ig++)
         {
@@ -98,7 +93,7 @@ void OperatorEXXPW<T, Device>::exx_divergence()
         double omega = GlobalC::exx_info.info_global.hse_omega;
         double omega2 = omega * omega;
         #ifdef _OPENMP
-//        #pragma omp parallel for reduction(+:aa)
+        #pragma omp parallel for reduction(+:aa)
         #endif
         for (int i = 0; i < nqq; i++)
         {
@@ -166,8 +161,9 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
             auto k = wfcpw->kvec_c[ik];
             auto q = wfcpw->kvec_c[iq];
 
-#ifdef _OPENMP
-//#pragma omp parallel for schedule(static)
+            #ifdef _OPENMP
+            #pragma omp parallel for schedule(static)
+            #endif
             for (int ig = 0; ig < rhopw->npw; ig++)
             {
                 Real gg = (k - q + rhopw->gcar[ig]).norm2() * tpiba2;
@@ -204,7 +200,6 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
                 }
                 // assert(is_finite(density_recip[ig]));
             }
-#endif
         }
     }
 

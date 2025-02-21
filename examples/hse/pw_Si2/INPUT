@@ -27,3 +27,6 @@ pseudo_rcut            10
 # out_chg 1
 
 exx_hybrid_alpha        0.25
+
+cal_stress 1
+# cal_force 1

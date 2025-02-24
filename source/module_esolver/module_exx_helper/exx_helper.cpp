@@ -179,7 +179,7 @@ double ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper::cal_exx_energy(psi::
                     {
                         // assert(is_finite(psi_nk_real[ir]));
                         // assert(is_finite(psi_mq_real[ir]));
-                        density_real[ir] = psi_nk_real[ir] * std::conj(psi_mq_real[ir]);
+                        density_real[ir] = psi_nk_real[ir] * std::conj(psi_mq_real[ir]) * omega_inv;
                     }
                     // to be changed into kernel function
 
@@ -207,7 +207,6 @@ double ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper::cal_exx_energy(psi::
 //                            if (PARAM.inp.dft_functional == "hse")
                             if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
                             {
-
                                 Fac *= (1 - std::exp(-gg/ 4.0 / hse_omega2));
                             }
                         }
@@ -236,7 +235,7 @@ double ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper::cal_exx_energy(psi::
         } // n_iband
 
     } // ik
-    Eexx_ik_real *= 0.5 / this_->pelec->omega;
+    Eexx_ik_real *= 0.5 * this_->pelec->omega;
     Parallel_Reduce::reduce_pool(Eexx_ik_real);
     //    std::cout << "Eexx: " << Eexx_ik_real << std::endl;
 

@@ -210,13 +210,14 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                                 // equation 10 of 10.1103/PhysRevB.73.125120
                                 double density_real2 = std::real(density_recip[ig]) * std::real(density_recip[ig])
                                                       + std::imag(density_recip[ig]) * std::imag(density_recip[ig]);
-                                // then what?
+
                                 double pot_local = pot[ig + iq * rhopw->npw + ik * rhopw->npw * nqs];
                                 sigma_ab_loc += density_real2 * pot_local * (2 * kqg_alpha * kqg_beta * pot_local - delta_ab);
                             }
 
                             // 0.5 in the following line is caused by 2x in the pot
-                            sigma(alpha, beta) += 0.5 / omega / omega* sigma_ab_loc
+                            sigma(alpha, beta) += GlobalC::exx_info.info_global.hybrid_alpha
+                                                  * 0.5 / omega / omega* sigma_ab_loc
                                                   * wg(ik, nband) * wg(iq, mband) / nqs / p_kv->wk[ik];
                         }
                     }

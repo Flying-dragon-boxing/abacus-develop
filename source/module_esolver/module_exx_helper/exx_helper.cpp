@@ -10,7 +10,7 @@ double ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper::cal_exx_energy(psi::
     T* h_psi_recip = new T[this_->pw_wfc->npwk_max];
     T* h_psi_real = new T[this_->pw_wfc->nrxx];
     T* density_real = new T[this_->pw_wfc->nrxx];
-    auto rhopw = this_->pelec->charge->rhopw;
+    auto rhopw = this_->pw_rho;
     T* density_recip = new T[rhopw->npw];
     auto *kv = &this_->kv;
 
@@ -78,7 +78,7 @@ double ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper::cal_exx_energy(psi::
         double dq = 5.0 / std::sqrt(alpha) / nqq;
         double aa = 0.0;
 //        if (PARAM.inp.dft_functional == "hse")
-
+        if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
         {
             double omega = GlobalC::exx_info.info_global.hse_omega;
             double omega2 = omega * omega;
@@ -186,7 +186,7 @@ double ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper::cal_exx_energy(psi::
                     // bring the density to recip space
                     rhopw->real2recip(density_real, density_recip);
 
-                    Real tpiba2 = this_->pw_rhod->tpiba2;
+                    Real tpiba2 = this_->pw_rho->tpiba2;
                     //                    std::cout << tpiba2 << std::endl;
                     Real hse_omega2 = GlobalC::exx_info.info_global.hse_omega * GlobalC::exx_info.info_global.hse_omega;
 
@@ -237,7 +237,7 @@ double ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper::cal_exx_energy(psi::
     } // ik
     Eexx_ik_real *= 0.5 * this_->pelec->omega;
     Parallel_Reduce::reduce_pool(Eexx_ik_real);
-    //    std::cout << "Eexx: " << Eexx_ik_real << std::endl;
+//    std::cout << "omega = " << this_->pelec->omega << " tpiba = " << this_->pw_rho->tpiba2 << " exx_div = " << exx_div << std::endl;
 
     Real Eexx = Eexx_ik_real;
     ModuleBase::timer::tick("OperatorEXXPW", "get_Eexx");

@@ -128,8 +128,6 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    std::cout << "EXX divergence: " << exx_div << std::endl;
-
     // prepare for the potential
     for (int ik = 0; ik < nks; ik++)
     {
@@ -182,9 +180,9 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
 
                     // overlap density in real space
                     setmem_complex_op()(density_real, 0.0, rhopw->nrxx);
-                    for (int ig = 0; ig < rhopw->npw; ig++)
+                    for (int ig = 0; ig < rhopw->nrxx; ig++)
                     {
-                        density_real[ig] = psi_nk_real[ig] * std::conj(psi_mq_real[ig]);
+                        density_real[ig] = psi_nk_real[ig] * std::conj(psi_mq_real[ig]) * omega_inv;
                     }
 
                     // density in reciprocal space
@@ -205,19 +203,27 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                             for (int ig = 0; ig < rhopw->npw; ig++)
                             {
                                 auto kqg = wfcpw->kvec_c[ik] - wfcpw->kvec_c[iq] + rhopw->gcar[ig];
-                                double kqg_alpha = kqg[alpha];
-                                double kqg_beta = kqg[beta];
+                                double kqg_alpha = kqg[alpha] * tpiba;
+                                double kqg_beta = kqg[beta] * tpiba;
                                 // equation 10 of 10.1103/PhysRevB.73.125120
-                                double density_real2 = std::real(density_recip[ig]) * std::real(density_recip[ig])
-                                                      + std::imag(density_recip[ig]) * std::imag(density_recip[ig]);
-
+                                double density_recip2 = std::real(density_recip[ig] * std::conj(density_recip[ig]));
                                 double pot_local = pot[ig + iq * rhopw->npw + ik * rhopw->npw * nqs];
-                                sigma_ab_loc += density_real2 * pot_local * (2 * kqg_alpha * kqg_beta * pot_local - delta_ab);
+                                double _4pi_e2 = ModuleBase::FOUR_PI * ModuleBase::e2;
+                                sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * (-pot_local) / _4pi_e2 - delta_ab) ;
+//                                if (std::abs(pot_local + 22.235163511253440) < 1e-2)
+//                                {
+//                                    std::cout << "delta_ab: " << delta_ab << std::endl;
+//                                    std::cout << "density_recip2: " << density_recip2 << std::endl;
+//                                    std::cout << "pot_local: " << pot_local << std::endl;
+//                                    std::cout << "kqg_alpha: " << kqg_alpha << std::endl;
+//                                    std::cout << "kqg_beta: " << kqg_beta << std::endl;
+//
+//                                }
                             }
 
                             // 0.5 in the following line is caused by 2x in the pot
-                            sigma(alpha, beta) += GlobalC::exx_info.info_global.hybrid_alpha
-                                                  * 0.5 / omega / omega* sigma_ab_loc
+                            sigma(alpha, beta) -= GlobalC::exx_info.info_global.hybrid_alpha
+                                                  * 0.25 * sigma_ab_loc
                                                   * wg(ik, nband) * wg(iq, mband) / nqs / p_kv->wk[ik];
                         }
                     }
@@ -237,6 +243,17 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
     }
 
     Parallel_Reduce::reduce_all(sigma.c, sigma.nr * sigma.nc);
+
+////    print sigma
+//    for (int i = 0; i < 3; i++)
+//    {
+//        for (int j = 0; j < 3; j++)
+//        {
+//            std::cout << sigma(i, j) * ModuleBase::RYDBERG_SI / pow(ModuleBase::BOHR_RADIUS_SI, 3) * 1.0e-8 << " ";
+//            sigma(i, j) = 0;
+//        }
+//        std::cout << std::endl;
+//    }
 
 
     delmem_complex_op()(psi_nk_real);

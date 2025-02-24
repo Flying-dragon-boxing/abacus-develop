@@ -1,11 +1,11 @@
 INPUT_PARAMETERS
 pseudo_dir              ../../../tests/PP_ORB
 orbital_dir             ../../../tests/PP_ORB
-nbands                  5
+nbands                  4
 nspin                   1
 calculation             scf
 basis_type              pw
-ks_solver               dav
+ks_solver               cg
 ecutwfc                 50
 scf_thr                 1e-9
 scf_nmax                100

@@ -241,7 +241,7 @@ Psi<T, Device>& Psi<T, Device>::operator=(const Psi<T, Device>& psi_in)
 
     this->resize(psi_in.get_nk(), psi_in.get_nbands(), psi_in.get_nbasis());
     base_device::memory::synchronize_memory_op<T, Device, Device>()(this->psi,
-                                                                    psi_in.get_pointer() - psi_in.get_psi_bias(),
+                                                                    psi_in.psi,
                                                                     psi_in.size());
     this->psi_bias = psi_in.get_psi_bias();
     this->current_nbasis = psi_in.get_current_nbas();

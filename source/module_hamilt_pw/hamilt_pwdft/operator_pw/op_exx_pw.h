@@ -50,11 +50,6 @@ class OperatorEXXPW : public OperatorPW<T, Device>
                      const int ngk_ik = 0,
                      const bool is_first_node = false) const override;
 
-    void set_psi(const psi::Psi<T, Device> *psi_in) const 
-    { 
-        this->psi = psi_in;
-    }
-
     void set_exx_helper(Exx_Helper *p_exx_helper_in) const
     {
         this->p_exx_helper = p_exx_helper_in;
@@ -75,7 +70,11 @@ class OperatorEXXPW : public OperatorPW<T, Device>
 
     void exx_divergence();
 
+    void get_potential() const;
+
     mutable int cnt = 0;
+
+    mutable bool potential_got = false;
     
     // pws
     mutable std::vector<std::unique_ptr<T[]>> pws;
@@ -95,7 +94,7 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     T *density_recip = nullptr;
     // h_psi recip space memory
     T *h_psi_recip = nullptr;
-    T *pot = nullptr;
+    Real *pot = nullptr;
 
     mutable std::map<int, std::vector<int>> q_points;
 
@@ -112,6 +111,8 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     using resmem_complex_op = base_device::memory::resize_memory_op<T, Device>;
     using delmem_complex_op = base_device::memory::delete_memory_op<T, Device>;
     using syncmem_complex_op = base_device::memory::synchronize_memory_op<T, Device, Device>;
+
+    using resmem_real_op = base_device::memory::resize_memory_op<Real, Device>;
 
 };
 

@@ -146,62 +146,13 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
     resmem_complex_op()(h_psi_recip, wfcpw->npwk_max);
     // resmem_complex_op()(this->ctx, psi_all_real, wfcpw->nrxx * GlobalV::NBANDS);
     int nks = wfcpw->nks;
-    resmem_complex_op()(pot, rhopw->npw * nks * nks);
+//    std::cout << "nks: " << nks << std::endl;
+    resmem_real_op()(pot, rhopw->npw * nks * nks);
 
     tpiba = ucell->tpiba;
     Real tpiba2 = tpiba * tpiba;
     // calculate the exx_divergence
     exx_divergence();
-
-    // calculate the pot
-    for (int ik = 0; ik < nks; ik++)
-    {
-        for (int iq = 0; iq < nks; iq++)
-        {
-            auto k = wfcpw->kvec_c[ik];
-            auto q = wfcpw->kvec_c[iq];
-
-            #ifdef _OPENMP
-            #pragma omp parallel for schedule(static)
-            #endif
-            for (int ig = 0; ig < rhopw->npw; ig++)
-            {
-                Real gg = (k - q + rhopw->gcar[ig]).norm2() * tpiba2;
-                Real hse_omega2 = GlobalC::exx_info.info_global.hse_omega * GlobalC::exx_info.info_global.hse_omega;
-                // if (kqgcar2 > 1e-12) // vasp uses 1/40 of the smallest (k spacing)**2
-                if (gg >= 1e-8)
-                {
-                    Real fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg;
-                    // density_recip[ig] *= fac;
-                    // if (PARAM.inp.dft_functional == "hse")
-                    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
-                    {
-                        pot[ik * nks * nks + iq * nks + ig] = fac * (1.0 - std::exp(-gg / 4.0 / hse_omega2));
-                    }
-                    else
-                    {
-                        pot[ik * nks * nks + iq * nks + ig] = fac;
-                    }
-                }
-                // }
-                else
-                {
-                    // std::cout << "div at " << ig << std::endl;
-                    // if (PARAM.inp.dft_functional == "hse")
-                    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
-                    {
-                        // std::cout << "Factor: " << -ModuleBase::PI * ModuleBase::e2 / hse_omega2 << std::endl;
-                        pot[ik * nks * nks + iq * nks + ig] = exx_div - ModuleBase::PI * ModuleBase::e2 / hse_omega2;
-                    }
-                    else
-                    {
-                        pot[ik * nks * nks + iq * nks + ig] = exx_div;
-                    }
-                }
-                // assert(is_finite(density_recip[ig]));
-            }
-        }
-    }
 
 }
 
@@ -214,7 +165,7 @@ OperatorEXXPW<T, Device>::~OperatorEXXPW()
     delmem_complex_op()(density_real);
     delmem_complex_op()(h_psi_real);
     delmem_complex_op()(density_recip);
-    delmem_complex_op()( h_psi_recip);
+    delmem_complex_op()(h_psi_recip);
 }
 
 template <typename T>
@@ -245,14 +196,30 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
                                    const bool is_first_node) const
 {
     if (p_exx_helper->first_iter) return;
-    // return;
 
-    set_psi(&p_exx_helper->psi);
+    if (is_first_node)
+    {
+        setmem_complex_op()(tmhpsi, 0, nbasis*nbands/npol);
+    }
+
+    if (!potential_got)
+    {
+        get_potential();
+        potential_got = true;
+    }
+
+//    set_psi(&p_exx_helper->psi);
 
     ModuleBase::timer::tick("OperatorEXXPW", "act");
 
     setmem_complex_op()(h_psi_recip, 0, wfcpw->npwk_max);
     setmem_complex_op()(h_psi_real, 0, rhopw->nrxx);
+    setmem_complex_op()(density_real, 0, rhopw->nrxx);
+    setmem_complex_op()(density_recip, 0, rhopw->npw);
+    // setmem_complex_op()(psi_all_real, 0, wfcpw->nrxx * GlobalV::NBANDS);
+    // std::map<std::pair<int, int>, bool> has_real;
+    setmem_complex_op()(psi_nk_real, 0, wfcpw->nrxx);
+    setmem_complex_op()(psi_mq_real, 0, wfcpw->nrxx);
 
     // ik fixed here, select band n
     for (int n_iband = 0; n_iband < nbands; n_iband++)
@@ -266,7 +233,7 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
         Real nqs = q_points.size();
         for (int iq: q_points)
         {
-            for (int m_iband = 0; m_iband < psi->get_nbands(); m_iband++)
+            for (int m_iband = 0; m_iband < p_exx_helper->psi.get_nbands(); m_iband++)
             {
                 // double wg_mqb_real = GlobalC::exx_helper.wg(iq, m_iband);
                 double wg_mqb_real = (*p_exx_helper->wf_wg)(this->ik, m_iband);
@@ -342,25 +309,8 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
         } // end of iq
         auto h_psi_nk = tmhpsi + n_iband * nbasis;
         Real hybrid_alpha = GlobalC::exx_info.info_global.hybrid_alpha;
-        // wfcpw->real_to_recip(ctx, h_psi_real, h_psi_recip, this->ik);
         wfcpw->real_to_recip(ctx, h_psi_real, h_psi_nk, this->ik, true, hybrid_alpha);
         setmem_complex_op()(h_psi_real, 0, rhopw->nrxx);
-
-        // add the h|psi_ik> to tmhpsi
-        
-        // T Eexx_ik = 0.0;
-        // T ucell_nxyz = wfcpw->nxyz, ucell_omega = elecstate::get_ucell_omega();
-        // T e2 = ModuleBase::e2;
-        // #ifdef _OPENMP
-        // #pragma omp parallel for
-        // #endif
-        // for (int ig = 0; ig < wfcpw->npwk_max; ig++)
-        // {
-        //     // assert no nan
-        //     // assert(is_finite(h_psi_recip[ig]));
-        //     // T wkik = kv->wk[this->ik];
-        //     h_psi_nk[ig] += h_psi_recip[ig] * hybrid_alpha;// / wkik/* * ucell_omega * e2*/;
-        // }
         
     }
 
@@ -403,20 +353,17 @@ void OperatorEXXPW<T, Device>::multiply_potential(T *density_recip, int ik, int 
 {
     ModuleBase::timer::tick("OperatorEXXPW", "multiply_potential");
     int npw = rhopw->npw;
-    auto k = wfcpw->kvec_c[ik];
-    auto q = wfcpw->kvec_c[iq];
-    double ucell_omega = ucell->omega;
-    double tpiba2 = tpiba * tpiba;
-    // double e2 = 2.0;
-    // screen not yet implemented
+    int nks = wfcpw->nks;
+
     #ifdef _OPENMP
     #pragma omp parallel for schedule(static)
     #endif
     for (int ig = 0; ig < npw; ig++)
     {
+        density_recip[ig] *= pot[ik * nks * npw + iq * npw + ig];
 
-        density_recip[ig] *= pot[ik * wfcpw->nks * wfcpw->nks + iq * wfcpw->nks + ig];
     }
+
     ModuleBase::timer::tick("OperatorEXXPW", "multiply_potential");
 }
 
@@ -424,8 +371,8 @@ template <typename T, typename Device>
 const T *OperatorEXXPW<T, Device>::get_pw(const int m, const int iq) const
 {
     // return pws[iq].get() + m * wfcpw->npwk[iq];
-    psi->fix_kb(iq, m);
-    auto psi_mq = psi->get_pointer();
+    p_exx_helper->psi.fix_kb(iq, m);
+    auto psi_mq = p_exx_helper->psi.get_pointer();
     return psi_mq;
 }
 
@@ -448,13 +395,62 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const OperatorEXXPW<T_in, Device_in> *op
     resmem_complex_op()(this->ctx, h_psi_recip, wfcpw->npwk_max);
     this->pws.resize(wfcpw->nks);
 
-    for (int ik = 0; ik < wfcpw->nks; ik++)
-    {
-        psi->fix_k(ik);
-        this->pws[ik] = std::make_unique<T[]>(wfcpw->npwk[ik] * psi->get_nbands());
-    }
+
     psi->fix_k(this->ik);
 
+}
+
+template <typename T, typename Device>
+void OperatorEXXPW<T, Device>::get_potential() const
+{
+    int nks = wfcpw->nks, npw = rhopw->npw;
+    double tpiba2 = tpiba * tpiba;
+    // calculate the pot
+    for (int ik = 0; ik < nks; ik++)
+    {
+        for (int iq = 0; iq < nks; iq++)
+        {
+            auto k = wfcpw->kvec_c[ik];
+            auto q = wfcpw->kvec_c[iq];
+
+            #ifdef _OPENMP
+            #pragma omp parallel for schedule(static)
+            #endif
+            for (int ig = 0; ig < rhopw->npw; ig++)
+            {
+                Real gg = (k - q + rhopw->gcar[ig]).norm2() * tpiba2;
+                Real hse_omega2 = GlobalC::exx_info.info_global.hse_omega * GlobalC::exx_info.info_global.hse_omega;
+                // if (kqgcar2 > 1e-12) // vasp uses 1/40 of the smallest (k spacing)**2
+                if (gg >= 1e-8)
+                {
+                    Real fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg;
+                    // if (PARAM.inp.dft_functional == "hse")
+                    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
+                    {
+                        pot[ik * nks * npw + iq * npw + ig] = fac * (1.0 - std::exp(-gg / 4.0 / hse_omega2));
+                    }
+                    else
+                    {
+                        pot[ik * nks * npw + iq * npw + ig] = fac;
+                    }
+                }
+                // }
+                else
+                {
+                    // if (PARAM.inp.dft_functional == "hse")
+                    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
+                    {
+                        pot[ik * nks * npw + iq * npw + ig] = exx_div - ModuleBase::PI * ModuleBase::e2 / hse_omega2;
+                    }
+                    else
+                    {
+                        pot[ik * nks * npw + iq * npw + ig] = exx_div;
+                    }
+                }
+                // assert(is_finite(density_recip[ig]));
+            }
+        }
+    }
 }
 
 template class OperatorEXXPW<std::complex<float>, base_device::DEVICE_CPU>;

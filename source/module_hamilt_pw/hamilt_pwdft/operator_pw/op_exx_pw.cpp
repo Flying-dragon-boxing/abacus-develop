@@ -3,17 +3,19 @@
 #include "module_base/parallel_reduce.h"
 #include "module_base/timer.h"
 #include "module_cell/klist.h"
-//#include "module_elecstate/elecstate_getters.h"
 #include "module_hamilt_general/operator.h"
 #include "module_psi/psi.h"
 #include "module_base/tool_quit.h"
 
-// #include <cassert>
 #include <cmath>
 #include <complex>
 #include <cstdlib>
 #include <memory>
 #include <utility>
+
+extern "C" void ztrtri_(char *uplo, char *diag, int *n, std::complex<double> *a, int *lda, int *info);
+//extern "C" void zpotrf_(char* uplo, const int* n, std::complex<double>* A, const int* lda, int* info);
+//extern "C" void cpotrf_(char* uplo, const int* n, std::complex<float>* A, const int* lda, int* info);
 
 #ifdef __EXX
 #define __EXX_PW
@@ -25,95 +27,6 @@
 
 namespace hamilt
 {
-template <typename T, typename Device>
-void OperatorEXXPW<T, Device>::exx_divergence()
-{
-    if (GlobalC::exx_info.info_lip.lambda == 0.0)
-    {
-        return;
-    }
-
-    // here we follow the exx_divergence subroutine in q-e (PW/src/exx_base.f90)
-    double alpha = 10.0 / wfcpw->gk_ecut;
-    double tpiba2 = tpiba * tpiba;
-    double div = 0;
-    
-    // this is the \sum_q F(q) part
-    // temporarily for all k points, should be replaced to q points later
-    for (int ik = 0; ik < wfcpw->nks; ik++)
-    {
-        auto k = wfcpw->kvec_c[ik];
-        #ifdef _OPENMP
-        #pragma omp parallel for reduction(+:div)
-        #endif
-        for (int ig = 0; ig < rhopw->npw; ig++)
-        {
-            auto q = k + rhopw->gcar[ig];
-            double qq = q.norm2();
-            if (qq <= 1e-8) continue;
-            // else if (PARAM.inp.dft_functional == "hse")
-            else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
-            {
-                double omega = GlobalC::exx_info.info_global.hse_omega;
-                double omega2 = omega * omega;
-                div += std::exp(-alpha * qq) / qq * (1.0 - std::exp(-qq*tpiba2 / 4.0 / omega2));
-            }
-            else
-            {
-                div += std::exp(-alpha * qq) / qq;
-            }
-        }
-    }
-
-    Parallel_Reduce::reduce_pool(div);
-    // std::cout << "EXX div: " << div << std::endl;
-
-    // if (PARAM.inp.dft_functional == "hse")
-    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
-    {
-        double omega = GlobalC::exx_info.info_global.hse_omega;
-        div += tpiba2 / 4.0 / omega / omega; // compensate for the finite value when qq = 0
-    }
-    else 
-    {
-        div -= alpha;
-    }
-
-    div *= ModuleBase::e2 * ModuleBase::FOUR_PI / tpiba2 / wfcpw->nks;
-
-    // numerically value the nean value of F(q) in the reciprocal space
-    // This means we need to calculate the average of F(q) in the first brillouin zone
-    alpha /= tpiba2;
-    int nqq = 100000;
-    double dq = 5.0 / std::sqrt(alpha) / nqq;
-    double aa = 0.0;
-    // if (PARAM.inp.dft_functional == "hse")
-    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
-    {
-        double omega = GlobalC::exx_info.info_global.hse_omega;
-        double omega2 = omega * omega;
-        #ifdef _OPENMP
-        #pragma omp parallel for reduction(+:aa)
-        #endif
-        for (int i = 0; i < nqq; i++)
-        {
-            double q = dq * (i+0.5);
-            aa -= exp(-alpha * q * q) * exp(-q*q / 4.0 / omega2) * dq;
-        }
-    }
-    aa *= 8 / ModuleBase::FOUR_PI;
-    aa += 1.0 / std::sqrt(alpha * ModuleBase::PI);
-
-//    printf("ucell: %p\n", ucell);
-    double omega = ucell->omega;
-    div -= ModuleBase::e2 * omega * aa;
-    exx_div = div * wfcpw->nks;
-    // std::cout << "EXX divergence: " << exx_div << std::endl;
-
-    return;
-
-}
-
 template <typename T, typename Device>
 OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
                                         const ModulePW::PW_Basis_K* wfcpw_in,
@@ -197,11 +110,36 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
 {
     if (p_exx_helper->first_iter) return;
 
+    if (p_exx_helper->construct_ace)
+    {
+        construct_ace();
+        p_exx_helper->construct_ace = false;
+    }
+
     if (is_first_node)
     {
         setmem_complex_op()(tmhpsi, 0, nbasis*nbands/npol);
     }
 
+    if (ace)
+    {
+        act_op_ace(nbands, nbasis, npol, tmpsi_in, tmhpsi, ngk_ik, is_first_node);
+    }
+    else
+    {
+        act_op(nbands, nbasis, npol, tmpsi_in, tmhpsi, ngk_ik, is_first_node);
+    }
+}
+
+template <typename T, typename Device>
+void OperatorEXXPW<T, Device>::act_op(const int nbands,
+                                   const int nbasis,
+                                   const int npol,
+                                   const T *tmpsi_in,
+                                   T *tmhpsi,
+                                   const int ngk_ik,
+                                   const bool is_first_node) const
+{
     if (!potential_got)
     {
         get_potential();
@@ -319,6 +257,259 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
 }
 
 template <typename T, typename Device>
+void OperatorEXXPW<T, Device>::act_op_ace(const int nbands,
+                                          const int nbasis,
+                                          const int npol,
+                                          const T *tmpsi_in,
+                                          T *tmhpsi,
+                                          const int ngk_ik,
+                                          const bool is_first_node) const
+{
+    if (nbasis != p_exx_helper->psi.get_nbasis())
+    {
+//        ModuleBase::ERROR_QUIT("OperatorEXXPW", "nbasis != psi.get_nbasis()");
+//        std::cout << "nbasis != psi.get_nbasis()" << std::endl;
+//        std::cout << "nbasis: " << nbasis << std::endl;
+//        std::cout << "psi.get_nbasis(): " << p_exx_helper->psi.get_nbasis() << std::endl;
+//        std::cout << "npwk_max: " << wfcpw->npwk_max << std::endl;
+//        std::cout << "npwk_ik: " << wfcpw->npwk[this->ik] << std::endl;
+//        throw std::runtime_error("nbasis != psi.get_nbasis()");
+    }
+//    std::cout << "act_op_ace" << std::endl;
+    // hpsi += -Xi^\dagger * Xi * psi
+    int nbands_tot = p_exx_helper->psi.get_nbands() * p_exx_helper->psi.get_nk();
+    int nbasis_max = p_exx_helper->psi.get_nbasis();
+//    T* hpsi = nullptr;
+//    resmem_complex_op()(hpsi, nbands_tot * nbasis);
+//    setmem_complex_op()(hpsi, 0, nbands_tot * nbasis);
+    T* Xi_psi = nullptr;
+    resmem_complex_op()(Xi_psi, nbands_tot * nbands);
+    setmem_complex_op()(Xi_psi, 0, nbands_tot * nbands);
+
+    char trans_N = 'N', trans_T = 'T', trans_C = 'C';
+    T intermediate_one = 1.0, intermediate_zero = 0.0, intermediate_minus_one = -1.0;
+    // Xi * psi
+    gemm_complex_op()(this->ctx,
+                      trans_N,
+                      trans_N,
+                      nbands_tot,
+                      nbands,
+                      nbasis,
+                      &intermediate_one,
+                      Xi_ace,
+                      nbands_tot,
+                      tmpsi_in,
+                      nbasis,
+                      &intermediate_zero,
+                      Xi_psi,
+                      nbands_tot
+        );
+
+    Parallel_Reduce::reduce_pool(Xi_psi, nbands_tot * nbands);
+
+    // Xi^\dagger * (Xi * psi)
+    gemm_complex_op()(this->ctx,
+                      trans_C,
+                      trans_N,
+                      nbasis,
+                      nbands,
+                      nbands_tot,
+                      &intermediate_minus_one,
+                      Xi_ace,
+                      nbands_tot,
+                      Xi_psi,
+                      nbands_tot,
+                      &intermediate_one,
+                      tmhpsi,
+                      nbasis
+        );
+
+
+//    // negative sign, add to hpsi
+//    vec_add_vec_complex_op()(this->ctx, nbands * nbasis, tmhpsi, hpsi, -1, tmhpsi, 1);
+//    delmem_complex_op()(hpsi);
+    delmem_complex_op()(Xi_psi);
+}
+
+template <typename T, typename Device>
+void OperatorEXXPW<T, Device>::construct_ace() const
+{
+    int nbands_tot = p_exx_helper->psi.get_nbands() * p_exx_helper->psi.get_nk();
+    int nbasis = p_exx_helper->psi.get_nbasis();
+    if (h_psi_ace == nullptr)
+    {
+        resmem_complex_op()(h_psi_ace, nbands_tot * nbasis);
+        setmem_complex_op()(h_psi_ace, 0, nbands_tot * nbasis);
+    }
+
+    if (Xi_ace == nullptr)
+    {
+        resmem_complex_op()(Xi_ace, nbands_tot * nbasis);
+    }
+
+    if (L_ace == nullptr)
+    {
+        resmem_complex_op()(L_ace, nbands_tot * nbands_tot);
+        setmem_complex_op()(L_ace, 0, nbands_tot * nbands_tot);
+    }
+
+    if (psi_h_psi_ace == nullptr)
+    {
+        resmem_complex_op()(psi_h_psi_ace, nbands_tot * nbands_tot);
+    }
+
+//    std::ofstream ofs_psi("psi.dat", std::ios::binary);
+//    p_exx_helper->psi.fix_kb(0, 0);
+//    ofs_psi.write(reinterpret_cast<char*>(p_exx_helper->psi.get_pointer()), nbands_tot * nbasis * sizeof(T));
+//    ofs_psi.close();
+
+    for (int ik = 0; ik < p_exx_helper->psi.get_nk(); ik++)
+    {
+        p_exx_helper->psi.fix_kb(ik, 0);
+        T* p_psi = p_exx_helper->psi.get_pointer();
+        act_op(
+            p_exx_helper->psi.get_nbands(),
+            nbasis,
+            1,
+            p_psi,
+            h_psi_ace + ik * p_exx_helper->psi.get_nbands() * nbasis,
+            ik,
+            false
+            );
+    }
+
+//    // save h_psi_ace to disk
+//    std::ofstream ofs_hpsi("hpsi.dat", std::ios::binary);
+//    ofs_hpsi.write(reinterpret_cast<char*>(h_psi_ace), nbands_tot * nbasis * sizeof(T));
+//    ofs_hpsi.close();
+
+    T intermediate_one = 1.0, intermediate_zero = 0.0;
+
+    // psi_h_psi_ace = psi^\dagger * h_psi_ace
+    p_exx_helper->psi.fix_kb(0, 0);
+    gemm_complex_op()(this->ctx,
+                      'C',
+                      'N',
+                      nbands_tot,
+                      nbands_tot,
+                      nbasis,
+                      &intermediate_one,
+                      p_exx_helper->psi.get_pointer(),
+                      nbasis,
+                      h_psi_ace,
+                      nbasis,
+                      &intermediate_zero,
+                      psi_h_psi_ace,
+                      nbands_tot
+                      );
+
+    // reduction of psi_h_psi_ace, due to distributed memory
+    Parallel_Reduce::reduce_pool(psi_h_psi_ace, nbands_tot * nbands_tot);
+
+//    // save psi_h_psi_ace to disk
+//    std::ofstream ofs_psi_hpsi("psihpsi.dat", std::ios::binary);
+//    ofs_psi_hpsi.write(reinterpret_cast<char*>(psi_h_psi_ace), nbands_tot * nbands_tot * sizeof(T));
+//    ofs_psi_hpsi.close();
+
+    // L_ace = cholesky(-psi_h_psi_ace)
+    #ifdef _OPENMP
+    #pragma omp parallel for schedule(static)
+    #endif
+    for (int i = 0; i < nbands_tot; i++)
+    {
+        for (int j = 0; j < nbands_tot; j++)
+        {
+            L_ace[i * nbands_tot + j] = -psi_h_psi_ace[i * nbands_tot + j];
+        }
+    }
+
+    int info = 0;
+    char up = 'U', lo = 'L';
+
+    if constexpr (std::is_same<T, std::complex<float>>::value)
+    {
+        cpotrf_(&lo, &nbands_tot, L_ace, &nbands_tot, &info);
+    }
+    else if constexpr (std::is_same<T, std::complex<double>>::value)
+    {
+        zpotrf_(&lo, &nbands_tot, L_ace, &nbands_tot, &info);
+    }
+
+    // expand for-loop
+    #ifdef _OPENMP
+    #pragma omp parallel for schedule(static)
+    #endif
+    for (int i = 0; i < nbands_tot; i++)
+    {
+        for (int j = 0; j < nbands_tot; j++)
+        {
+            if (j < i)
+            {
+//                L_ace[j * nbands_tot + i] = std::conj(L_ace[i * nbands_tot + j]);
+                L_ace[i * nbands_tot + j] = 0.0;
+            }
+        }
+    }
+
+//    // save L_ace to disk
+//    std::ofstream ofs_L("L.dat", std::ios::binary);
+//    ofs_L.write(reinterpret_cast<char*>(L_ace), nbands_tot * nbands_tot * sizeof(T));
+//    ofs_L.close();
+
+    // L_ace inv in place
+    // T == std::complex<float> or std::complex<double>
+    if constexpr (std::is_same<T, std::complex<float>>::value)
+    {
+        // cgetrf_(&p_exx_helper->psi.get_nbands(), &p_exx_helper->psi.get_nbands(), L_ace, &p_exx_helper->psi.get_nbands(), ipiv.data(), &info);
+        // Todo: implement cgetrf and cgetri
+    }
+    else if constexpr (std::is_same<T, std::complex<double>>::value)
+    {
+        char non_unitary = 'N';
+
+        ztrtri_(&lo, &non_unitary, &nbands_tot, L_ace, &nbands_tot, &info);
+    }
+
+//    // save L_ace inv to disk
+//    std::ofstream ofs_L_inv("L_inv.dat", std::ios::binary);
+//    ofs_L_inv.write(reinterpret_cast<char*>(L_ace), nbands_tot * nbands_tot * sizeof(T));
+//    ofs_L_inv.close();
+
+    // Xi_ace = L_ace^-1 * h_psi_ace^dagger
+     gemm_complex_op()(this->ctx,
+                        'N',
+                        'C',
+                        nbands_tot,
+                        nbasis,
+                        nbands_tot,
+                        &intermediate_one,
+                        L_ace,
+                        nbands_tot,
+                        h_psi_ace,
+                        nbasis,
+                        &intermediate_zero,
+                        Xi_ace,
+                        nbands_tot
+                      );
+
+//     // save Xi_ace to disk
+//    std::ofstream ofs_Xi("Xi.dat", std::ios::binary);
+//    ofs_Xi.write(reinterpret_cast<char*>(Xi_ace), nbands_tot * nbasis * sizeof(T));
+//    ofs_Xi.close();
+//
+//    std::cout << "nbands_tot: " << nbands_tot << std::endl;
+//    std::cout << "nbands: " << p_exx_helper->psi.get_nbands() << std::endl;
+//    std::cout << "nbasis: " << nbasis << std::endl;
+
+    // clear mem
+    setmem_complex_op()(h_psi_ace, 0, nbands_tot * nbasis);
+//     setmem_complex_op()(Xi_ace, 0, nbands_tot * nbasis);
+    setmem_complex_op()(psi_h_psi_ace, 0, nbands_tot * nbands_tot);
+    setmem_complex_op()(L_ace, 0, nbands_tot * nbands_tot);
+
+}
+
+template <typename T, typename Device>
 std::vector<int> OperatorEXXPW<T, Device>::get_q_points(const int ik) const
 {
     // stored in q_points
@@ -396,8 +587,6 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const OperatorEXXPW<T_in, Device_in> *op
     this->pws.resize(wfcpw->nks);
 
 
-    psi->fix_k(this->ik);
-
 }
 
 template <typename T, typename Device>
@@ -451,6 +640,95 @@ void OperatorEXXPW<T, Device>::get_potential() const
             }
         }
     }
+}
+
+template <typename T, typename Device>
+void OperatorEXXPW<T, Device>::exx_divergence()
+{
+    if (GlobalC::exx_info.info_lip.lambda == 0.0)
+    {
+        return;
+    }
+
+    // here we follow the exx_divergence subroutine in q-e (PW/src/exx_base.f90)
+    double alpha = 10.0 / wfcpw->gk_ecut;
+    double tpiba2 = tpiba * tpiba;
+    double div = 0;
+
+    // this is the \sum_q F(q) part
+    // temporarily for all k points, should be replaced to q points later
+    for (int ik = 0; ik < wfcpw->nks; ik++)
+    {
+        auto k = wfcpw->kvec_c[ik];
+#ifdef _OPENMP
+#pragma omp parallel for reduction(+:div)
+#endif
+        for (int ig = 0; ig < rhopw->npw; ig++)
+        {
+            auto q = k + rhopw->gcar[ig];
+            double qq = q.norm2();
+            if (qq <= 1e-8) continue;
+            // else if (PARAM.inp.dft_functional == "hse")
+            else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
+            {
+                double omega = GlobalC::exx_info.info_global.hse_omega;
+                double omega2 = omega * omega;
+                div += std::exp(-alpha * qq) / qq * (1.0 - std::exp(-qq*tpiba2 / 4.0 / omega2));
+            }
+            else
+            {
+                div += std::exp(-alpha * qq) / qq;
+            }
+        }
+    }
+
+    Parallel_Reduce::reduce_pool(div);
+    // std::cout << "EXX div: " << div << std::endl;
+
+    // if (PARAM.inp.dft_functional == "hse")
+    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
+    {
+        double omega = GlobalC::exx_info.info_global.hse_omega;
+        div += tpiba2 / 4.0 / omega / omega; // compensate for the finite value when qq = 0
+    }
+    else
+    {
+        div -= alpha;
+    }
+
+    div *= ModuleBase::e2 * ModuleBase::FOUR_PI / tpiba2 / wfcpw->nks;
+
+    // numerically value the mean value of F(q) in the reciprocal space
+    // This means we need to calculate the average of F(q) in the first brillouin zone
+    alpha /= tpiba2;
+    int nqq = 100000;
+    double dq = 5.0 / std::sqrt(alpha) / nqq;
+    double aa = 0.0;
+    // if (PARAM.inp.dft_functional == "hse")
+    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
+    {
+        double omega = GlobalC::exx_info.info_global.hse_omega;
+        double omega2 = omega * omega;
+#ifdef _OPENMP
+#pragma omp parallel for reduction(+:aa)
+#endif
+        for (int i = 0; i < nqq; i++)
+        {
+            double q = dq * (i+0.5);
+            aa -= exp(-alpha * q * q) * exp(-q*q / 4.0 / omega2) * dq;
+        }
+    }
+    aa *= 8 / ModuleBase::FOUR_PI;
+    aa += 1.0 / std::sqrt(alpha * ModuleBase::PI);
+
+    //    printf("ucell: %p\n", ucell);
+    double omega = ucell->omega;
+    div -= ModuleBase::e2 * omega * aa;
+    exx_div = div * wfcpw->nks;
+    // std::cout << "EXX divergence: " << exx_div << std::endl;
+
+    return;
+
 }
 
 template class OperatorEXXPW<std::complex<float>, base_device::DEVICE_CPU>;

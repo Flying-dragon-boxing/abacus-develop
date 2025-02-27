@@ -4,13 +4,13 @@
 #include "module_base/matrix.h"
 #include "module_basis/module_pw/pw_basis.h"
 #include "module_cell/klist.h"
-//#include "module_psi/kernels/types.h"
 #include "module_psi/psi.h"
 #include "operator_pw.h"
-//#include "module_psi/kernels/memory_op.h"
 #include "module_basis/module_pw/pw_basis_k.h"
 #include "module_base/macros.h"
 #include "module_esolver/esolver_ks_pw.h"
+#include "module_base/kernels/math_kernel_op.h"
+#include "module_base/blas_connector.h"
 
 #include <memory>
 #include <utility>
@@ -50,6 +50,22 @@ class OperatorEXXPW : public OperatorPW<T, Device>
                      const int ngk_ik = 0,
                      const bool is_first_node = false) const override;
 
+    void act_op(const int nbands,
+                const int nbasis,
+                const int npol,
+                const T *tmpsi_in,
+                T *tmhpsi,
+                const int ngk_ik = 0,
+                const bool is_first_node = false) const;
+
+    void act_op_ace(const int nbands,
+                    const int nbasis,
+                    const int npol,
+                    const T *tmpsi_in,
+                    T *tmhpsi,
+                    const int ngk_ik = 0,
+                    const bool is_first_node = false) const;
+
     void set_exx_helper(Exx_Helper *p_exx_helper_in) const
     {
         this->p_exx_helper = p_exx_helper_in;
@@ -72,6 +88,8 @@ class OperatorEXXPW : public OperatorPW<T, Device>
 
     void get_potential() const;
 
+    void construct_ace() const;
+
     mutable int cnt = 0;
 
     mutable bool potential_got = false;
@@ -82,9 +100,8 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     // k vectors
     K_Vectors *kv = nullptr;
 
-    // psi memory
-    mutable const psi::Psi<T, Device> *psi = nullptr;
     mutable Exx_Helper *p_exx_helper = nullptr;
+
     // real space memory
     T *psi_nk_real = nullptr;
     T *psi_mq_real = nullptr;
@@ -95,6 +112,14 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     // h_psi recip space memory
     T *h_psi_recip = nullptr;
     Real *pot = nullptr;
+
+    // Lin Lin's ACE memory, 10.1021/acs.jctc.6b00092
+    mutable T* h_psi_ace = nullptr; // H \Psi, W in the paper
+    mutable T* psi_h_psi_ace = nullptr; // \Psi^{\dagger} H \Psi, M in the paper
+    mutable T* L_ace = nullptr; // cholesky(-M).L, L in the paper
+    mutable T* Xi_ace = nullptr; // L^{-1} (H \Psi)^{\dagger}, \Xi in the paper
+
+    bool ace = true;
 
     mutable std::map<int, std::vector<int>> q_points;
 
@@ -111,8 +136,9 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     using resmem_complex_op = base_device::memory::resize_memory_op<T, Device>;
     using delmem_complex_op = base_device::memory::delete_memory_op<T, Device>;
     using syncmem_complex_op = base_device::memory::synchronize_memory_op<T, Device, Device>;
-
     using resmem_real_op = base_device::memory::resize_memory_op<Real, Device>;
+    using gemm_complex_op = ModuleBase::gemm_op<T, Device>;
+    using vec_add_vec_complex_op = ModuleBase::constantvector_addORsub_constantVector_op<T, Device>;
 
 };
 

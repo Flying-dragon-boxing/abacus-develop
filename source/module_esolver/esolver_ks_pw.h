@@ -42,6 +42,7 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
         psi::Psi<T, base_device::DEVICE_CPU> psi;
         static constexpr double DIV_UNDEFINED = 0x0d000721;
         double div = DIV_UNDEFINED;
+        bool construct_ace = false;
 
         bool exx_after_converge(int &iter)
         {
@@ -66,6 +67,7 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
         void set_psi(psi::Psi<T, Device> &psi_)
         {
             this->psi = psi_;
+            construct_ace = true;
         }
 
         void reset_div()

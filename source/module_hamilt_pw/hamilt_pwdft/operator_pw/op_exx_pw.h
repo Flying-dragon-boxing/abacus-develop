@@ -117,7 +117,8 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     mutable T* h_psi_ace = nullptr; // H \Psi, W in the paper
     mutable T* psi_h_psi_ace = nullptr; // \Psi^{\dagger} H \Psi, M in the paper
     mutable T* L_ace = nullptr; // cholesky(-M).L, L in the paper
-    mutable T* Xi_ace = nullptr; // L^{-1} (H \Psi)^{\dagger}, \Xi in the paper
+    mutable std::vector<T*> Xi_ace_k; // L^{-1} (H \Psi)^{\dagger}, \Xi in the paper
+//    mutable T* Xi_ace = nullptr; // L^{-1} (H \Psi)^{\dagger}, \Xi in the paper
 
     bool ace = true;
 

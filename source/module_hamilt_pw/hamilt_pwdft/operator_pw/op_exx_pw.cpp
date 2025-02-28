@@ -13,7 +13,12 @@
 #include <memory>
 #include <utility>
 
-extern "C" void ztrtri_(char *uplo, char *diag, int *n, std::complex<double> *a, int *lda, int *info);
+extern "C"
+{
+    void ztrtri_(char *uplo, char *diag, int *n, std::complex<double> *a, int *lda, int *info);
+    void ctrtri_(char *uplo, char *diag, int *n, std::complex<float> *a, int *lda, int *info);
+}
+
 //extern "C" void zpotrf_(char* uplo, const int* n, std::complex<double>* A, const int* lda, int* info);
 //extern "C" void cpotrf_(char* uplo, const int* n, std::complex<float>* A, const int* lda, int* info);
 
@@ -265,19 +270,10 @@ void OperatorEXXPW<T, Device>::act_op_ace(const int nbands,
                                           const int ngk_ik,
                                           const bool is_first_node) const
 {
-    if (nbasis != p_exx_helper->psi.get_nbasis())
-    {
-//        ModuleBase::ERROR_QUIT("OperatorEXXPW", "nbasis != psi.get_nbasis()");
-//        std::cout << "nbasis != psi.get_nbasis()" << std::endl;
-//        std::cout << "nbasis: " << nbasis << std::endl;
-//        std::cout << "psi.get_nbasis(): " << p_exx_helper->psi.get_nbasis() << std::endl;
-//        std::cout << "npwk_max: " << wfcpw->npwk_max << std::endl;
-//        std::cout << "npwk_ik: " << wfcpw->npwk[this->ik] << std::endl;
-//        throw std::runtime_error("nbasis != psi.get_nbasis()");
-    }
 //    std::cout << "act_op_ace" << std::endl;
     // hpsi += -Xi^\dagger * Xi * psi
-    int nbands_tot = p_exx_helper->psi.get_nbands() * p_exx_helper->psi.get_nk();
+    auto Xi_ace = Xi_ace_k[this->ik];
+    int nbands_tot = p_exx_helper->psi.get_nbands();
     int nbasis_max = p_exx_helper->psi.get_nbasis();
 //    T* hpsi = nullptr;
 //    resmem_complex_op()(hpsi, nbands_tot * nbasis);
@@ -334,37 +330,53 @@ void OperatorEXXPW<T, Device>::act_op_ace(const int nbands,
 template <typename T, typename Device>
 void OperatorEXXPW<T, Device>::construct_ace() const
 {
-    int nbands_tot = p_exx_helper->psi.get_nbands() * p_exx_helper->psi.get_nk();
+//    int nkb = p_exx_helper->psi.get_nbands() * p_exx_helper->psi.get_nk();
+    int nbands = p_exx_helper->psi.get_nbands();
     int nbasis = p_exx_helper->psi.get_nbasis();
+    int nk = p_exx_helper->psi.get_nk();
+
+    T intermediate_one = 1.0, intermediate_zero = 0.0;
+
     if (h_psi_ace == nullptr)
     {
-        resmem_complex_op()(h_psi_ace, nbands_tot * nbasis);
-        setmem_complex_op()(h_psi_ace, 0, nbands_tot * nbasis);
+        resmem_complex_op()(h_psi_ace, nbands * nbasis);
+        setmem_complex_op()(h_psi_ace, 0, nbands * nbasis);
     }
 
-    if (Xi_ace == nullptr)
+    if (Xi_ace_k.size() != nk)
     {
-        resmem_complex_op()(Xi_ace, nbands_tot * nbasis);
+        Xi_ace_k.resize(nk);
+        for (int i = 0; i < nk; i++)
+        {
+            resmem_complex_op()(Xi_ace_k[i], nbands * nbasis);
+        }
+    }
+
+    for (int i = 0; i < nk; i++)
+    {
+        setmem_complex_op()(Xi_ace_k[i], 0, nbands * nbasis);
     }
 
     if (L_ace == nullptr)
     {
-        resmem_complex_op()(L_ace, nbands_tot * nbands_tot);
-        setmem_complex_op()(L_ace, 0, nbands_tot * nbands_tot);
+        resmem_complex_op()(L_ace, nbands * nbands);
+        setmem_complex_op()(L_ace, 0, nbands * nbands);
     }
 
     if (psi_h_psi_ace == nullptr)
     {
-        resmem_complex_op()(psi_h_psi_ace, nbands_tot * nbands_tot);
+        resmem_complex_op()(psi_h_psi_ace, nbands * nbands);
     }
 
 //    std::ofstream ofs_psi("psi.dat", std::ios::binary);
 //    p_exx_helper->psi.fix_kb(0, 0);
-//    ofs_psi.write(reinterpret_cast<char*>(p_exx_helper->psi.get_pointer()), nbands_tot * nbasis * sizeof(T));
+//    ofs_psi.write(reinterpret_cast<char*>(p_exx_helper->psi.get_pointer()), nkb * nbasis * sizeof(T));
 //    ofs_psi.close();
 
     for (int ik = 0; ik < p_exx_helper->psi.get_nk(); ik++)
     {
+        auto Xi_ace = Xi_ace_k[ik];
+
         p_exx_helper->psi.fix_kb(ik, 0);
         T* p_psi = p_exx_helper->psi.get_pointer();
         act_op(
@@ -372,140 +384,141 @@ void OperatorEXXPW<T, Device>::construct_ace() const
             nbasis,
             1,
             p_psi,
-            h_psi_ace + ik * p_exx_helper->psi.get_nbands() * nbasis,
+            h_psi_ace,
             ik,
             false
             );
+
+        // psi_h_psi_ace = psi^\dagger * h_psi_ace
+        p_exx_helper->psi.fix_kb(0, 0);
+        gemm_complex_op()(this->ctx,
+                          'C',
+                          'N',
+                          nbands,
+                          nbands,
+                          nbasis,
+                          &intermediate_one,
+                          p_exx_helper->psi.get_pointer(),
+                          nbasis,
+                          h_psi_ace,
+                          nbasis,
+                          &intermediate_zero,
+                          psi_h_psi_ace,
+                          nbands);
+
+        // reduction of psi_h_psi_ace, due to distributed memory
+        Parallel_Reduce::reduce_pool(psi_h_psi_ace, nbands * nbands);
+
+        //    // save psi_h_psi_ace to disk
+        //    std::ofstream ofs_psi_hpsi("psihpsi.dat", std::ios::binary);
+        //    ofs_psi_hpsi.write(reinterpret_cast<char*>(psi_h_psi_ace), nkb * nkb * sizeof(T));
+        //    ofs_psi_hpsi.close();
+
+// L_ace = cholesky(-psi_h_psi_ace)
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+        for (int i = 0; i < nbands; i++)
+        {
+            for (int j = 0; j < nbands; j++)
+            {
+                L_ace[i * nbands + j] = -psi_h_psi_ace[i * nbands + j];
+            }
+        }
+
+        int info = 0;
+        char up = 'U', lo = 'L';
+
+        if constexpr (std::is_same<T, std::complex<float>>::value)
+        {
+            cpotrf_(&lo, &nbands, L_ace, &nbands, &info);
+        }
+        else if constexpr (std::is_same<T, std::complex<double>>::value)
+        {
+            zpotrf_(&lo, &nbands, L_ace, &nbands, &info);
+        }
+
+// expand for-loop
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+        for (int i = 0; i < nbands; i++)
+        {
+            for (int j = 0; j < nbands; j++)
+            {
+                if (j < i)
+                {
+                    //                L_ace[j * nkb + i] = std::conj(L_ace[i * nkb + j]);
+                    L_ace[i * nbands + j] = 0.0;
+                }
+            }
+        }
+
+        //    // save L_ace to disk
+        //    std::ofstream ofs_L("L.dat", std::ios::binary);
+        //    ofs_L.write(reinterpret_cast<char*>(L_ace), nkb * nkb * sizeof(T));
+        //    ofs_L.close();
+
+        // L_ace inv in place
+        // T == std::complex<float> or std::complex<double>
+        if constexpr (std::is_same<T, std::complex<float>>::value)
+        {
+            char non_unitary = 'N';
+
+            ctrtri_(&lo, &non_unitary, &nbands, L_ace, &nbands, &info);
+        }
+        else if constexpr (std::is_same<T, std::complex<double>>::value)
+        {
+            char non_unitary = 'N';
+
+            ztrtri_(&lo, &non_unitary, &nbands, L_ace, &nbands, &info);
+        }
+
+        //    // save L_ace inv to disk
+        //    std::ofstream ofs_L_inv("L_inv.dat", std::ios::binary);
+        //    ofs_L_inv.write(reinterpret_cast<char*>(L_ace), nkb * nkb * sizeof(T));
+        //    ofs_L_inv.close();
+
+        // Xi_ace = L_ace^-1 * h_psi_ace^dagger
+        gemm_complex_op()(this->ctx,
+                          'N',
+                          'C',
+                          nbands,
+                          nbasis,
+                          nbands,
+                          &intermediate_one,
+                          L_ace,
+                          nbands,
+                          h_psi_ace,
+                          nbasis,
+                          &intermediate_zero,
+                          Xi_ace,
+                          nbands);
+
+        //     // save Xi_ace to disk
+        //    std::ofstream ofs_Xi("Xi.dat", std::ios::binary);
+        //    ofs_Xi.write(reinterpret_cast<char*>(Xi_ace), nkb * nbasis * sizeof(T));
+        //    ofs_Xi.close();
+        //
+        //    std::cout << "nkb: " << nkb << std::endl;
+        //    std::cout << "nbands: " << p_exx_helper->psi.get_nbands() << std::endl;
+        //    std::cout << "nbasis: " << nbasis << std::endl;
+
+        // clear mem
+        setmem_complex_op()(h_psi_ace, 0, nbands * nbasis);
+        //     setmem_complex_op()(Xi_ace, 0, nkb * nbasis);
+        setmem_complex_op()(psi_h_psi_ace, 0, nbands * nbands);
+        setmem_complex_op()(L_ace, 0, nbands * nbands);
+
     }
 
 //    // save h_psi_ace to disk
 //    std::ofstream ofs_hpsi("hpsi.dat", std::ios::binary);
-//    ofs_hpsi.write(reinterpret_cast<char*>(h_psi_ace), nbands_tot * nbasis * sizeof(T));
+//    ofs_hpsi.write(reinterpret_cast<char*>(h_psi_ace), nkb * nbasis * sizeof(T));
 //    ofs_hpsi.close();
 
-    T intermediate_one = 1.0, intermediate_zero = 0.0;
 
-    // psi_h_psi_ace = psi^\dagger * h_psi_ace
-    p_exx_helper->psi.fix_kb(0, 0);
-    gemm_complex_op()(this->ctx,
-                      'C',
-                      'N',
-                      nbands_tot,
-                      nbands_tot,
-                      nbasis,
-                      &intermediate_one,
-                      p_exx_helper->psi.get_pointer(),
-                      nbasis,
-                      h_psi_ace,
-                      nbasis,
-                      &intermediate_zero,
-                      psi_h_psi_ace,
-                      nbands_tot
-                      );
 
-    // reduction of psi_h_psi_ace, due to distributed memory
-    Parallel_Reduce::reduce_pool(psi_h_psi_ace, nbands_tot * nbands_tot);
-
-//    // save psi_h_psi_ace to disk
-//    std::ofstream ofs_psi_hpsi("psihpsi.dat", std::ios::binary);
-//    ofs_psi_hpsi.write(reinterpret_cast<char*>(psi_h_psi_ace), nbands_tot * nbands_tot * sizeof(T));
-//    ofs_psi_hpsi.close();
-
-    // L_ace = cholesky(-psi_h_psi_ace)
-    #ifdef _OPENMP
-    #pragma omp parallel for schedule(static)
-    #endif
-    for (int i = 0; i < nbands_tot; i++)
-    {
-        for (int j = 0; j < nbands_tot; j++)
-        {
-            L_ace[i * nbands_tot + j] = -psi_h_psi_ace[i * nbands_tot + j];
-        }
-    }
-
-    int info = 0;
-    char up = 'U', lo = 'L';
-
-    if constexpr (std::is_same<T, std::complex<float>>::value)
-    {
-        cpotrf_(&lo, &nbands_tot, L_ace, &nbands_tot, &info);
-    }
-    else if constexpr (std::is_same<T, std::complex<double>>::value)
-    {
-        zpotrf_(&lo, &nbands_tot, L_ace, &nbands_tot, &info);
-    }
-
-    // expand for-loop
-    #ifdef _OPENMP
-    #pragma omp parallel for schedule(static)
-    #endif
-    for (int i = 0; i < nbands_tot; i++)
-    {
-        for (int j = 0; j < nbands_tot; j++)
-        {
-            if (j < i)
-            {
-//                L_ace[j * nbands_tot + i] = std::conj(L_ace[i * nbands_tot + j]);
-                L_ace[i * nbands_tot + j] = 0.0;
-            }
-        }
-    }
-
-//    // save L_ace to disk
-//    std::ofstream ofs_L("L.dat", std::ios::binary);
-//    ofs_L.write(reinterpret_cast<char*>(L_ace), nbands_tot * nbands_tot * sizeof(T));
-//    ofs_L.close();
-
-    // L_ace inv in place
-    // T == std::complex<float> or std::complex<double>
-    if constexpr (std::is_same<T, std::complex<float>>::value)
-    {
-        // cgetrf_(&p_exx_helper->psi.get_nbands(), &p_exx_helper->psi.get_nbands(), L_ace, &p_exx_helper->psi.get_nbands(), ipiv.data(), &info);
-        // Todo: implement cgetrf and cgetri
-    }
-    else if constexpr (std::is_same<T, std::complex<double>>::value)
-    {
-        char non_unitary = 'N';
-
-        ztrtri_(&lo, &non_unitary, &nbands_tot, L_ace, &nbands_tot, &info);
-    }
-
-//    // save L_ace inv to disk
-//    std::ofstream ofs_L_inv("L_inv.dat", std::ios::binary);
-//    ofs_L_inv.write(reinterpret_cast<char*>(L_ace), nbands_tot * nbands_tot * sizeof(T));
-//    ofs_L_inv.close();
-
-    // Xi_ace = L_ace^-1 * h_psi_ace^dagger
-     gemm_complex_op()(this->ctx,
-                        'N',
-                        'C',
-                        nbands_tot,
-                        nbasis,
-                        nbands_tot,
-                        &intermediate_one,
-                        L_ace,
-                        nbands_tot,
-                        h_psi_ace,
-                        nbasis,
-                        &intermediate_zero,
-                        Xi_ace,
-                        nbands_tot
-                      );
-
-//     // save Xi_ace to disk
-//    std::ofstream ofs_Xi("Xi.dat", std::ios::binary);
-//    ofs_Xi.write(reinterpret_cast<char*>(Xi_ace), nbands_tot * nbasis * sizeof(T));
-//    ofs_Xi.close();
-//
-//    std::cout << "nbands_tot: " << nbands_tot << std::endl;
-//    std::cout << "nbands: " << p_exx_helper->psi.get_nbands() << std::endl;
-//    std::cout << "nbasis: " << nbasis << std::endl;
-
-    // clear mem
-    setmem_complex_op()(h_psi_ace, 0, nbands_tot * nbasis);
-//     setmem_complex_op()(Xi_ace, 0, nbands_tot * nbasis);
-    setmem_complex_op()(psi_h_psi_ace, 0, nbands_tot * nbands_tot);
-    setmem_complex_op()(L_ace, 0, nbands_tot * nbands_tot);
 
 }
 

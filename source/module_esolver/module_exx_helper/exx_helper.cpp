@@ -3,6 +3,8 @@
 template <typename T, typename Device>
 double ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper::cal_exx_energy(psi::Psi<T, Device>& psi, ESolver_KS_PW<T, Device>* this_)
 {
+    ModuleBase::timer::tick("ESolver_KS_PW", "cal_exx_energy");
+
     using setmem_complex_op = base_device::memory::set_memory_op<T, Device>;
     using delmem_complex_op = base_device::memory::delete_memory_op<T, Device>;
     T* psi_nk_real = new T[this_->pw_wfc->nrxx];
@@ -107,7 +109,6 @@ double ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper::cal_exx_energy(psi::
     double exx_div = div;
 
     if (wf_wg == nullptr) return 0.0;
-    ModuleBase::timer::tick("OperatorEXXPW", "get_Eexx");
     // evaluate the Eexx
     // T Eexx_ik = 0.0;
     Real Eexx_ik_real = 0.0;
@@ -240,7 +241,7 @@ double ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper::cal_exx_energy(psi::
 //    std::cout << "omega = " << this_->pelec->omega << " tpiba = " << this_->pw_rho->tpiba2 << " exx_div = " << exx_div << std::endl;
 
     Real Eexx = Eexx_ik_real;
-    ModuleBase::timer::tick("OperatorEXXPW", "get_Eexx");
+    ModuleBase::timer::tick("ESolver_KS_PW", "cal_exx_energy");
     return Eexx;
 }
 

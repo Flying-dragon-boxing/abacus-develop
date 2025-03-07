@@ -22,11 +22,6 @@ extern "C"
 //extern "C" void zpotrf_(char* uplo, const int* n, std::complex<double>* A, const int* lda, int* info);
 //extern "C" void cpotrf_(char* uplo, const int* n, std::complex<float>* A, const int* lda, int* info);
 
-#ifdef __EXX
-#define __EXX_PW
-#endif
-
-#ifdef __EXX_PW
 #include "op_exx_pw.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 
@@ -118,7 +113,7 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
     if (p_exx_helper->construct_ace)
     {
         construct_ace();
-        std::cout << "ACE constructed" << std::endl;
+//        std::cout << "ACE constructed" << std::endl;
         p_exx_helper->construct_ace = false;
     }
 
@@ -787,5 +782,3 @@ template class OperatorEXXPW<std::complex<double>, base_device::DEVICE_CPU>;
 #endif
 
 } // namespace hamilt
-
-#endif

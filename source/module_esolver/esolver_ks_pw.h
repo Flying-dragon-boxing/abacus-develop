@@ -33,12 +33,7 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
 
     void after_all_runners(UnitCell& ucell) override;
 
-    // EXX Todo: verify current implementation for after_converge
-    // virtual bool do_after_converge(int &iter) override;
-#ifdef __EXX
     Exx_Helper<T, Device> exx_helper;
-#endif
-
 
   protected:
     virtual void before_scf(UnitCell& ucell, const int istep) override;

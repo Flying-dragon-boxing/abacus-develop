@@ -287,9 +287,9 @@ void XC_Functional::set_xc_type(const std::string xc_func_in)
     }
 
 #ifndef __EXX
-    if(func_type == 4 || func_type == 5)
+    if((func_type == 4 || func_type == 5) && PARAM.inp.basis_type == "lcao")
     {
-        ModuleBase::WARNING_QUIT("set_xc_type","compile with libri to use hybrid functional");
+        ModuleBase::WARNING_QUIT("set_xc_type","compile with libri to use hybrid functional in lcao basis");
     }
 #endif
 

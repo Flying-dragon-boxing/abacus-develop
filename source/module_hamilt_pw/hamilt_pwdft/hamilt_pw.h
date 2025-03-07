@@ -37,10 +37,8 @@ class HamiltPW : public Hamilt<T, Device>
               const int nbands // number of bands
     ) const override;
 
-#ifdef __EXX
     void set_exx_helper(Exx_Helper<T, Device>* exx_helper_in);
     Exx_Helper<T, Device>* p_exx_helper;
-#endif
 
 protected:
     // used in sPhi, which are calculated in hPsi or sPhi

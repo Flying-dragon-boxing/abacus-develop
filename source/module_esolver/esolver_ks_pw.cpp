@@ -221,8 +221,6 @@ void ESolver_KS_PW<T, Device>::before_all_runners(UnitCell& ucell, const Input_p
     }
 
 
-    // EXX Todo: Fix the control flow
-#ifdef __EXX
     // 10) initialize exx pw
     if (PARAM.inp.calculation == "scf"
         || PARAM.inp.calculation == "relax"
@@ -241,7 +239,6 @@ void ESolver_KS_PW<T, Device>::before_all_runners(UnitCell& ucell, const Input_p
             exx_helper.set_psi(this->kspw_psi[0]);
         }
     }
-#endif
 
 }
 
@@ -276,7 +273,6 @@ void ESolver_KS_PW<T, Device>::before_scf(UnitCell& ucell, const int istep)
     // allocate HamiltPW
     this->allocate_hamilt(ucell);
 
-#ifdef __EXX
     if (PARAM.inp.calculation == "scf"
         || PARAM.inp.calculation == "relax"
         || PARAM.inp.calculation == "cell-relax"
@@ -289,7 +285,6 @@ void ESolver_KS_PW<T, Device>::before_scf(UnitCell& ucell, const int istep)
         }
 
     }
-#endif
 
 
     //----------------------------------------------------------
@@ -538,12 +533,10 @@ void ESolver_KS_PW<T, Device>::update_pot(UnitCell& ucell, const int istep, cons
 template <typename T, typename Device>
 void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int& iter, bool& conv_esolver)
 {
-#ifdef __EXX
     if (GlobalC::exx_info.info_global.cal_exx && !exx_helper.first_iter)
     {
         this->pelec->set_exx(exx_helper.cal_exx_energy(this->ctx, this->kspw_psi[0], this->pw_wfc, this->pw_rho, &ucell, &this->kv));
     }
-#endif
 
     // deband is calculated from "output" charge density calculated
     // in sum_band
@@ -563,20 +556,19 @@ void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int
         this->ppcell.cal_effective_D(veff, this->pw_rhod, ucell);
     }
 
-#ifdef __EXX
     if (GlobalC::exx_info.info_global.cal_exx)
     {
         if (GlobalC::exx_info.info_global.separate_loop)
         {
             if (conv_esolver)
             {
-                std::cout << " setting psi for exx inner loop" << std::endl;
                 exx_helper.set_psi(this->kspw_psi[0]);
 
                 conv_esolver = exx_helper.exx_after_converge(iter);
 
                 if (!conv_esolver)
                 {
+                    std::cout << " Setting Psi for EXX PW Inner Loop" << std::endl;
                     exx_helper.first_iter = false;
                     XC_Functional::set_xc_type(ucell.atoms[0].ncpp.xc_func);
                     update_pot(ucell, istep, iter, conv_esolver);
@@ -590,7 +582,6 @@ void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int
         }
 
     }
-#endif // __EXX
 
     // 3) Print out electronic wavefunctions in pw basis
     if (PARAM.inp.out_wfc_pw == 1 || PARAM.inp.out_wfc_pw == 2)

@@ -16,11 +16,6 @@
 #include <utility>
 #include <vector>
 
-#ifdef __EXX
-#define __EXX_PW
-#endif
-
-#ifdef __EXX_PW
 namespace hamilt
 {
 
@@ -144,7 +139,5 @@ class OperatorEXXPW : public OperatorPW<T, Device>
 };
 
 } // namespace hamilt
-
-#endif // __EXX_PW
 
 #endif // OPEXXPW_H

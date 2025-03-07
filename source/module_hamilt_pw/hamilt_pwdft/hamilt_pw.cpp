@@ -274,8 +274,7 @@ void HamiltPW<T, Device>::sPsi(const T* psi_in, // psi
             if (nbands == 1)
             {
                 int inc = 1;
-                gemv_op()(this->ctx,
-                          transa,
+                gemv_op()(transa,
                           npw,
                           this->ppcell->nkb,
                           &one,
@@ -289,8 +288,7 @@ void HamiltPW<T, Device>::sPsi(const T* psi_in, // psi
             }
             else
             {
-                gemm_op()(this->ctx,
-                          transa,
+                gemm_op()(transa,
                           transb,
                           this->ppcell->nkb,
                           nbands,
@@ -343,8 +341,7 @@ void HamiltPW<T, Device>::sPsi(const T* psi_in, // psi
                     for (int ia = 0; ia < atoms->na; ia++)
                     {
                         const int iat = ucell->itia2iat(it, ia);
-                        gemm_op()(this->ctx,
-                                  transa,
+                        gemm_op()(transa,
                                   transb,
                                   nh,
                                   nbands,
@@ -365,8 +362,7 @@ void HamiltPW<T, Device>::sPsi(const T* psi_in, // psi
             if (nbands == 1)
             {
                 const int inc = 1;
-                gemv_op()(this->ctx,
-                          transa,
+                gemv_op()(transa,
                           npw,
                           this->ppcell->nkb,
                           &one,
@@ -380,8 +376,7 @@ void HamiltPW<T, Device>::sPsi(const T* psi_in, // psi
             }
             else
             {
-                gemm_op()(this->ctx,
-                          transa,
+                gemm_op()(transa,
                           transb,
                           npw,
                           nbands,

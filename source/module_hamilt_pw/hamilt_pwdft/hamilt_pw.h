@@ -8,6 +8,7 @@
 #include "module_hamilt_general/hamilt.h"
 #include "module_hamilt_pw/hamilt_pwdft/VNL_in_pw.h"
 #include "module_base/kernels/math_kernel_op.h"
+#include "module_hamilt_pw/hamilt_pwdft/module_exx_helper/exx_helper.h"
 
 namespace hamilt
 {
@@ -37,8 +38,8 @@ class HamiltPW : public Hamilt<T, Device>
     ) const override;
 
 #ifdef __EXX
-    void set_exx_helper(typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper* exx_helper_in);
-    typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper* p_exx_helper;
+    void set_exx_helper(Exx_Helper<T, Device>* exx_helper_in);
+    Exx_Helper<T, Device>* p_exx_helper;
 #endif
 
 protected:

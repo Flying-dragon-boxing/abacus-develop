@@ -3,7 +3,7 @@
 #include "./esolver_ks.h"
 #include "module_hamilt_pw/hamilt_pwdft/operator_pw/velocity_pw.h"
 #include "module_psi/psi_init.h"
-
+#include "module_hamilt_pw/hamilt_pwdft/module_exx_helper/exx_helper.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 
 #include <memory>
@@ -33,58 +33,10 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
 
     void after_all_runners(UnitCell& ucell) override;
 
-#ifdef __EXX
-    struct Exx_Helper
-    {
-      public:
-        Exx_Helper() = default;
-        ModuleBase::matrix * wf_wg;
-        psi::Psi<T, base_device::DEVICE_CPU> psi;
-        static constexpr double DIV_UNDEFINED = 0x0d000721;
-        double div = DIV_UNDEFINED;
-        bool construct_ace = false;
-
-        bool exx_after_converge(int &iter)
-        {
-            if (first_iter)
-            {
-                first_iter = false;
-            }
-            else if (!GlobalC::exx_info.info_global.separate_loop)
-            {
-                return true;
-            }
-            else if (iter == 1)
-            {
-                return true;
-            }
-            GlobalV::ofs_running << "Updating EXX and rerun SCF" << std::endl;
-            iter = 0;
-            return false;
-
-        }
-
-        void set_psi(psi::Psi<T, Device> &psi_)
-        {
-            this->psi = psi_;
-            construct_ace = true;
-        }
-
-        void reset_div()
-        {
-            this->div = DIV_UNDEFINED;
-        }
-
-        double cal_exx_energy(psi::Psi<T, Device> &psi, ESolver_KS_PW<T, Device> *this_);
-
-        bool first_iter = false;
-    };
-#endif
-
     // EXX Todo: verify current implementation for after_converge
     // virtual bool do_after_converge(int &iter) override;
 #ifdef __EXX
-    Exx_Helper exx_helper;
+    Exx_Helper<T, Device> exx_helper;
 #endif
 
 

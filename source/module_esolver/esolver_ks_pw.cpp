@@ -513,18 +513,6 @@ void ESolver_KS_PW<T, Device>::hamilt2density_single(UnitCell& ucell,
         srho.begin(is, this->chr, this->pw_rhod, ucell.symm);
     }
 
-#ifdef __EXX
-    if (GlobalC::exx_info.info_global.cal_exx && !exx_helper.first_iter)
-    {
-        this->pelec->set_exx(exx_helper.cal_exx_energy(this->kspw_psi[0], this));
-    }
-#endif
-
-    // deband is calculated from "output" charge density calculated
-    // in sum_band
-    // need 'rho(out)' and 'vr (v_h(in) and v_xc(in))'
-    this->pelec->f_en.deband = this->pelec->cal_delta_eband(ucell);
-
     ModuleBase::timer::tick("ESolver_KS_PW", "hamilt2density_single");
 }
 
@@ -550,6 +538,18 @@ void ESolver_KS_PW<T, Device>::update_pot(UnitCell& ucell, const int istep, cons
 template <typename T, typename Device>
 void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int& iter, bool& conv_esolver)
 {
+#ifdef __EXX
+    if (GlobalC::exx_info.info_global.cal_exx && !exx_helper.first_iter)
+    {
+        this->pelec->set_exx(exx_helper.cal_exx_energy(this->ctx, this->kspw_psi[0], this->pw_wfc, this->pw_rho, &ucell, &this->kv));
+    }
+#endif
+
+    // deband is calculated from "output" charge density calculated
+    // in sum_band
+    // need 'rho(out)' and 'vr (v_h(in) and v_xc(in))'
+    this->pelec->f_en.deband = this->pelec->cal_delta_eband(ucell);
+
     // 1) Call iter_finish() of ESolver_KS
     ESolver_KS<T, Device>::iter_finish(ucell, istep, iter, conv_esolver);
 

@@ -29,7 +29,7 @@ class OperatorEXXPW : public OperatorPW<T, Device>
 {
   private:
     using Real = typename GetTypeReal<T>::type;
-    using Exx_Helper = typename ModuleESolver::ESolver_KS_PW<T, Device>::Exx_Helper;
+    using ExxHelper = Exx_Helper<T, Device>;
   public:
     OperatorEXXPW(const int* isk_in,
                   const ModulePW::PW_Basis_K* wfcpw_in,
@@ -66,7 +66,7 @@ class OperatorEXXPW : public OperatorPW<T, Device>
                     const int ngk_ik = 0,
                     const bool is_first_node = false) const;
 
-    void set_exx_helper(Exx_Helper *p_exx_helper_in) const
+    void set_exx_helper(ExxHelper *p_exx_helper_in) const
     {
         this->p_exx_helper = p_exx_helper_in;
     }
@@ -100,7 +100,7 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     // k vectors
     K_Vectors *kv = nullptr;
 
-    mutable Exx_Helper *p_exx_helper = nullptr;
+    mutable ExxHelper *p_exx_helper = nullptr;
 
     // real space memory
     T *psi_nk_real = nullptr;

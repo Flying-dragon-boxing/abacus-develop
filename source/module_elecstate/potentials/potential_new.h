@@ -1,12 +1,13 @@
 #ifndef POTENTIALNEW_H
 #define POTENTIALNEW_H
 
-#include <vector>
-
 #include "module_base/complexmatrix.h"
+#include "module_hamilt_general/module_surchem/surchem.h"
 #include "module_hamilt_pw/hamilt_pwdft/VNL_in_pw.h"
 #include "module_hamilt_pw/hamilt_pwdft/structure_factor.h"
 #include "pot_base.h"
+
+#include <vector>
 
 namespace elecstate
 {
@@ -58,6 +59,7 @@ class Potential : public PotBase
               const UnitCell* ucell_in,
               const ModuleBase::matrix* vloc_in,
               Structure_Factor* structure_factors_in,
+              surchem* solvent_in,
               double* etxc_in,
               double* vtxc_in);
     ~Potential();
@@ -169,6 +171,14 @@ class Potential : public PotBase
         return this->v_effective_fixed.data();
     }
 
+
+    /// @brief get the value of vloc at G=0;
+    /// @return vl(0)
+    double get_vl_of_0() const
+    {
+        return this->vl_of_0;
+    }
+
   private:
     void cal_v_eff(const Charge*const chg, const UnitCell*const ucell, ModuleBase::matrix& v_eff) override;
     void cal_fixed_v(double* vl_pseudo) override;
@@ -196,11 +206,14 @@ class Potential : public PotBase
     double* etxc_ = nullptr;
     double* vtxc_ = nullptr;
 
+    double vl_of_0 = 0.0;
+
     std::vector<PotBase*> components;
 
     const UnitCell* ucell_ = nullptr;
     const ModuleBase::matrix* vloc_ = nullptr;
     Structure_Factor* structure_factors_ = nullptr;
+    surchem* solvent_ = nullptr;
 };
 
 } // namespace elecstate

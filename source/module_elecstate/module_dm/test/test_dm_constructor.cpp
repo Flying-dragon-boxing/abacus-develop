@@ -5,12 +5,6 @@
 #include "module_elecstate/module_dm/density_matrix.h"
 #include "module_hamilt_lcao/module_hcontainer/hcontainer.h"
 #include "module_cell/klist.h"
-K_Vectors::K_Vectors()
-{
-}
-K_Vectors::~K_Vectors()
-{
-}
 /************************************************
  *  unit test of DensityMatrix constructor
  ***********************************************/
@@ -45,7 +39,7 @@ class DMTest : public testing::Test
         ucell.atoms = new Atom[ucell.ntype];
         ucell.iat2it = new int[ucell.nat];
         ucell.iat2ia = new int[ucell.nat];
-        ucell.atoms[0].tau = new ModuleBase::Vector3<double>[ucell.nat];
+        ucell.atoms[0].tau.resize(ucell.nat);
         ucell.itia2iat.create(ucell.ntype, ucell.nat);
         for (int iat = 0; iat < ucell.nat; iat++)
         {
@@ -56,9 +50,9 @@ class DMTest : public testing::Test
         }
         ucell.atoms[0].na = test_size;
         ucell.atoms[0].nw = test_nw;
-        ucell.atoms[0].iw2l = new int[test_nw];
-        ucell.atoms[0].iw2m = new int[test_nw];
-        ucell.atoms[0].iw2n = new int[test_nw];
+        ucell.atoms[0].iw2l.resize(test_nw);
+        ucell.atoms[0].iw2m.resize(test_nw);
+        ucell.atoms[0].iw2n.resize(test_nw);
         for (int iw = 0; iw < test_nw; ++iw)
         {
             ucell.atoms[0].iw2l[iw] = 0;
@@ -74,13 +68,7 @@ class DMTest : public testing::Test
     void TearDown()
     {
         delete paraV;
-        delete[] ucell.atoms[0].tau;
-        delete[] ucell.atoms[0].iw2l;
-        delete[] ucell.atoms[0].iw2m;
-        delete[] ucell.atoms[0].iw2n;
         delete[] ucell.atoms;
-        delete[] ucell.iat2it;
-        delete[] ucell.iat2ia;
     }
 
 #ifdef __MPI
@@ -127,7 +115,7 @@ TEST_F(DMTest, DMConstructor_nspin1)
     std::cout << "dim0: " << paraV->dim0 << "    dim1:" << paraV->dim1 << std::endl;
     std::cout << "nrow: " << paraV->nrow << "    ncol:" << paraV->ncol << std::endl;
     int nspin = 1;
-    elecstate::DensityMatrix<double, double> DM(kv, paraV, nspin);
+    elecstate::DensityMatrix<double, double> DM(paraV, nspin, kv->kvec_d, nks);
     // compare
     EXPECT_EQ(DM.get_DMK_nks(), kv->get_nks());
     EXPECT_EQ(DM.get_DMK_nrow(), paraV->nrow);
@@ -196,7 +184,7 @@ TEST_F(DMTest, DMConstructor_nspin2)
     // construct DM
     std::cout << "dim0: " << paraV->dim0 << "    dim1:" << paraV->dim1 << std::endl;
     std::cout << "nrow: " << paraV->nrow << "    ncol:" << paraV->ncol << std::endl;
-    elecstate::DensityMatrix<double, double> DM(kv, paraV, nspin);
+    elecstate::DensityMatrix<double, double> DM(paraV, nspin, kv->kvec_d, kv->get_nks() / nspin);
     // compare
     EXPECT_EQ(DM.get_DMK_nks(), kv->get_nks());
     EXPECT_EQ(DM.get_DMK_nrow(), paraV->nrow);

@@ -4,8 +4,7 @@
 #include <functional>
 
 #include <module_base/macros.h>
-#include <module_hsolver/diagh.h>
-#include <module_hsolver/kernels/math_kernel_op.h>
+#include <module_base/kernels/math_kernel_op.h>
 
 #include <ATen/core/tensor.h>
 #include <ATen/core/tensor_types.h>
@@ -13,7 +12,7 @@
 namespace hsolver {
 
 template <typename T, typename Device = base_device::DEVICE_CPU>
-class DiagoCG final : public DiagH<T, Device>
+class DiagoCG final
 {
     // private: accessibility within class is private by default
     // Note GetTypeReal<T>::type will
@@ -36,12 +35,17 @@ class DiagoCG final : public DiagH<T, Device>
         const int& pw_diag_nmax,
         const int& nproc_in_pool);
     
-    ~DiagoCG() override;
+    ~DiagoCG();
 
     // virtual void init(){};
     // refactor hpsi_info
-    // this is the override function diag() for CG method
-    void diag(const Func& hpsi_func, const Func& spsi_func, ct::Tensor& psi, ct::Tensor& eigen, const ct::Tensor& prec = {});
+    // this is the diag() function for CG method
+    void diag(const Func& hpsi_func,
+              const Func& spsi_func,
+              ct::Tensor& psi,
+              ct::Tensor& eigen,
+              const std::vector<double>& ethr_band,
+              const ct::Tensor& prec = {});
 
   private:
     Device * ctx_ = {};
@@ -104,6 +108,7 @@ class DiagoCG final : public DiagH<T, Device>
         const ct::Tensor& pphi,
         const ct::Tensor& cg,
         const ct::Tensor& scg,
+        const double& ethreshold,
         Real &cg_norm, 
         Real &theta, 
         Real &eigen,
@@ -114,11 +119,14 @@ class DiagoCG final : public DiagH<T, Device>
     void schmit_orth(const int& m, const ct::Tensor& psi, const ct::Tensor& sphi, ct::Tensor& phi_m);
 
     // used in diag() for template replace Hamilt with Hamilt_PW
-    void diag_mock(const ct::Tensor& prec, ct::Tensor& psi, ct::Tensor& eigen);
+    void diag_mock(const ct::Tensor& prec,
+                   ct::Tensor& psi,
+                   ct::Tensor& eigen,
+                   const std::vector<double>& ethr_band);
 
     bool test_exit_cond(const int& ntry, const int& notconv) const;
 
-    using dot_real_op = hsolver::dot_real_op<T, Device>;
+    using dot_real_op = ModuleBase::dot_real_op<T, Device>;
     const T * one_ = nullptr, * zero_ = nullptr, * neg_one_ = nullptr;
 };
 

@@ -29,7 +29,7 @@ void ModuleIO::cal_tmp_DM(elecstate::DensityMatrix<std::complex<double>, double>
     int ld_hk = DM_real.get_paraV_pointer()->nrow;
     int ld_hk2 = 2 * ld_hk;
     // tmp for is
-    int ik_begin = DM_real.get_DMK_nks() / nspin * (is - 1); // jump this->_nks for spin_down if nspin==2
+    int ik_begin = DM_real.get_DMK_nks() / nspin * (is - 1); // jump nk for spin_down if nspin==2
 
     hamilt::HContainer<double>* tmp_DMR_real = DM_real.get_DMR_vector()[is - 1];
     hamilt::HContainer<double>* tmp_DMR_imag = DM_imag.get_DMR_vector()[is - 1];
@@ -65,7 +65,7 @@ void ModuleIO::cal_tmp_DM(elecstate::DensityMatrix<std::complex<double>, double>
                 // cal k_phase
                 // if TK==std::complex<double>, kphase is e^{ikR}
                 const ModuleBase::Vector3<double> dR(r_index.x, r_index.y, r_index.z);
-                const double arg = (DM_real.get_kv_pointer()->kvec_d[ik] * dR) * ModuleBase::TWO_PI;
+                const double arg = (DM_real.get_kvec_d()[ik] * dR) * ModuleBase::TWO_PI;
                 double sinp, cosp;
                 ModuleBase::libm::sincos(arg, &sinp, &cosp);
                 std::complex<double> kphase = std::complex<double>(cosp, sinp);
@@ -118,7 +118,9 @@ void ModuleIO::cal_tmp_DM(elecstate::DensityMatrix<std::complex<double>, double>
     ModuleBase::timer::tick("ModuleIO", "cal_tmp_DM");
 }
 
-void ModuleIO::write_current(const int istep,
+void ModuleIO::write_current(const UnitCell& ucell,
+                             const Grid_Driver& gd,
+                             const int istep,
                              const psi::Psi<std::complex<double>>* psi,
                              const elecstate::ElecState* pelec,
                              const K_Vectors& kv,
@@ -134,7 +136,7 @@ void ModuleIO::write_current(const int istep,
     std::vector<hamilt::HContainer<std::complex<double>>*> current_term = {nullptr, nullptr, nullptr};
     if (!TD_Velocity::tddft_velocity)
     {
-        cal_current = new TD_current(&GlobalC::ucell, &GlobalC::GridD, pv, orb, intor);
+        cal_current = new TD_current(&ucell, &gd, pv, orb, intor);
         cal_current->calculate_vcomm_r();
         cal_current->calculate_grad_term();
         for (int dir = 0; dir < 3; dir++)
@@ -157,14 +159,15 @@ void ModuleIO::write_current(const int istep,
     // construct a DensityMatrix object
     // Since the function cal_dm_psi do not suport DMR in complex type, I replace it with two DMR in double type. Should
     // be refactored in the future.
-    elecstate::DensityMatrix<std::complex<double>, double> DM_real(&kv, pv, PARAM.inp.nspin);
-    elecstate::DensityMatrix<std::complex<double>, double> DM_imag(&kv, pv, PARAM.inp.nspin);
+    const int nspin_dm = std::map<int, int>({ {1,1},{2,2},{4,1} })[PARAM.inp.nspin];
+    elecstate::DensityMatrix<std::complex<double>, double> DM_real(pv, nspin_dm, kv.kvec_d, kv.get_nks() / nspin_dm);
+    elecstate::DensityMatrix<std::complex<double>, double> DM_imag(pv, nspin_dm, kv.kvec_d, kv.get_nks() / nspin_dm);
     // calculate DMK
     elecstate::cal_dm_psi(DM_real.get_paraV_pointer(), pelec->wg, psi[0], DM_real);
 
     // init DMR
-    DM_real.init_DMR(ra, &GlobalC::ucell);
-    DM_imag.init_DMR(ra, &GlobalC::ucell);
+    DM_real.init_DMR(ra, &ucell);
+    DM_imag.init_DMR(ra, &ucell);
 
     int nks = DM_real.get_DMK_nks();
     if (PARAM.inp.nspin == 2)
@@ -197,27 +200,27 @@ void ModuleIO::write_current(const int istep,
 #ifdef _OPENMP
 #pragma omp for schedule(dynamic)
 #endif
-                for (int iat = 0; iat < GlobalC::ucell.nat; iat++)
+                for (int iat = 0; iat < ucell.nat; iat++)
                 {
-                    const int T1 = GlobalC::ucell.iat2it[iat];
-                    Atom* atom1 = &GlobalC::ucell.atoms[T1];
-                    const int I1 = GlobalC::ucell.iat2ia[iat];
+                    const int T1 = ucell.iat2it[iat];
+                    Atom* atom1 = &ucell.atoms[T1];
+                    const int I1 = ucell.iat2ia[iat];
                     // get iat1
-                    int iat1 = GlobalC::ucell.itia2iat(T1, I1);
+                    int iat1 = ucell.itia2iat(T1, I1);
 
                     int irr = pv->nlocstart[iat];
-                    const int start1 = GlobalC::ucell.itiaiw2iwt(T1, I1, 0);
+                    const int start1 = ucell.itiaiw2iwt(T1, I1, 0);
                     for (int cb = 0; cb < ra.na_each[iat]; ++cb)
                     {
                         const int T2 = ra.info[iat][cb][3];
                         const int I2 = ra.info[iat][cb][4];
 
-                        const int start2 = GlobalC::ucell.itiaiw2iwt(T2, I2, 0);
+                        const int start2 = ucell.itiaiw2iwt(T2, I2, 0);
 
-                        Atom* atom2 = &GlobalC::ucell.atoms[T2];
+                        Atom* atom2 = &ucell.atoms[T2];
 
                         // get iat2
-                        int iat2 = GlobalC::ucell.itia2iat(T2, I2);
+                        int iat2 = ucell.itia2iat(T2, I2);
                         double Rx = ra.info[iat][cb][0];
                         double Ry = ra.info[iat][cb][1];
                         double Rz = ra.info[iat][cb][2];

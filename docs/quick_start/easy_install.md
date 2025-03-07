@@ -1,6 +1,17 @@
 # Easy Installation
 
-This guide helps you install ABACUS with basic features. **For DeePKS, DeePMD and Libxc support, or building with `make`, please refer to [the advanced installation guide](../advanced/install.md)** after going through this page. We recommend building ABACUS with `cmake` to avoid dependency issues. We recommend compiling ABACUS(and possibly its requirements) from the source code using the latest compiler for the best performace. You can also deploy ABACUS **without building** by [Docker](#container-deployment) or [conda](#install-by-conda). Please note that ABACUS only supports Linux; for Windows users, please consider using [WSL](https://learn.microsoft.com/en-us/windows/wsl/) or docker.
+This guide helps you install ABACUS with basic features. **For DeePKS, DeePMD and Libxc support, or building with `make`, please refer to [the advanced installation guide](../advanced/install.md)** after going through this page. We recommend building ABACUS with `cmake` to avoid dependency issues. We recommend compiling ABACUS(and possibly its requirements) from the source code using the latest compiler for the best performace. You can try [toolchain](#install-requirements-by-toolchain) to install ABACUS and dependencies in a source-code compilation way with convience. You can also deploy ABACUS **without building** by [Docker](#container-deployment) or [conda](#install-by-conda). Please note that ABACUS only supports Linux; for Windows users, please consider using [WSL](https://learn.microsoft.com/en-us/windows/wsl/) or docker.
+
+## Get ABACUS source code
+
+ABACUS source code can be obtained via one of the following choices:
+
+- Clone the whole repo with git: `git clone https://github.com/deepmodeling/abacus-develop.git`
+- Clone the minimum required part of repo: `git clone https://github.com/deepmodeling/abacus-develop.git --depth=1`
+- Download the latest source code without git: `wget https://github.com/deepmodeling/abacus-develop/archive/refs/heads/develop.zip`
+- Get the source code of a stable version [here](https://github.com/deepmodeling/abacus-develop/releases)
+- If you have connection issues accessing GitHub, please try out our official [Gitee repo](https://gitee.com/deepmodeling/abacus-develop/): e.g. `git clone https://gitee.com/deepmodeling/abacus-develop.git`. This Gitee repo is updated synchronously with GitHub.
+
 
 ## Prerequisites
 
@@ -43,32 +54,22 @@ Please refer to our [guide](https://github.com/deepmodeling/abacus-develop/wiki/
 
 We offer a set of [toolchain](https://github.com/deepmodeling/abacus-develop/tree/develop/toolchain)
 scripts to compile and install all the requirements
-automatically and suitable for machine characteristic in an online or offline way.
-The toolchain can be downloaded with ABACUS repo, which is easily used and can
-have a convenient installation under HPC environment in both `GNU` or `Intel-oneAPI` toolchain.
-Sometimes, ABACUS by toolchain installation may have highly efficient performance.
-A Tutorial for using this toolchain can be accessed in [bohrium-notebook](https://nb.bohrium.dp.tech/detail/5215742477)
+automatically and suitable for machine characteristic in an online or offline way. 
+The toolchain can be downloaded with ABACUS repo, and users can easily compile the requirements by running *toolchain_[gnu,intel].sh* and ABACUS itself by running *build_abacus_[gnu,intel].sh* script in the toolchain directory in both `GNU` and `Intel-oneAPI` toolchain.
+Sometimes, ABACUS by toolchain installation may have better efficient performance due to the suitable compiled dependencies.
 
-> Notice: the toolchain is under development, please let me know if you encounter any problem in using this toolchain.
+Users should read the README in toolchain directory for most of the information before use, and a tutorial for using this toolchain can be accessed in [bohrium-notebook](https://nb.bohrium.dp.tech/detail/5215742477) as reference.
+
+> Notice: the toolchain is under development, please let we know if you encounter any problem in using this toolchain by raising issue or contacting us.
 
 
-## Get ABACUS source code
-
-Of course a copy of ABACUS source code is required, which can be obtained via one of the following choices:
-
-- Clone the whole repo with git: `git clone https://github.com/deepmodeling/abacus-develop.git`
-- Clone the minimum required part of repo: `git clone https://github.com/deepmodeling/abacus-develop.git --depth=1`
-- Download the latest source code without git: `wget https://github.com/deepmodeling/abacus-develop/archive/refs/heads/develop.zip`
-- Get the source code of a stable version [here](https://github.com/deepmodeling/abacus-develop/releases)
-- If you have connection issues accessing GitHub, please try out our official [Gitee repo](https://gitee.com/deepmodeling/abacus-develop/): e.g. `git clone https://gitee.com/deepmodeling/abacus-develop.git`
-
-### Update to latest release
+## Update to latest release by git
 
 Please check the [release page](https://github.com/deepmodeling/abacus-develop/releases) for the release note of a new version.
 
 It is OK to download the new source code from beginning following the previous step.
 
-To update your cloned git repo in-place:
+You can update your cloned git repo (from Github or Gitee) in-place with the following commands:
 
 ```bash
 git remote -v
@@ -78,7 +79,7 @@ git remote -v
 
 # Replace "origin" with "upstream" or the remote name corresponding to deepmodeling/abacus-develop if necessary
 git fetch origin
-git checkout v3.2.0 # Replace the tag with the latest version
+git checkout v3.8.4 # Replace the tag with the latest version
 git describe --tags # Verify if the tag has been successfully checked out
 ```
 
@@ -158,6 +159,12 @@ If ABACUS is installed into a custom directory using `CMAKE_INSTALL_PREFIX`, ple
 export PATH=/my-install-dir/:$PATH
 ```
 
+If ABACUS is installed by toolchain, there will be an environment script in the toolchain directory named as *abacus_env.sh*. You can source it to set the environment variables.
+
+```bash
+source /path/to/abacus/toolchain/abacus_env.sh
+```
+
 Please set OpenMP threads by setting environment variable:
 
 ```bash
@@ -184,6 +191,8 @@ OMP_NUM_THREADS=4 mpirun -n 4 abacus
 ```
 
 In this case, the total thread count is 16.
+
+> Notice: If the MPI library you are using is OpenMPI, which is commonly the case, when you set the number of processes to 1 or 2, OpenMPI will default to `--bind-to core`. This means that no matter how many threads you set, these threads will be restricted to run on 1 or 2 CPU cores. Therefore, setting a higher number of OpenMP threads might result in slower program execution. Hence, when using `mpirun -n` set to 1 or 2, it is recommended to set `--bind-to none` to avoid performance degradation. For example:`OMP_NUM_THREADS=6 mpirun --bind-to none -n 1 abacus`. The detailed binding strategy of OpenMPI can be referred to at https://docs.open-mpi.org/en/v5.0.x/man-openmpi/man1/mpirun.1.html#quick-summary.
 
 ABACUS will try to determine the number of threads used by each process if `OMP_NUM_THREADS` is not set. However, it is **required** to set `OMP_NUM_THREADS` before running `mpirun` to avoid potential performance issues.
 

@@ -6,6 +6,7 @@
 #include "module_io/write_orb_info.h"
 #include "module_cell/unitcell.h"
 #include "prepare_unitcell.h"
+#include "module_elecstate/read_pseudo.h"
 
 #ifdef __LCAO
 InfoNonlocal::InfoNonlocal(){}
@@ -49,9 +50,9 @@ TEST(OrbInfo,WriteOrbInfo)
 	PARAM.input.nspin = 1;
     PARAM.input.basis_type = "pw";
     PARAM.input.dft_functional = "default";
-    GlobalV::NLOCAL = 18;
-    ucell->read_cell_pseudopots(pp_dir,ofs);
-    ucell->cal_nwfc(ofs);
+    PARAM.sys.nlocal = 18;
+    elecstate::read_cell_pseudopots(pp_dir,ofs,*ucell);
+    elecstate::cal_nwfc(ofs,*ucell,ucell->atoms);
     ModuleIO::write_orb_info(ucell);
     ofs.close();
     std::ifstream ifs("Orbital");

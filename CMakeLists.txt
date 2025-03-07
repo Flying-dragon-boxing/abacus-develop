@@ -12,6 +12,7 @@ project(
 
 option(ENABLE_LCAO "Enable LCAO calculation." ON)
 option(ENABLE_DEEPKS "Enable DeePKS functionality" OFF)
+option(ENABLE_MLKEDF "Enable Machine Learning based KEDF for OFDFT" OFF)
 option(ENABLE_LIBXC "Enable LibXC functionality" OFF)
 option(USE_CUDA "Enable support to CUDA for ABACUS." OFF)
 option(ENABLE_FLOAT_FFTW "Enable support to single precision FFTW library." OFF)
@@ -39,6 +40,9 @@ option(ENABLE_RAPIDJSON "Enable rapid-json usage." OFF)
 option(ENABLE_CNPY "Enable cnpy usage." OFF)
 option(ENABLE_PEXSI "Enable support for PEXSI." OFF)
 option(ENABLE_CUSOLVERMP "Enable cusolvermp." OFF)
+option(USE_DSP "Enable DSP usage." OFF)
+option(USE_CUDA_ON_DCU "Enable CUDA on DCU" OFF)
+option(USE_CUDA_MPI "Enable CUDA-aware MPI" OFF)
 
 # enable json support
 if(ENABLE_RAPIDJSON)
@@ -117,6 +121,20 @@ elseif(NOT ENABLE_LCAO AND NOT ENABLE_MPI)
   set(ABACUS_BIN_NAME abacus_pw_serial)
 elseif(ENABLE_LCAO AND NOT ENABLE_MPI)
   set(ABACUS_BIN_NAME abacus_serial)
+endif()
+
+if (USE_DSP)
+  set(USE_ELPA OFF)
+  set(ENABLE_LCAO OFF)
+  set(ABACUS_BIN_NAME abacus_dsp)
+endif()
+
+if (USE_CUDA_ON_DCU)
+  add_compile_definitions(__CUDA_ON_DCU)
+endif()
+
+if (USE_CUDA_MPI)
+  add_compile_definitions(__CUDA_MPI)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
@@ -223,6 +241,9 @@ if(ENABLE_LCAO)
     add_compile_definitions(__PEXSI)
     set(CMAKE_CXX_STANDARD 14)
   endif()
+  if(NEW_GINT)
+    add_compile_definitions(__NEW_GINT)
+  endif()
 else()
   set(ENABLE_DEEPKS OFF)
   set(ENABLE_LIBRI OFF)
@@ -238,6 +259,15 @@ if(ENABLE_MPI)
   target_link_libraries(${ABACUS_BIN_NAME} MPI::MPI_CXX)
   add_compile_definitions(__MPI)
   list(APPEND math_libs MPI::MPI_CXX)
+endif()
+
+if (USE_DSP)
+  add_compile_definitions(__DSP)
+  target_link_libraries(${ABACUS_BIN_NAME} ${OMPI_LIBRARY1})
+  include_directories(${MTBLAS_FFT_DIR}/libmtblas/include)
+  include_directories(${MT_HOST_DIR}/include)
+  target_link_libraries(${ABACUS_BIN_NAME} ${MT_HOST_DIR}/hthreads/lib/libhthread_device.a)
+  target_link_libraries(${ABACUS_BIN_NAME} ${MT_HOST_DIR}/hthreads/lib/libhthread_host.a)
 endif()
 
 find_package(Threads REQUIRED)
@@ -408,12 +438,8 @@ else()
   find_package(Lapack REQUIRED)
   include_directories(${FFTW3_INCLUDE_DIRS})
   list(APPEND math_libs FFTW3::FFTW3 LAPACK::LAPACK BLAS::BLAS)
-
-  if(ENABLE_LCAO)
-    find_package(ScaLAPACK REQUIRED)
-    list(APPEND math_libs ScaLAPACK::ScaLAPACK)
-  endif()
-
+  find_package(ScaLAPACK REQUIRED)
+  list(APPEND math_libs ScaLAPACK::ScaLAPACK)
   if(USE_OPENMP)
     list(APPEND math_libs FFTW3::FFTW3_OMP)
   endif()
@@ -436,22 +462,6 @@ if(ENABLE_FLOAT_FFTW)
 endif()
 
 if(ENABLE_DEEPKS)
-  # Torch uses outdated components to detect CUDA arch, causing failure on
-  # latest CUDA kits. Set CMake variable TORCH_CUDA_ARCH_LIST in the form of
-  # "major.minor" if required.
-  find_package(Torch REQUIRED)
-  if(NOT Torch_VERSION VERSION_LESS "2.1.0")
-    set_if_higher(CMAKE_CXX_STANDARD 17)
-  elseif(NOT Torch_VERSION VERSION_LESS "1.5.0")
-    set_if_higher(CMAKE_CXX_STANDARD 14)
-  endif()
-  include_directories(${TORCH_INCLUDE_DIRS})
-  if(MKL_FOUND)
-    list(PREPEND math_libs ${TORCH_LIBRARIES})
-  else()
-    list(APPEND math_libs ${TORCH_LIBRARIES})
-  endif()
-  add_compile_options(${TORCH_CXX_FLAGS})
   target_link_libraries(${ABACUS_BIN_NAME} deepks)
 
   find_path(libnpy_SOURCE_DIR npy.hpp HINTS ${libnpy_INCLUDE_DIR})
@@ -468,6 +478,44 @@ if(ENABLE_DEEPKS)
   endif()
   include_directories(${libnpy_SOURCE_DIR}/include)
   add_compile_definitions(__DEEPKS)
+endif()
+
+if(ENABLE_MLKEDF)
+  target_link_libraries(${ABACUS_BIN_NAME} hamilt_mlkedf)
+
+  find_path(libnpy_SOURCE_DIR npy.hpp HINTS ${libnpy_INCLUDE_DIR})
+  if(NOT libnpy_SOURCE_DIR)
+    include(FetchContent)
+    FetchContent_Declare(
+      libnpy
+      GIT_REPOSITORY https://github.com/llohse/libnpy.git
+      GIT_SHALLOW TRUE
+      GIT_PROGRESS TRUE)
+    FetchContent_MakeAvailable(libnpy)
+  else()
+    include_directories(${libnpy_INCLUDE_DIR})
+  endif()
+  include_directories(${libnpy_SOURCE_DIR}/include)
+  add_compile_definitions(__MLKEDF)
+endif()
+
+# Torch uses outdated components to detect CUDA arch, causing failure on
+# latest CUDA kits. Set CMake variable TORCH_CUDA_ARCH_LIST in the form of
+# "major.minor" if required.
+if(ENABLE_DEEPKS OR ENABLE_MLKEDF OR DEFINED Torch_DIR)
+  find_package(Torch REQUIRED)
+  if(NOT Torch_VERSION VERSION_LESS "2.1.0")
+    set_if_higher(CMAKE_CXX_STANDARD 17)
+  elseif(NOT Torch_VERSION VERSION_LESS "1.5.0")
+    set_if_higher(CMAKE_CXX_STANDARD 14)
+  endif()
+  include_directories(${TORCH_INCLUDE_DIRS})
+  if(MKL_FOUND)
+    list(PREPEND math_libs ${TORCH_LIBRARIES})
+  else()
+    list(APPEND math_libs ${TORCH_LIBRARIES})
+  endif()
+  add_compile_options(${TORCH_CXX_FLAGS})
 endif()
 
 if (ENABLE_CNPY)
@@ -523,13 +571,10 @@ endif()
 if(ENABLE_LIBRI)
   set_if_higher(CMAKE_CXX_STANDARD 14)
   if(LIBRI_DIR)
-    include_directories(${LIBRI_DIR}/include)
-  elseif(GIT_SUBMODULE)
-    git_submodule_update()
-    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/deps/LibRI/include)
   else()
-    message(FATAL_ERROR "Must provide LIBRI_DIR for RI related features.")
+    find_package(LibRI REQUIRED)
   endif()
+  include_directories(${LIBRI_DIR}/include)
   target_link_libraries(${ABACUS_BIN_NAME} ri module_exx_symmetry)
   add_compile_definitions(__EXX EXX_DM=3 EXX_H_COMM=2 TEST_EXX_LCAO=0
                           TEST_EXX_RADIAL=1)
@@ -540,13 +585,10 @@ if(ENABLE_LIBRI OR DEFINED LIBCOMM_DIR)
 endif()
 if(ENABLE_LIBCOMM)
   if(LIBCOMM_DIR)
-    include_directories(${LIBCOMM_DIR}/include)
-  elseif(GIT_SUBMODULE)
-    git_submodule_update()
-    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/deps/LibComm/include)
   else()
-    message(FATAL_ERROR "Must provide LIBCOMM_DIR for RI related features.")
+    find_package(LibComm REQUIRED)
   endif()
+  include_directories(${LIBCOMM_DIR}/include)
 endif()
 
 if(ENABLE_PAW)
@@ -590,13 +632,14 @@ if(DEFINED DeePMD_DIR)
     add_compile_definitions(__DPMDC)
   else()
     target_link_libraries(${ABACUS_BIN_NAME} DeePMD::deepmd_cc)
-    if(NOT DEFINED TensorFlow_DIR)
-      set(TensorFlow_DIR ${DeePMD_DIR})
-    endif()
-    find_package(TensorFlow REQUIRED)
-    if(TensorFlow_FOUND)
-      target_link_libraries(${ABACUS_BIN_NAME} TensorFlow::tensorflow_cc)
-    endif()
+  endif()
+endif()
+
+if(DEFINED TensorFlow_DIR)
+  find_package(TensorFlow REQUIRED)
+  include_directories(${TensorFlow_DIR}/include)
+  if(TensorFlow_FOUND)
+    target_link_libraries(${ABACUS_BIN_NAME} TensorFlow::tensorflow_cc)
   endif()
 endif()
 
@@ -699,10 +742,13 @@ target_link_libraries(
   hamilt_stodft
   psi
   psi_initializer
+  psi_overall_init
   esolver
   vdw
   device
-  container)
+  container
+  dftu
+  deltaspin)
 if(ENABLE_LCAO)
   target_link_libraries(
     ${ABACUS_BIN_NAME}
@@ -710,11 +756,10 @@ if(ENABLE_LCAO)
     tddft
     orb
     gint
-    dftu
     hcontainer
-    deltaspin
     numerical_atomic_orbitals
-    lr)
+    lr
+    rdmft)
   if(USE_ELPA)
     target_link_libraries(${ABACUS_BIN_NAME} genelpa)
   endif()

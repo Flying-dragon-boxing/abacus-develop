@@ -35,10 +35,6 @@ void Parallel_Grid::init(
 	const int &bz_in)
 {
 
-#ifndef __MPI
-	return;
-#endif
-
 	ModuleBase::TITLE("Parallel_Grid","init");
 	
 	this->ncx = ncx_in;
@@ -47,7 +43,7 @@ void Parallel_Grid::init(
 	this->nczp = nczp_in;
 	this->nrxx = nrxx_in;
 	this->nbz = nbz_in;
-	this->bz = bz_in;
+    this->bz = bz_in;
 
 	if(nczp<0)
 	{
@@ -60,7 +56,11 @@ void Parallel_Grid::init(
 	assert(ncz > 0);
 
 	this->ncxy = ncx * ncy;
-	this->ncxyz = ncxy * ncz;
+    this->ncxyz = ncxy * ncz;
+
+#ifndef __MPI
+    return;
+#endif
 
     // enable to call this function again liuyu 2023-03-10
     if(this->allocate)
@@ -84,14 +84,16 @@ void Parallel_Grid::init(
 
 	this->nproc_in_pool = new int[GlobalV::KPAR];
 	int nprocgroup;
-	if(PARAM.inp.esolver_type == "sdft")		nprocgroup = GlobalV::NPROC_IN_STOGROUP;
-	else											nprocgroup = GlobalV::NPROC;
+	if(PARAM.inp.esolver_type == "sdft") {		nprocgroup = GlobalV::NPROC_IN_BNDGROUP;
+	} else {											nprocgroup = GlobalV::NPROC;
+}
 
 	const int remain_pro = nprocgroup%GlobalV::KPAR;
 	for(int i=0; i<GlobalV::KPAR; i++)
 	{
 		nproc_in_pool[i] = nprocgroup/GlobalV::KPAR;
-		if(i<remain_pro) this->nproc_in_pool[i]++;
+		if(i<remain_pro) { this->nproc_in_pool[i]++;
+}
 	}
 
 	this->numz = new int*[GlobalV::KPAR];
@@ -115,7 +117,7 @@ void Parallel_Grid::init(
 	return;
 }
 
-void Parallel_Grid::z_distribution(void)
+void Parallel_Grid::z_distribution()
 {
 	assert(allocate);	
 
@@ -126,7 +128,8 @@ void Parallel_Grid::z_distribution(void)
 //		GlobalV::ofs_running << "\n now POOL=" << ip;
 		const int nproc = nproc_in_pool[ip];
 		
-		if(ip>0) startp[ip] = startp[ip-1] + nproc_in_pool[ip-1];
+		if(ip>0) { startp[ip] = startp[ip-1] + nproc_in_pool[ip-1];
+}
 		
 		// (1) how many z on each 'proc' in each 'pool'
 		for(int iz=0; iz<nbz; iz++)
@@ -182,7 +185,28 @@ void Parallel_Grid::z_distribution(void)
 
 
 #ifdef __MPI
-void Parallel_Grid::zpiece_to_all(double *zpiece, const int &iz, double *rho) const
+void Parallel_Grid::bcast(const double* const data_global, double* data_local, const int& rank)const
+{
+    std::vector<double> zpiece(ncxy);
+    for (int iz = 0; iz < this->ncz; ++iz)
+    {
+        ModuleBase::GlobalFunc::ZEROS(zpiece.data(), ncxy);
+        if (rank == 0)
+        {
+            for (int ix = 0; ix < ncx; ix++)
+            {
+                for (int iy = 0; iy < ncy; iy++)
+                {
+                    const int ixy = ix * ncy + iy;
+                    zpiece[ixy] = data_global[ixy * ncz + iz];
+                }
+            }
+        }
+        this->zpiece_to_all(zpiece.data(), iz, data_local);
+    }
+}
+
+void Parallel_Grid::zpiece_to_all(double* zpiece, const int& iz, double* rho) const
 {
 	if(PARAM.inp.esolver_type == "sdft")
 	{
@@ -269,7 +293,7 @@ void Parallel_Grid::zpiece_to_stogroup(double *zpiece, const int &iz, double *rh
 	{
 		// case 1: the first part of rho in processor 0.
 		// and send zpeice to to other pools.
-		if(proc == 0 && GlobalV::RANK_IN_STOGROUP ==0)
+		if(proc == 0 && GlobalV::RANK_IN_BPGROUP ==0)
 		{
 			for(int ir=0; ir<ncxy; ir++)
 			{
@@ -277,7 +301,7 @@ void Parallel_Grid::zpiece_to_stogroup(double *zpiece, const int &iz, double *rh
 			}
 			for(int ipool=1; ipool < GlobalV::KPAR; ipool++)
 			{
-				MPI_Send(zpiece, ncxy, MPI_DOUBLE, this->whichpro[ipool][iz], iz, STO_WORLD);
+				MPI_Send(zpiece, ncxy, MPI_DOUBLE, this->whichpro[ipool][iz], iz, INT_BGROUP);
 			}
 		}
 
@@ -285,7 +309,7 @@ void Parallel_Grid::zpiece_to_stogroup(double *zpiece, const int &iz, double *rh
 		// and the receive tag is iz.
 		else if(proc == GlobalV::RANK_IN_POOL )
 		{
-			MPI_Recv(zpiece, ncxy, MPI_DOUBLE, 0, iz, STO_WORLD,&ierror);
+			MPI_Recv(zpiece, ncxy, MPI_DOUBLE, 0, iz, INT_BGROUP,&ierror);
 			for(int ir=0; ir<ncxy; ir++)
 			{
 				rho[ir*nczp + znow] = zpiece[ir];
@@ -300,7 +324,7 @@ void Parallel_Grid::zpiece_to_stogroup(double *zpiece, const int &iz, double *rh
 		{
 			for(int ipool=0; ipool < GlobalV::KPAR; ipool++)
 			{
-				MPI_Send(zpiece, ncxy, MPI_DOUBLE, this->whichpro[ipool][iz], iz, STO_WORLD);
+				MPI_Send(zpiece, ncxy, MPI_DOUBLE, this->whichpro[ipool][iz], iz, INT_BGROUP);
 			}
 		}
 	}// MY_POOL == 0
@@ -309,9 +333,9 @@ void Parallel_Grid::zpiece_to_stogroup(double *zpiece, const int &iz, double *rh
 		//ofs_running << "\n Receive charge density iz=" << iz << endl;
 		// the processors in other pools always receive rho from
 		// processor 0. the tag is 'iz'
-		if(proc == GlobalV::RANK_IN_STOGROUP )
+		if(proc == GlobalV::RANK_IN_BPGROUP )
 		{
-			MPI_Recv(zpiece, ncxy, MPI_DOUBLE, 0, iz, STO_WORLD,&ierror);
+			MPI_Recv(zpiece, ncxy, MPI_DOUBLE, 0, iz, INT_BGROUP,&ierror);
 			for(int ir=0; ir<ncxy; ir++)
 			{
 				rho[ir*nczp+znow] = zpiece[ir];
@@ -323,15 +347,14 @@ void Parallel_Grid::zpiece_to_stogroup(double *zpiece, const int &iz, double *rh
 	return;	
 
 }
-void Parallel_Grid::reduce_to_fullrho(double *rhotot, double *rhoin)
+void Parallel_Grid::reduce(double* rhotot, const double* const rhoin)const
 {
-	//ModuleBase::TITLE("Parallel_Grid","reduce_to_fullrho");
+    //ModuleBase::TITLE("Parallel_Grid","reduce");
 
 	// if not the first pool, wait here until processpr 0
 	// send the Barrier command.
 	if(GlobalV::MY_POOL!=0) 
 	{
-		MPI_Barrier(MPI_COMM_WORLD);
 		return;
 	}
 
@@ -374,20 +397,14 @@ void Parallel_Grid::reduce_to_fullrho(double *rhotot, double *rhoin)
 
 		if(GlobalV::MY_RANK==0)
 		{
-			for(int ix=0; ix<this->ncx; ix++)
-			{
-				for(int iy=0; iy<this->ncy; iy++)
-				{
-					const int ir = ix * this->ncy + iy;
-					rhotot[ix * ncy * ncz + iy * ncz + iz] = zpiece[ir];
-				}
+            for (int ixy = 0; ixy < this->ncxy;++ixy)
+            {
+                rhotot[ixy * ncz + iz] = zpiece[ixy];
 			}	
 		}
 	}
 
 	delete[] zpiece;	
-
-	MPI_Barrier(MPI_COMM_WORLD);
 
 	return;
 }
@@ -397,10 +414,6 @@ void Parallel_Grid::init_final_scf(const int &ncx_in, const int &ncy_in, const i
 const int &nrxx_in, const int &nbz_in, const int &bz_in)
 {
 
-#ifndef __MPI
-	return;
-#endif
-
 	ModuleBase::TITLE("Parallel_Grid","init");
 	
 	this->ncx = ncx_in;
@@ -409,7 +422,7 @@ const int &nrxx_in, const int &nbz_in, const int &bz_in)
 	this->nczp = nczp_in;
 	this->nrxx = nrxx_in;
 	this->nbz = nbz_in;
-	this->bz = bz_in;
+    this->bz = bz_in;
 
 	if(nczp<0)
 	{
@@ -422,7 +435,11 @@ const int &nrxx_in, const int &nbz_in, const int &bz_in)
 	assert(ncz > 0);
 
 	this->ncxy = ncx * ncy;
-	this->ncxyz = ncxy * ncz;
+    this->ncxyz = ncxy * ncz;
+
+#ifndef __MPI
+    return;
+#endif
 
 	// (2)
 	assert(allocate_final_scf==false);
@@ -433,7 +450,8 @@ const int &nrxx_in, const int &nbz_in, const int &bz_in)
 	for(int i=0; i<GlobalV::KPAR; i++)
 	{
 		nproc_in_pool[i] = GlobalV::NPROC/GlobalV::KPAR;
-		if(i<remain_pro) this->nproc_in_pool[i]++;
+		if(i<remain_pro) { this->nproc_in_pool[i]++;
+}
 	}	
 
 	this->numz = new int*[GlobalV::KPAR];

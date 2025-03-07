@@ -12,14 +12,11 @@ namespace elecstate
 
 const double* ElecState::getRho(int spin) const
 {
-    // hamilt::MatrixBlock<double> temp{&(this->charge->rho[spin][0]), 1, this->charge->nrxx}; //
-    // this->chr->get_nspin(), this->chr->get_nrxx()};
     return &(this->charge->rho[spin][0]);
 }
 
 void ElecState::fixed_weights(const std::vector<double>& ocp_kb, const int& nbands, const double& nelec)
 {
-
     assert(nbands > 0);
     assert(nelec > 0.0);
 
@@ -56,16 +53,17 @@ void ElecState::fixed_weights(const std::vector<double>& ocp_kb, const int& nban
     return;
 }
 
+
 void ElecState::init_nelec_spin()
 {
     this->nelec_spin.resize(PARAM.inp.nspin);
     if (PARAM.inp.nspin == 2)
     {
-        // in fact, when TWO_EFERMI(nupdown in INPUT is not 0.0), nelec_spin will be fixed.
-        this->nelec_spin[0] = (GlobalV::nelec + GlobalV::nupdown) / 2.0;
-        this->nelec_spin[1] = (GlobalV::nelec - GlobalV::nupdown) / 2.0;
+        this->nelec_spin[0] = (PARAM.inp.nelec + PARAM.inp.nupdown) / 2.0;
+        this->nelec_spin[1] = (PARAM.inp.nelec - PARAM.inp.nupdown) / 2.0;
     }
 }
+
 
 void ElecState::calculate_weights()
 {
@@ -75,8 +73,8 @@ void ElecState::calculate_weights()
         return;
     }
 
-    int nbands = this->ekb.nc;
-    int nks = this->ekb.nr;
+    const int nbands = this->ekb.nc;
+    const int nks = this->ekb.nr;
 
     if (!Occupy::use_gaussian_broadening && !Occupy::fixed_occupations)
     {
@@ -108,7 +106,7 @@ void ElecState::calculate_weights()
             Occupy::iweights(nks,
                              this->klist->wk,
                              nbands,
-                             GlobalV::nelec,
+                             PARAM.inp.nelec,
                              this->ekb,
                              this->eferm.ef,
                              this->wg,
@@ -154,7 +152,7 @@ void ElecState::calculate_weights()
             Occupy::gweights(nks,
                              this->klist->wk,
                              nbands,
-                             GlobalV::nelec,
+                             PARAM.inp.nelec,
                              Occupy::gaussian_parameter,
                              Occupy::gaussian_type,
                              this->ekb,
@@ -165,8 +163,8 @@ void ElecState::calculate_weights()
                              this->klist->isk);
         }
 #ifdef __MPI
-        // qianrui fix a bug on 2021-7-21
-        Parallel_Reduce::reduce_double_allpool(GlobalV::KPAR, GlobalV::NPROC_IN_POOL, this->f_en.demet);
+        const int npool = GlobalV::KPAR * PARAM.inp.bndpar;
+        Parallel_Reduce::reduce_double_allpool(npool, GlobalV::NPROC_IN_POOL, this->f_en.demet);
 #endif
     }
     else if (Occupy::fixed_occupations)
@@ -176,6 +174,7 @@ void ElecState::calculate_weights()
 
     return;
 }
+
 
 void ElecState::calEBand()
 {
@@ -193,48 +192,48 @@ void ElecState::calEBand()
         }
     }
     this->f_en.eband = eband;
-    if (GlobalV::KPAR != 1 && PARAM.inp.esolver_type != "sdft")
-    {
-        //==================================
-        // Reduce all the Energy in each cpu
-        //==================================
-        this->f_en.eband /= GlobalV::NPROC_IN_POOL;
+
 #ifdef __MPI
-        Parallel_Reduce::reduce_all(this->f_en.eband);
+    const int npool = GlobalV::KPAR * PARAM.inp.bndpar;
+    Parallel_Reduce::reduce_double_allpool(npool, GlobalV::NPROC_IN_POOL, this->f_en.eband);
 #endif
-    }
     return;
 }
 
-void ElecState::init_scf(const int istep, const ModuleBase::ComplexMatrix& strucfac, ModuleSymmetry::Symmetry& symm, const void* wfcpw)
+
+void ElecState::init_scf(const int istep, 
+                         const UnitCell& ucell,
+                         const Parallel_Grid& pgrid,
+                         const ModuleBase::ComplexMatrix& strucfac, 
+                         const bool* numeric,
+                         ModuleSymmetry::Symmetry& symm, 
+                         const void* wfcpw)
 {
-    //---------Charge part-----------------
-    // core correction potential.
+    //! core correction potential.
     if (!PARAM.inp.use_paw)
     {
-        this->charge->set_rho_core(strucfac);
+        this->charge->set_rho_core(ucell,strucfac, numeric);
     }
     else
     {
         this->charge->set_rho_core_paw();
     }
 
-    //--------------------------------------------------------------------
-    // (2) other effective potentials need charge density,
+    //! other effective potentials need charge density,
     // choose charge density from ionic step 0.
-    //--------------------------------------------------------------------
     if (istep == 0)
     {
-        this->charge->init_rho(this->eferm, strucfac, symm, (const void*)this->klist, wfcpw);
+        this->charge->init_rho(this->eferm,ucell, pgrid, strucfac, symm, (const void*)this->klist, wfcpw);
         this->charge->check_rho(); // check the rho
     }
 
-    // renormalize the charge density
+    //! renormalize the charge density
     this->charge->renormalize_rho();
 
-    //---------Potential part--------------
+    //! initialize the potential
     this->pot->init_pot(istep, this->charge);
 }
+
 
 void ElecState::init_ks(Charge* chg_in, // pointer for class Charge
                         const K_Vectors* klist_in,
@@ -249,35 +248,8 @@ void ElecState::init_ks(Charge* chg_in, // pointer for class Charge
     // init nelec_spin with nelec and nupdown
     this->init_nelec_spin();
     // initialize ekb and wg
-    this->ekb.create(nk_in, GlobalV::NBANDS);
-    this->wg.create(nk_in, GlobalV::NBANDS);
+    this->ekb.create(nk_in, PARAM.globalv.nbands_l);
+    this->wg.create(nk_in, PARAM.globalv.nbands_l);
 }
-
-void set_is_occupied(std::vector<bool>& is_occupied,
-                     elecstate::ElecState* pes,
-                     const int i_scf,
-                     const int nk,
-                     const int nband,
-                     const bool diago_full_acc)
-{
-    if (i_scf != 0 && diago_full_acc == false)
-    {
-        for (int i = 0; i < nk; i++)
-        {
-            if (pes->klist->wk[i] > 0.0)
-            {
-                for (int j = 0; j < nband; j++)
-                {
-                    if (pes->wg(i, j) / pes->klist->wk[i] < 0.01)
-                    {
-                        is_occupied[i * nband + j] = false;
-                    }
-                }
-            }
-        }
-    }
-};
-
-
 
 } // namespace elecstate

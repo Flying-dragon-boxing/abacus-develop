@@ -167,7 +167,7 @@ class WriteWfcLcaoTest : public testing::Test
 TEST_F(WriteWfcLcaoTest, WriteWfcLcao)
 {
     // create a psi object
-    psi::Psi<double> my_psi(psi_local_double.data(), nk, nbands_local, nbasis_local);
+    psi::Psi<double> my_psi(psi_local_double.data(), nk, nbands_local, nbasis_local, nbasis_local, true);
     PARAM.sys.global_out_dir = "./";
     ModuleIO::write_wfc_nao(2, my_psi, ekb, wg, kvec_c, pv, -1);
 
@@ -196,7 +196,7 @@ TEST_F(WriteWfcLcaoTest, WriteWfcLcao)
 
 TEST_F(WriteWfcLcaoTest, WriteWfcLcaoComplex)
 {
-    psi::Psi<std::complex<double>> my_psi(psi_local_complex.data(), nk, nbands_local, nbasis_local);
+    psi::Psi<std::complex<double>> my_psi(psi_local_complex.data(), nk, nbands_local, nbasis_local, true);
     PARAM.sys.global_out_dir = "./";
     ModuleIO::write_wfc_nao(2, my_psi, ekb, wg, kvec_c, pv, -1);
 
@@ -229,8 +229,8 @@ TEST(ModuleIOTest, WriteWfcNao)
     {
         // Set up GlobalV
         GlobalV::DRANK = 0;
-        GlobalV::NBANDS = 2;
-        GlobalV::NLOCAL = 2;
+        PARAM.input.nbands = 2;
+        PARAM.sys.nlocal = 2;
         PARAM.input.out_app_flag = true;
 
         // Set up test data
@@ -248,7 +248,7 @@ TEST(ModuleIOTest, WriteWfcNao)
         wg(1, 1) = 1.2;
 
         // Call the function to be tested
-        ModuleIO::wfc_nao_write2file(filename, ctot.data(), GlobalV::NLOCAL, 0, ekb, wg, false);
+        ModuleIO::wfc_nao_write2file(filename, ctot.data(), PARAM.sys.nlocal, 0, ekb, wg, false);
 
         // Check the output file
         std::ifstream ifs(filename);
@@ -276,8 +276,8 @@ TEST(ModuleIOTest, WriteWfcNaoBinary)
     {
         // Set up GlobalV
         GlobalV::DRANK = 0;
-        GlobalV::NBANDS = 2;
-        GlobalV::NLOCAL = 2;
+        PARAM.input.nbands = 2;
+        PARAM.sys.nlocal = 2;
         PARAM.input.out_app_flag = true;
 
         // Set up test data
@@ -295,7 +295,7 @@ TEST(ModuleIOTest, WriteWfcNaoBinary)
         wg(1, 1) = 1.2;
 
         // Call the function to be tested
-        ModuleIO::wfc_nao_write2file(filename, ctot.data(), GlobalV::NLOCAL, 0, ekb, wg, true);
+        ModuleIO::wfc_nao_write2file(filename, ctot.data(), PARAM.sys.nlocal, 0, ekb, wg, true);
 
         // Check the output file
         Binstream wfc(filename, "r");
@@ -333,8 +333,8 @@ TEST(ModuleIOTest, WriteWfcNaoComplex)
     if (GlobalV::MY_RANK == 0)
     {
         // Set up GlobalV
-        GlobalV::NBANDS = 2;
-        GlobalV::NLOCAL = 3;
+        PARAM.input.nbands = 2;
+        PARAM.sys.nlocal = 3;
         PARAM.input.out_app_flag = true;
         // set up test data
         std::string name = "test_wfc_nao_complex.txt";
@@ -354,7 +354,7 @@ TEST(ModuleIOTest, WriteWfcNaoComplex)
                                                   std::complex<double>(0.0, 3.0)};
 
         // Call the function
-        ModuleIO::wfc_nao_write2file_complex(name, ctot.data(), GlobalV::NLOCAL, ik, kvec_c, ekb, wg);
+        ModuleIO::wfc_nao_write2file_complex(name, ctot.data(), PARAM.sys.nlocal, ik, kvec_c, ekb, wg);
         // Check the output file
         std::ifstream ifs(name);
         std::string str((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
@@ -377,8 +377,8 @@ TEST(ModuleIOTest, WriteWfcNaoComplexBinary)
     if (GlobalV::MY_RANK == 0)
     {
         // Set up GlobalV
-        GlobalV::NBANDS = 2;
-        GlobalV::NLOCAL = 3;
+        PARAM.input.nbands = 2;
+        PARAM.sys.nlocal = 3;
         PARAM.input.out_app_flag = true;
         // set up test data
         std::string name = "test_wfc_nao_complex.dat";
@@ -398,7 +398,7 @@ TEST(ModuleIOTest, WriteWfcNaoComplexBinary)
                                                   std::complex<double>(6.0, 8.0)};
 
         // Call the function
-        ModuleIO::wfc_nao_write2file_complex(name, ctot.data(), GlobalV::NLOCAL, ik, kvec_c, ekb, wg, true);
+        ModuleIO::wfc_nao_write2file_complex(name, ctot.data(), PARAM.sys.nlocal, ik, kvec_c, ekb, wg, true);
         // Check the output file
 
         Binstream wfc(name, "r");

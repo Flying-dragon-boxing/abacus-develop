@@ -2,21 +2,18 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #define private public
-#include "module_parameter/parameter.h"
-#undef private
 #include "module_elecstate/elecstate.h"
-#include "module_elecstate/elecstate_getters.h"
+#include "module_hamilt_general/module_xc/xc_functional.h"
+#include "module_parameter/parameter.h"
+
 #include <string>
 Parameter PARMA;
 
 // mock functions
+int XC_Functional::func_type = 1;
+bool XC_Functional::ked_flag = false;
 namespace elecstate
 {
-int tmp_xc_func_type = 1;
-int get_xc_func_type()
-{
-    return tmp_xc_func_type;
-}
 void Potential::get_vnew(Charge const*, ModuleBase::matrix&)
 {
     return;
@@ -47,15 +44,13 @@ double ElecState::get_dftu_energy()
     return 0.6;
 }
 #endif
+double ElecState::get_local_pp_energy()
+{
+    return 0.7;
+}
 } // namespace elecstate
 
 #include "module_cell/klist.h"
-K_Vectors::K_Vectors()
-{
-}
-K_Vectors::~K_Vectors()
-{
-}
 
 
 /***************************************************************
@@ -77,11 +72,11 @@ class MockElecState : public ElecState
         PARAM.input.dft_plus_u = 0;
         // base class
         PARAM.input.nspin = 1;
-        GlobalV::nelec = 10.0;
-        GlobalV::nupdown = 0.0;
+        PARAM.input.nelec = 10.0;
+        PARAM.input.nupdown  = 0.0;
         PARAM.sys.two_fermi = false;
-        GlobalV::NBANDS = 6;
-        GlobalV::NLOCAL = 6;
+        PARAM.input.nbands = 6;
+        PARAM.sys.nlocal = 6;
         PARAM.input.esolver_type = "ksdft";
         PARAM.input.lspinorb = false;
         PARAM.input.basis_type = "pw";
@@ -193,10 +188,10 @@ TEST_F(ElecStateEnergyTest, CalBandgap)
     K_Vectors* klist = new K_Vectors;
     klist->set_nks(5);
     elecstate->klist = klist;
-    elecstate->ekb.create(klist->get_nks(), GlobalV::NBANDS);
+    elecstate->ekb.create(klist->get_nks(), PARAM.input.nbands);
     for (int ik = 0; ik < klist->get_nks(); ik++)
     {
-        for (int ib = 0; ib < GlobalV::NBANDS; ib++)
+        for (int ib = 0; ib < PARAM.input.nbands; ib++)
         {
             elecstate->ekb(ik, ib) = ib;
         }
@@ -230,10 +225,10 @@ TEST_F(ElecStateEnergyTest, CalBandgapUpDw)
         } 
     }
     elecstate->klist = klist;
-    elecstate->ekb.create(klist->get_nks(), GlobalV::NBANDS);
+    elecstate->ekb.create(klist->get_nks(), PARAM.input.nbands);
     for (int ik = 0; ik < klist->get_nks(); ik++)
     {
-        for (int ib = 0; ib < GlobalV::NBANDS; ib++)
+        for (int ib = 0; ib < PARAM.input.nbands; ib++)
         {
             if (ik < 3)
             {

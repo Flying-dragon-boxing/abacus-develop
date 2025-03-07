@@ -1,5 +1,26 @@
+if (ENABLE_FLOAT_FFTW)
+  list (APPEND FFT_SRC
+    module_fft/fft_cpu_float.cpp
+  )
+endif()
+if (USE_CUDA)
+  list (APPEND FFT_SRC
+    module_fft/fft_cuda.cpp
+  )
+endif()
+if (USE_ROCM)
+  list (APPEND FFT_SRC
+    module_fft/fft_rocm.cpp
+  )
+endif()
+if (USE_DSP)
+  list (APPEND FFT_SRC
+      module_fft/fft_dsp.cpp
+      module_fft/fft_dsp_float.cpp
+      pw_transform_k_dsp.cpp)
+endif()
+
 list(APPEND objects
-    fft.cpp
     pw_basis.cpp
     pw_basis_k.cpp
     pw_basis_sup.cpp
@@ -10,6 +31,9 @@ list(APPEND objects
     pw_init.cpp
     pw_transform.cpp
     pw_transform_k.cpp
+    module_fft/fft_bundle.cpp
+    module_fft/fft_cpu.cpp
+    ${FFT_SRC}
 )
 
 add_library(
@@ -18,6 +42,12 @@ add_library(
     ${objects}
 )
 
+if (USE_DSP)
+target_link_libraries(planewave  PRIVATE
+${MTBLAS_FFT_DIR}/libmtblas/lib/libmtfft.a)
+target_compile_definitions( planewave PUBLIC 
+FFT_DAT_DIR="${MTBLAS_FFT_DIR}/datfile/mt_fft_blas.dat") 
+endif()
 if(ENABLE_COVERAGE)
   add_coverage(planewave)
 endif()

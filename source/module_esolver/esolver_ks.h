@@ -1,121 +1,103 @@
 #ifndef ESOLVER_KS_H
 #define ESOLVER_KS_H
+
 #include "esolver_fp.h"
+
+// for plane wave basis set 
 #include "module_basis/module_pw/pw_basis_k.h"
+
+// for k-points in Brillouin zone
 #include "module_cell/klist.h"
+
+// for charge mixing
 #include "module_elecstate/module_charge/charge_mixing.h"
-#include "module_hamilt_general/hamilt.h"
-#include "module_hamilt_pw/hamilt_pwdft/wavefunc.h"
-#include "module_hsolver/hsolver.h"
-#include "module_io/cal_test.h"
+
+// for electronic wave functions
 #include "module_psi/psi.h"
 
-#include <fstream>
+// for Hamiltonian
+#include "module_hamilt_general/hamilt.h"
+
+#ifdef __MPI
+#include <mpi.h>
+#else
+#include <chrono>
+#endif
+
 #include <cstring>
+#include <fstream>
+
 namespace ModuleESolver
 {
 
 template <typename T, typename Device = base_device::DEVICE_CPU>
 class ESolver_KS : public ESolver_FP
 {
-	public:
+  public:
+    //! Constructor
+    ESolver_KS();
 
-        //! Constructor
-		ESolver_KS();
+    //! Deconstructor
+    virtual ~ESolver_KS();
 
-        //! Deconstructor
-		virtual ~ESolver_KS();
+    virtual void before_all_runners(UnitCell& ucell, const Input_para& inp) override;
 
-		double scf_thr;   // scf density threshold
+    virtual void runner(UnitCell& ucell, const int istep) override;
 
-		double scf_ene_thr; // scf energy threshold
+  protected:
+    //! Something to do before SCF iterations.
+    virtual void before_scf(UnitCell& ucell, const int istep) override;
 
-		double drho;      // the difference between rho_in (before HSolver) and rho_out (After HSolver)
+    //! Something to do before hamilt2density function in each iter loop.
+    virtual void iter_init(UnitCell& ucell, const int istep, const int iter);
 
-		int maxniter;     // maximum iter steps for scf
+    //! Something to do after hamilt2density function in each iter loop.
+    virtual void iter_finish(UnitCell& ucell, const int istep, int& iter, bool& conv_esolver) override;
 
-		int niter;        // iter steps actually used in scf
+    // calculate electron density from a specific Hamiltonian with ethr
+    virtual void hamilt2density_single(UnitCell& ucell, const int istep, const int iter, const double ethr);
 
-        int out_freq_elec; // frequency for output
+    // calculate electron density from a specific Hamiltonian
+    void hamilt2density(UnitCell& ucell, const int istep, const int iter, const double ethr);
 
-        virtual void before_all_runners(const Input_para& inp, UnitCell& cell) override;
+    //! Something to do after SCF iterations when SCF is converged or comes to the max iter step.
+    virtual void after_scf(UnitCell& ucell, const int istep, const bool conv_esolver) override;
 
-		virtual void init_after_vc(const Input_para& inp, UnitCell& cell) override;    // liuyu add 2023-03-09
+    //! <Temporary> It should be replaced by a function in Hamilt Class
+    virtual void update_pot(UnitCell& ucell, const int istep, const int iter, const bool conv_esolver){};
 
-		virtual void runner(const int istep, UnitCell& cell) override;
+    //! Hamiltonian
+    hamilt::Hamilt<T, Device>* p_hamilt = nullptr;
 
-		// calculate electron density from a specific Hamiltonian
-		virtual void hamilt2density(const int istep, const int iter, const double ethr);
+    //! PW for wave functions, only used in KSDFT, not in OFDFT
+    ModulePW::PW_Basis_K* pw_wfc = nullptr;
 
-		// calculate electron states from a specific Hamiltonian
-		virtual void hamilt2estates(const double ethr){};
+    //! Charge mixing method
+    Charge_Mixing* p_chgmix = nullptr;
 
-		// get current step of Ionic simulation
-		virtual int get_niter() override;
+    //! nonlocal pseudopotentials
+    pseudopot_cell_vnl ppcell;
 
-		// get maxniter used in current scf
-		virtual int get_maxniter() override;
+    //! Electronic wavefunctions
+    psi::Psi<T>* psi = nullptr;
 
-      protected:
-        //! Something to do before SCF iterations.
-		virtual void before_scf(const int istep) {};
+    //! the start time of scf iteration
+#ifdef __MPI
+    double iter_time;
+#else
+    std::chrono::system_clock::time_point iter_time;
+#endif
 
-		//! Something to do before hamilt2density function in each iter loop.
-		virtual void iter_init(const int istep, const int iter) {};
-
-		//! Something to do after hamilt2density function in each iter loop.
-        virtual void iter_finish(int& iter);
-
-        //! Something to do after SCF iterations when SCF is converged or comes to the max iter step.
-        virtual void after_scf(const int istep) override;
-
-        //! <Temporary> It should be replaced by a function in Hamilt Class
-		virtual void update_pot(const int istep, const int iter) {};
-
-    protected:
-
-		// Print the headline on the screen:
-		// ITER   ETOT(eV)       EDIFF(eV)      DRHO    TIME(s) 
-		void print_head();
-
-		// Print inforamtion in each iter
-		// G1    -3.435545e+03  0.000000e+00   3.607e-01  2.862e-01
-		// for metaGGA
-		// ITER   ETOT(eV)       EDIFF(eV)      DRHO       DKIN       TIME(s) 
-		// G1    -3.435545e+03  0.000000e+00   3.607e-01  3.522e-01  2.862e-01
-		void print_iter(
-				const int iter, 
-				const double drho, 
-				const double dkin, 
-				const double duration, 
-				const double ethr);
-
-		// Write the headline in the running_log file
-		// "PW/LCAO" ALGORITHM --------------- ION=   1  ELEC=   1--------------------------------
-		void write_head(
-				std::ofstream& ofs_running, 
-				const int istep, 
-				const int iter);
-
-        //! Hamiltonian
-		hamilt::Hamilt<T, Device>* p_hamilt = nullptr;
-
-		ModulePW::PW_Basis_K* pw_wfc = nullptr;
-
-		Charge_Mixing* p_chgmix = nullptr;
-
-		wavefunc wf;
-
-        // wavefunction coefficients
-        psi::Psi<T>* psi = nullptr;
-
-	protected:
-
-		std::string basisname; //PW or LCAO
-
-        void print_wfcfft(const Input_para& inp, std::ofstream& ofs);
-
-	    double esolver_KS_ne = 0.0;
-};	
-} // end of namespace
+    std::string basisname;      //! esolver_ks_lcao.cpp
+    double esolver_KS_ne = 0.0; //! number of electrons
+    double diag_ethr;           //! the threshold for diagonalization
+    double scf_thr;             //! scf density threshold
+    double scf_ene_thr;         //! scf energy threshold
+    double drho;                //! the difference between rho_in (before HSolver) and rho_out (After HSolver)
+    double hsolver_error;       //! the error of HSolver
+    int maxniter;               //! maximum iter steps for scf
+    int niter;                  //! iter steps actually used in scf
+    bool oscillate_esolver = false; // whether esolver is oscillated
+};
+} // namespace ModuleESolver
 #endif

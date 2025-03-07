@@ -1,4 +1,6 @@
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 #include "kernels/cuda/cuda_tools.cuh"
 #include "module_base/ylm.h"
@@ -25,15 +27,9 @@ void gint_vl_gpu(hamilt::HContainer<double>* hRGint,
                  const double dr,
                  const double* rcut,
                  const Grid_Technique& gridt,
-                 const UnitCell& ucell,
-                 double* pvpR,
-                 const bool is_gamma_only)
+                 const UnitCell& ucell)
 {
-#ifdef __MPI
-    const int dev_id = base_device::information::set_device_by_rank();
-#else
-    const int dev_id = 0;
-#endif
+    checkCuda(cudaSetDevice(gridt.dev_id));
     // checkCuda(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
     const int nbzp = gridt.nbzp;
     const int num_streams = gridt.nstreams;
@@ -45,13 +41,17 @@ void gint_vl_gpu(hamilt::HContainer<double>* hRGint,
     const double vfactor = ucell.omega / gridt.ncxyz;
     const int nczp = nbzp * gridt.bz;
     std::vector<cudaStream_t> streams(num_streams);
+    std::vector<cudaEvent_t> events(num_streams);
 
     for (int i = 0; i < num_streams; i++)
     {
         checkCuda(cudaStreamCreate(&streams[i]));
+        checkCuda(cudaEventCreateWithFlags(&events[i], cudaEventDisableTiming));
     }
 
-    Cuda_Mem_Wrapper<double> grid_vlocal_g(hRGint->get_nnr(), 1, false);
+    const int nnrg = hRGint->get_nnr();
+    hRGint->set_zero();
+    Cuda_Mem_Wrapper<double> grid_vlocal_g(nnrg, 1, false);
     grid_vlocal_g.memset_device_sync();
 
     Cuda_Mem_Wrapper<double> dr_part(max_atom_per_z * 3, num_streams, true);
@@ -74,16 +74,31 @@ void gint_vl_gpu(hamilt::HContainer<double>* hRGint,
     Cuda_Mem_Wrapper<double*> gemm_B(max_atompair_per_z, num_streams, true);
     Cuda_Mem_Wrapper<double*> gemm_C(max_atompair_per_z, num_streams, true);
 
-#pragma omp parallel for num_threads(num_streams) collapse(2)
+#ifdef _OPENMP
+const int max_thread_num = std::min(omp_get_max_threads(), num_streams);
+#endif
+#pragma omp parallel num_threads(max_thread_num)
+{
+#ifdef _OPENMP
+    const int tid = omp_get_thread_num();
+    const int num_threads = omp_get_num_threads();
+    const int sid_start = tid * num_streams / num_threads;
+    const int thread_num_streams = tid == num_threads - 1 ? num_streams - sid_start : num_streams / num_threads;
+#else
+    const int sid_start = 0;
+    const int thread_num_streams = num_streams;
+#endif
+#pragma omp for collapse(2) schedule(dynamic)
     for (int i = 0; i < gridt.nbx; i++)
     {
         for (int j = 0; j < gridt.nby; j++)
         {
             // 20240620 Note that it must be set again here because 
             // cuda's device is not safe in a multi-threaded environment.
-            checkCuda(cudaSetDevice(dev_id));
-            const int sid = omp_get_thread_num();
+            checkCuda(cudaSetDevice(gridt.dev_id));
 
+            const int sid = (i * gridt.nby + j) % thread_num_streams + sid_start;
+            checkCuda(cudaEventSynchronize(events[sid]));
             int max_m = 0;
             int max_n = 0;
             int atom_pair_num = 0;
@@ -102,8 +117,7 @@ void gint_vl_gpu(hamilt::HContainer<double>* hRGint,
                          dr_part.get_host_pointer(sid),
                          vldr3.get_host_pointer(sid));
         
-            alloc_mult_vlocal(is_gamma_only,
-                              hRGint,
+            alloc_mult_vlocal(hRGint,
                               gridt,
                               ucell,
                               grid_index_ij,
@@ -138,6 +152,7 @@ void gint_vl_gpu(hamilt::HContainer<double>* hRGint,
             gemm_A.copy_host_to_device_async(streams[sid], sid, atom_pair_num);
             gemm_B.copy_host_to_device_async(streams[sid], sid, atom_pair_num);
             gemm_C.copy_host_to_device_async(streams[sid], sid, atom_pair_num);
+            checkCuda(cudaEventRecord(events[sid], streams[sid]));
             
             psi.memset_device_async(streams[sid], sid, 0);
             psi_vldr3.memset_device_async(streams[sid], sid, 0);
@@ -184,29 +199,20 @@ void gint_vl_gpu(hamilt::HContainer<double>* hRGint,
                                      streams[sid],
                                      nullptr);
             checkCudaLastError();
-            checkCuda(cudaStreamSynchronize(streams[sid]));
         }
     }
+}
 
-    if(is_gamma_only)
-    {
-        checkCuda(cudaMemcpy(
-            hRGint->get_wrapper(),
-            grid_vlocal_g.get_device_pointer(),
-            hRGint->get_nnr() * sizeof(double),
-            cudaMemcpyDeviceToHost));
-    }
-    else
-    {
-        checkCuda(cudaMemcpy(
-            pvpR,
-            grid_vlocal_g.get_device_pointer(),
-            hRGint->get_nnr() * sizeof(double),
-            cudaMemcpyDeviceToHost));
-    }
+    checkCuda(cudaMemcpy(
+        hRGint->get_wrapper(),
+        grid_vlocal_g.get_device_pointer(),
+        nnrg * sizeof(double),
+        cudaMemcpyDeviceToHost));
+
     for (int i = 0; i < num_streams; i++)
     {
         checkCuda(cudaStreamDestroy(streams[i]));
+        checkCuda(cudaEventDestroy(events[i]));
     }
 }
 

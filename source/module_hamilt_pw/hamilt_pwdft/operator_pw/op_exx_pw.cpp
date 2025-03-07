@@ -288,8 +288,7 @@ void OperatorEXXPW<T, Device>::act_op_ace(const int nbands,
     char trans_N = 'N', trans_T = 'T', trans_C = 'C';
     T intermediate_one = 1.0, intermediate_zero = 0.0, intermediate_minus_one = -1.0;
     // Xi * psi
-    gemm_complex_op()(this->ctx,
-                      trans_N,
+    gemm_complex_op()(trans_N,
                       trans_N,
                       nbands_tot,
                       nbands,
@@ -307,8 +306,7 @@ void OperatorEXXPW<T, Device>::act_op_ace(const int nbands,
     Parallel_Reduce::reduce_pool(Xi_psi, nbands_tot * nbands);
 
     // Xi^\dagger * (Xi * psi)
-    gemm_complex_op()(this->ctx,
-                      trans_C,
+    gemm_complex_op()(trans_C,
                       trans_N,
                       nbasis,
                       nbands,
@@ -415,8 +413,7 @@ void OperatorEXXPW<T, Device>::construct_ace() const
 
         // psi_h_psi_ace = psi^\dagger * h_psi_ace
         // p_exx_helper->psi.fix_kb(0, 0);
-        gemm_complex_op()(this->ctx,
-                          'C',
+        gemm_complex_op()('C',
                           'N',
                           nbands,
                           nbands,
@@ -512,8 +509,7 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         // }
 
         // Xi_ace = L_ace^-1 * h_psi_ace^dagger
-        gemm_complex_op()(this->ctx,
-                          'N',
+        gemm_complex_op()('N',
                           'C',
                           nbands,
                           npwk,

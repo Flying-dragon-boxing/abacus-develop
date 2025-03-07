@@ -568,15 +568,19 @@ void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int
     {
         if (GlobalC::exx_info.info_global.separate_loop)
         {
-            if (this->conv_esolver)
+            if (conv_esolver)
             {
                 std::cout << " setting psi for exx inner loop" << std::endl;
                 exx_helper.set_psi(this->kspw_psi[0]);
 
-                this->conv_esolver = exx_helper.exx_after_converge(iter);
-                exx_helper.first_iter = false;
+                conv_esolver = exx_helper.exx_after_converge(iter);
 
-                XC_Functional::set_xc_type(ucell.atoms[0].ncpp.xc_func);
+                if (!conv_esolver)
+                {
+                    exx_helper.first_iter = false;
+                    XC_Functional::set_xc_type(ucell.atoms[0].ncpp.xc_func);
+                    update_pot(ucell, istep, iter, conv_esolver);
+                }
             }
         }
         else

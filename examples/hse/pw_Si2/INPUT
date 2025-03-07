@@ -15,7 +15,7 @@ smearing_method         fixed
 mixing_type             broyden
 mixing_beta             0.7
 
-dft_functional          pbe0
+dft_functional          hse
 
 # init_wfc file
 # init_chg file

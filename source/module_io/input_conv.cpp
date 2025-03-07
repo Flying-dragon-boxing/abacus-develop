@@ -413,8 +413,21 @@ void Input_Conv::Convert()
 
     if (GlobalC::exx_info.info_global.cal_exx && PARAM.inp.basis_type == "pw")
     {
-        ModuleBase::WARNING("Input_Conv", "EXX PW works only with symmetry=-1");
-        ModuleSymmetry::Symmetry::symm_flag = -1;
+        if (ModuleSymmetry::Symmetry::symm_flag != -1)
+        {
+            ModuleBase::WARNING("Input_Conv", "EXX PW works only with symmetry=-1");
+            ModuleSymmetry::Symmetry::symm_flag = -1;
+        }
+
+        if (PARAM.inp.nspin != 1)
+        {
+            ModuleBase::WARNING_QUIT("Input_Conv", "EXX PW works only with nspin=1");
+        }
+
+        if (GlobalV::KPAR != 1)
+        {
+            ModuleBase::WARNING_QUIT("Input_Conv", "EXX PW doesn't support K-point parallelism");
+        }
     }
 
     //----------------------------------------------------------

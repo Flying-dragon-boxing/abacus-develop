@@ -27,8 +27,6 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
     double tpiba2 = ucell.tpiba2;
     double omega_inv = 1.0 / omega;
 
-    MPI_Barrier(MPI_COMM_WORLD);
-
     // allocate space
     T* psi_nk_real = nullptr;
     T* psi_mq_real = nullptr;
@@ -126,8 +124,6 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
 
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
-
     // prepare for the potential
     for (int ik = 0; ik < nks; ik++)
     {
@@ -155,8 +151,6 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
     }
 
     // calculate the stress
-
-    MPI_Barrier(MPI_COMM_WORLD);
 
     // for nk, mq
     for (int ik = 0; ik < nks; ik++)
@@ -231,8 +225,6 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
             }
         }
     }
-
-    MPI_Barrier(MPI_COMM_WORLD);
 
     for (int l = 0; l < 3; l++)
     {

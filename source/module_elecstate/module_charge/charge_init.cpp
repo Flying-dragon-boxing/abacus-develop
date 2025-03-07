@@ -53,42 +53,6 @@ void Charge::init_rho(elecstate::efermi& eferm_iout,
             {
                 rhopw->recip2real(rhog[is], rho[is]);
             }
-
-//            // also read from abacus type file, and compare with the binary file
-//            for (int is = 0; is < PARAM.inp.nspin; ++is)
-//            {
-//                std::stringstream ssc;
-//                ssc << PARAM.globalv.global_readin_dir << "SPIN" << is + 1 << "_CHG.cube";
-//                double& ef_tmp = eferm_iout.get_ef(is);
-//                if (ModuleIO::read_rho(
-//#ifdef __MPI
-//                        &(GlobalC::Pgrid),
-//#endif
-//                        GlobalV::MY_RANK,
-//                        PARAM.inp.esolver_type,
-//                        GlobalV::RANK_IN_STOGROUP,
-//                        is,
-//                        GlobalV::ofs_running,
-//                        PARAM.inp.nspin,
-//                        ssc.str(),
-//                        this->rho_save[is],
-//                        this->rhopw->nx,
-//                        this->rhopw->ny,
-//                        this->rhopw->nz,
-//                        ef_tmp,
-//                        &(GlobalC::ucell),
-//                        this->prenspin))
-//                {
-//                    GlobalV::ofs_running << " Read in the charge density: " << ssc.str() << std::endl;
-//                }
-//            Todo: Fix Comparison
-
-//            }
-
-//            // compare the two charge density
-//            Charge_Mixing chm;
-//            chm.set_rhopw(rhopw, rhopw);
-//            std::cout << chm.get_drho(this, GlobalV::nelec) << std::endl;
         }
         else
         {
@@ -255,7 +219,7 @@ void Charge::init_rho(elecstate::efermi& eferm_iout,
             }
             catch (const std::exception& e)
             {
-                // try to load from the output of `out_chg`
+                // try to load from the output of `out_chg` 
                 std::stringstream ssc;
                 ssc << PARAM.globalv.global_readin_dir << "SPIN" << is + 1 << "_CHG.cube";
                 if (ModuleIO::read_vdata_palgrid(pgrid,
@@ -292,7 +256,7 @@ void Charge::init_rho(elecstate::efermi& eferm_iout,
 // computes the core charge on the real space 3D mesh.
 //==========================================================
 void Charge::set_rho_core(const UnitCell& ucell,
-                          const ModuleBase::ComplexMatrix& structure_factor,
+                          const ModuleBase::ComplexMatrix& structure_factor, 
                           const bool* numeric)
 {
     ModuleBase::TITLE("Charge","set_rho_core");

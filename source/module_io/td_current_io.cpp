@@ -1,6 +1,5 @@
 #include "td_current_io.h"
 
-#include "module_parameter/parameter.h"
 #include "module_base/global_function.h"
 #include "module_base/global_variable.h"
 #include "module_base/libm/libm.h"

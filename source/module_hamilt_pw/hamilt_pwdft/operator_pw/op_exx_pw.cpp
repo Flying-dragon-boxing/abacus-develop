@@ -722,14 +722,14 @@ void OperatorEXXPW<T, Device>::exx_divergence()
 template <typename T, typename Device>
 double OperatorEXXPW<T, Device>::cal_exx_energy(psi::Psi<T, Device> *psi_) const
 {
-//    if (PARAM.inp.exxace)
-//    {
-//        return cal_exx_energy_ace(psi_);
-//    }
-//    else
-//    {
+    if (PARAM.inp.exxace)
+    {
+        return cal_exx_energy_ace(psi_);
+    }
+    else
+    {
         return cal_exx_energy_op(psi_);
-//    }
+    }
 }
 
 template <typename T, typename Device>

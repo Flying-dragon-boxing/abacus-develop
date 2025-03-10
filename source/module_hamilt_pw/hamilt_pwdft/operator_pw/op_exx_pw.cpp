@@ -163,6 +163,8 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
     {
         get_potential();
         potential_got = true;
+        p_exx_helper->div = exx_div;
+        p_exx_helper->pot = pot;
     }
 
 //    set_psi(&p_exx_helper->psi);

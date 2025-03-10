@@ -66,6 +66,8 @@ class OperatorEXXPW : public OperatorPW<T, Device>
         this->p_exx_helper = p_exx_helper_in;
     }
 
+    double cal_exx_energy() const;
+
   private:
     const int *isk = nullptr;
     const ModulePW::PW_Basis_K *wfcpw = nullptr;

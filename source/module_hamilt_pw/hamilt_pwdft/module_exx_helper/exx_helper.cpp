@@ -15,96 +15,6 @@ double Exx_Helper<T, Device>::cal_exx_energy(const Device *ctx, psi::Psi<T, Devi
     auto rhopw = pw_rho;
     T* density_recip = new T[rhopw->npw];
 
-    // lambda
-    auto exx_divergence = [&]() -> double
-    {
-        auto wfcpw = pw_wfc;
-        // if (GlobalC::exx_info.info_lip.lambda == 0.0)
-        // {
-        //     return 0;
-        // }
-
-        // here we follow the exx_divergence subroutine in q-e (PW/src/exx_base.f90)
-        // double alpha = GlobalC::exx_info.info_lip.lambda;
-        double alpha = 10.0 / wfcpw->gk_ecut;
-        double tpiba2 = ucell->tpiba2;
-        double div = 0;
-
-        // this is the \sum_q F(q) part
-        // temporarily for all k points, should be replaced to q points later
-        for (int ik = 0; ik < wfcpw->nks; ik++)
-        {
-            auto k = wfcpw->kvec_c[ik];
-#ifdef _OPENMP
-#pragma omp parallel for reduction(+:div)
-#endif
-            for (int ig = 0; ig < rhopw->npw; ig++)
-            {
-                auto q = k + rhopw->gcar[ig];
-                double qq = q.norm2();
-                if (qq <= 1e-8) continue;
-                // else if (PARAM.inp.dft_functional == "hse")
-                else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
-                {
-                    double omega = GlobalC::exx_info.info_global.hse_omega;
-                    double omega2 = omega * omega;
-                    div += std::exp(-alpha * qq) / qq * (1.0 - std::exp(-qq*tpiba2 / 4.0 / omega2));
-                }
-                else
-                {
-                    div += std::exp(-alpha * qq) / qq;
-                }
-            }
-        }
-
-        Parallel_Reduce::reduce_pool(div);
-        // std::cout << "EXX div: " << div << std::endl;
-
-//        if (PARAM.inp.dft_functional == "hse")
-        if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
-        {
-            double omega = GlobalC::exx_info.info_global.hse_omega;
-            div += tpiba2 / 4.0 / omega / omega; // compensate for the finite value when qq = 0
-        }
-        else
-        {
-            div -= alpha;
-        }
-
-        div *= ModuleBase::e2 * ModuleBase::FOUR_PI / tpiba2 / wfcpw->nks;
-
-        // numerically value the nean value of F(q) in the reciprocal space
-        alpha /= tpiba2;
-        int nqq = 100000;
-        double dq = 5.0 / std::sqrt(alpha) / nqq;
-        double aa = 0.0;
-//        if (PARAM.inp.dft_functional == "hse")
-        if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
-        {
-            double omega = GlobalC::exx_info.info_global.hse_omega;
-            double omega2 = omega * omega;
-#ifdef _OPENMP
-#pragma omp parallel for reduction(+:aa)
-#endif
-            for (int i = 0; i < nqq; i++)
-            {
-                double q = dq * (i+0.5);
-                aa -= exp(-alpha * q * q) * exp(-q*q / 4.0 / omega2) * dq;
-            }
-        }
-        aa *= 8 / ModuleBase::FOUR_PI;
-        aa += 1.0 / std::sqrt(alpha * ModuleBase::PI);
-
-        double omega = ucell->omega;
-        div -= ModuleBase::e2 * omega * aa;
-        return div * wfcpw->nks;
-
-
-    };
-
-    if (div == DIV_UNDEFINED)
-        div = exx_divergence();
-
     double exx_div = div;
 
     if (wf_wg == nullptr) return 0.0;
@@ -150,8 +60,6 @@ double Exx_Helper<T, Device>::cal_exx_energy(const Device *ctx, psi::Psi<T, Devi
             //            std::cout << "ik = " << ik << " ib = " << n_iband << " wg_kb = " << wg_ikb_real << " wk_ik = " << kv->wk[ik] << std::endl;
             for (int iq: q_points)
             {
-                double min_gg = 200;
-                double max_gg = -1e8;
                 for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
                 {
                     // double wg_f = GlobalC::exx_helper.wg(iq, m_iband);
@@ -186,44 +94,14 @@ double Exx_Helper<T, Device>::cal_exx_energy(const Device *ctx, psi::Psi<T, Devi
                     // bring the density to recip space
                     rhopw->real2recip(density_real, density_recip);
 
-                    double tpiba2 = pw_rho->tpiba2;
-                    //                    std::cout << tpiba2 << std::endl;
-                    double hse_omega2 = GlobalC::exx_info.info_global.hse_omega * GlobalC::exx_info.info_global.hse_omega;
-
                     #ifdef _OPENMP
-                    #pragma omp parallel for reduction(+:Eexx_ik_real) reduction(min:min_gg) reduction(max:max_gg)
+                    #pragma omp parallel for reduction(+:Eexx_ik_real)
                     #endif
                     for (int ig = 0; ig < rhopw->npw; ig++)
                     {
-                        auto k = pw_wfc->kvec_c[ik];// * latvec;
-                        auto q = pw_wfc->kvec_c[iq];// * latvec;
-                        auto gcar = rhopw->gcar[ig];
-                        double gg = (k - q + gcar).norm2() * tpiba2;
-
-                        double Fac = 0.0;
-                        if (gg >= 1e-8)
-                        {
-                            Fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg;// * 2.57763;
-//                            if (PARAM.inp.dft_functional == "hse")
-                            if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
-                            {
-                                Fac *= (1 - std::exp(-gg/ 4.0 / hse_omega2));
-                            }
-                        }
-                        else
-                        {
-//                            if (PARAM.inp.dft_functional == "hse")
-                            if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
-                            {
-                                Fac =(-ModuleBase::PI * ModuleBase::e2 / hse_omega2 + exx_div);
-                            }
-                            else
-                            {
-                                // double exx_div = -4448.8824478350289 ;
-                                Fac = exx_div;
-                            }
-                        }
-
+                        int nks = pw_wfc->nks;
+                        int npw = rhopw->npw;
+                        Real Fac = pot[ik * nks * npw + iq * npw + ig];
                         Eexx_ik_real += Fac * (density_recip[ig] * std::conj(density_recip[ig])).real()
                                         * wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik];
                     }

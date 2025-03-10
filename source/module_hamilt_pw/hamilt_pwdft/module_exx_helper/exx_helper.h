@@ -10,13 +10,15 @@
 template <typename T, typename Device>
 struct Exx_Helper
 {
+    using Real = typename GetTypeReal<T>::type;
+
   public:
     Exx_Helper() = default;
     ModuleBase::matrix * wf_wg;
     psi::Psi<T, Device> psi;
-    static constexpr double DIV_UNDEFINED = 0x0d000721;
-    double div = DIV_UNDEFINED;
+    double div;
     bool construct_ace = false;
+    Real* pot = nullptr;
 
     bool exx_after_converge(int &iter)
     {
@@ -42,11 +44,6 @@ struct Exx_Helper
     {
         this->psi = psi_;
         construct_ace = true;
-    }
-
-    void reset_div()
-    {
-        this->div = DIV_UNDEFINED;
     }
 
     double cal_exx_energy(const Device *ctx,

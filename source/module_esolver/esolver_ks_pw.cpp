@@ -230,13 +230,12 @@ void ESolver_KS_PW<T, Device>::before_all_runners(UnitCell& ucell, const Input_p
         if (GlobalC::exx_info.info_global.cal_exx && GlobalC::exx_info.info_global.separate_loop == true)
         {
             XC_Functional::set_xc_first_loop(ucell);
-            exx_helper.first_iter = true;
+            exx_helper.set_firstiter();
         }
 
         if (GlobalC::exx_info.info_global.cal_exx)
         {
-            exx_helper.wf_wg = &(this->pelec->wg);
-            exx_helper.set_psi(this->kspw_psi[0]);
+            exx_helper.set_wg(&this->pelec->wg);
         }
     }
 
@@ -281,11 +280,10 @@ void ESolver_KS_PW<T, Device>::before_scf(UnitCell& ucell, const int istep)
         if (GlobalC::exx_info.info_global.cal_exx && PARAM.inp.basis_type == "pw")
         {
             auto hamilt_pw = reinterpret_cast<hamilt::HamiltPW<T, Device>*>(this->p_hamilt);
-            hamilt_pw->set_exx_helper(&exx_helper);
+            hamilt_pw->set_exx_helper(exx_helper);
         }
 
     }
-
 
     //----------------------------------------------------------
     //! calculate the total local pseudopotential in real space
@@ -360,6 +358,18 @@ void ESolver_KS_PW<T, Device>::before_scf(UnitCell& ucell, const int istep)
     {
         this->p_psi_init->initialize_psi(this->psi, this->kspw_psi, this->p_hamilt, GlobalV::ofs_running);
         this->already_initpsi = true;
+    }
+
+    if (PARAM.inp.calculation == "scf"
+        || PARAM.inp.calculation == "relax"
+        || PARAM.inp.calculation == "cell-relax"
+        || PARAM.inp.calculation == "md")
+    {
+        if (GlobalC::exx_info.info_global.cal_exx && PARAM.inp.basis_type == "pw")
+        {
+            exx_helper.set_psi(kspw_psi);
+        }
+
     }
 
     ModuleBase::timer::tick("ESolver_KS_PW", "before_scf");
@@ -533,9 +543,9 @@ void ESolver_KS_PW<T, Device>::update_pot(UnitCell& ucell, const int istep, cons
 template <typename T, typename Device>
 void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int& iter, bool& conv_esolver)
 {
-    if (GlobalC::exx_info.info_global.cal_exx && !exx_helper.first_iter)
+    if (GlobalC::exx_info.info_global.cal_exx && !exx_helper.op_exx->first_iter)
     {
-        this->pelec->set_exx(exx_helper.cal_exx_energy(this->ctx, this->kspw_psi[0], this->pw_wfc, this->pw_rho, &ucell, &this->kv));
+        this->pelec->set_exx(exx_helper.cal_exx_energy(kspw_psi));
     }
 
     // deband is calculated from "output" charge density calculated
@@ -562,14 +572,14 @@ void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int
         {
             if (conv_esolver)
             {
-                exx_helper.set_psi(this->kspw_psi[0]);
+                exx_helper.set_psi(this->kspw_psi);
 
                 conv_esolver = exx_helper.exx_after_converge(iter);
 
                 if (!conv_esolver)
                 {
                     std::cout << " Setting Psi for EXX PW Inner Loop" << std::endl;
-                    exx_helper.first_iter = false;
+                    exx_helper.op_exx->first_iter = false;
                     XC_Functional::set_xc_type(ucell.atoms[0].ncpp.xc_func);
                     update_pot(ucell, istep, iter, conv_esolver);
                 }
@@ -578,7 +588,7 @@ void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int
         else
         {
 //            std::cout << "setting psi for each iter" << std::endl;
-            exx_helper.set_psi(this->kspw_psi[0]);
+            exx_helper.set_psi(this->kspw_psi);
         }
 
     }

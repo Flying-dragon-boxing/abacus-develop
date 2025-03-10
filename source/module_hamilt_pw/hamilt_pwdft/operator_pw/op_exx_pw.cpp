@@ -97,6 +97,18 @@ OperatorEXXPW<T, Device>::~OperatorEXXPW()
     delmem_complex_op()(h_psi_real);
     delmem_complex_op()(density_recip);
     delmem_complex_op()(h_psi_recip);
+
+    delmem_real_op()(pot);
+
+    delmem_complex_op()(h_psi_ace);
+    delmem_complex_op()(psi_h_psi_ace);
+    delmem_complex_op()(L_ace);
+    for (auto &Xi_ace: Xi_ace_k)
+    {
+        delmem_complex_op()(Xi_ace);
+    }
+    Xi_ace_k.clear();
+
 }
 
 template <typename T>
@@ -126,14 +138,7 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
                                    const int ngk_ik,
                                    const bool is_first_node) const
 {
-    if (p_exx_helper->first_iter) return;
-
-    if (p_exx_helper->construct_ace)
-    {
-        construct_ace();
-//        std::cout << "ACE constructed" << std::endl;
-        p_exx_helper->construct_ace = false;
-    }
+    if (first_iter) return;
 
     if (is_first_node)
     {
@@ -163,8 +168,6 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
     {
         get_potential();
         potential_got = true;
-        p_exx_helper->div = exx_div;
-        p_exx_helper->pot = pot;
     }
 
 //    set_psi(&p_exx_helper->psi);
@@ -192,10 +195,10 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
         Real nqs = q_points.size();
         for (int iq: q_points)
         {
-            for (int m_iband = 0; m_iband < p_exx_helper->psi.get_nbands(); m_iband++)
+            for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
             {
                 // double wg_mqb_real = GlobalC::exx_helper.wg(iq, m_iband);
-                double wg_mqb_real = (*p_exx_helper->wf_wg)(this->ik, m_iband);
+                double wg_mqb_real = (*wg)(this->ik, m_iband);
                 T wg_mqb = wg_mqb_real;
                 if (wg_mqb_real < 1e-12)
                 {
@@ -291,8 +294,8 @@ void OperatorEXXPW<T, Device>::act_op_ace(const int nbands,
 //    std::cout << "act_op_ace" << std::endl;
     // hpsi += -Xi^\dagger * Xi * psi
     auto Xi_ace = Xi_ace_k[this->ik];
-    int nbands_tot = p_exx_helper->psi.get_nbands();
-    int nbasis_max = p_exx_helper->psi.get_nbasis();
+    int nbands_tot = psi.get_nbands();
+    int nbasis_max = psi.get_nbasis();
 //    T* hpsi = nullptr;
 //    resmem_complex_op()(hpsi, nbands_tot * nbasis);
 //    setmem_complex_op()(hpsi, 0, nbands_tot * nbasis);
@@ -349,12 +352,12 @@ template <typename T, typename Device>
 void OperatorEXXPW<T, Device>::construct_ace() const
 {
 //    int nkb = p_exx_helper->psi.get_nbands() * p_exx_helper->psi.get_nk();
-    int nbands = p_exx_helper->psi.get_nbands();
-    int nbasis = p_exx_helper->psi.get_nbasis();
-    int nk = p_exx_helper->psi.get_nk();
+    int nbands = psi.get_nbands();
+    int nbasis = psi.get_nbasis();
+    int nk = psi.get_nk();
 
-    int ik_store = this->ik;
-    int *ik_ptr = const_cast<int*>(&this->ik);
+    int ik_save = this->ik;
+    int * ik_ = const_cast<int*>(&this->ik);
 
     T intermediate_one = 1.0, intermediate_zero = 0.0;
 
@@ -394,12 +397,12 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         int npwk = wfcpw->npwk[ik];
 
         T* Xi_ace = Xi_ace_k[ik];
-        p_exx_helper->psi.fix_kb(ik, 0);
-        T* p_psi = p_exx_helper->psi.get_pointer();
+        psi.fix_kb(ik, 0);
+        T* p_psi = psi.get_pointer();
 
         setmem_complex_op()(h_psi_ace, 0, nbands * nbasis);
 
-        *ik_ptr = ik;
+        *ik_ = ik;
 
         act_op(
             nbands,
@@ -490,7 +493,7 @@ void OperatorEXXPW<T, Device>::construct_ace() const
 
     }
 
-    *ik_ptr = ik_store;
+    *ik_ = ik_save;
 
 }
 
@@ -547,8 +550,8 @@ template <typename T, typename Device>
 const T *OperatorEXXPW<T, Device>::get_pw(const int m, const int iq) const
 {
     // return pws[iq].get() + m * wfcpw->npwk[iq];
-    p_exx_helper->psi.fix_kb(iq, m);
-    auto psi_mq = p_exx_helper->psi.get_pointer();
+    psi.fix_kb(iq, m);
+    auto psi_mq = psi.get_pointer();
     return psi_mq;
 }
 
@@ -569,7 +572,7 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const OperatorEXXPW<T_in, Device_in> *op
     resmem_complex_op()(this->ctx, h_psi_real, rhopw->nrxx);
     resmem_complex_op()(this->ctx, density_recip, rhopw->npw);
     resmem_complex_op()(this->ctx, h_psi_recip, wfcpw->npwk_max);
-    this->pws.resize(wfcpw->nks);
+//    this->pws.resize(wfcpw->nks);
 
 
 }
@@ -714,6 +717,172 @@ void OperatorEXXPW<T, Device>::exx_divergence()
 
     return;
 
+}
+
+template <typename T, typename Device>
+double OperatorEXXPW<T, Device>::cal_exx_energy(psi::Psi<T, Device> *psi_) const
+{
+//    if (PARAM.inp.exxace)
+//    {
+//        return cal_exx_energy_ace(psi_);
+//    }
+//    else
+//    {
+        return cal_exx_energy_op(psi_);
+//    }
+}
+
+template <typename T, typename Device>
+double OperatorEXXPW<T, Device>::cal_exx_energy_ace(psi::Psi<T, Device> *ppsi_) const
+{
+    double Eexx = 0;
+
+    psi::Psi<T, Device> psi_ = *ppsi_;
+    int *ik_ = const_cast<int*>(&this->ik);
+    int ik_save = this->ik;
+    for (int i = 0; i < wfcpw->nks; i++)
+    {
+        setmem_complex_op()(h_psi_ace, 0, psi_.get_nbands() * psi_.get_nbasis());
+        *ik_ = i;
+        psi_.fix_kb(i, 0);
+        auto psi_i = psi_.get_pointer();
+        act_op_ace(psi_.get_nbands(), psi_.get_nbasis(), 1, psi_i, h_psi_ace, 0, true);
+
+        for (int nband = 0; nband < psi_.get_nbands(); nband++)
+        {
+            psi_.fix_kb(i, nband);
+            auto psi_i_n = psi_.get_pointer();
+            auto hpsi_i_n = h_psi_ace + nband * psi_.get_nbasis();
+            double wg_i_n = (*wg)(i, nband);
+            // Eexx += dot(psi_i_n, h_psi_i_n)
+            Eexx += dot_op()(psi_.get_nbasis(), psi_i_n, hpsi_i_n, false) * wg_i_n * 2;
+
+        }
+
+
+    }
+
+    Parallel_Reduce::reduce_pool(Eexx);
+    *ik_ = ik_save;
+    return Eexx;
+}
+
+template <typename T, typename Device>
+double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) const
+{
+    psi::Psi<T, Device> psi_ = *ppsi_;
+
+    using setmem_complex_op = base_device::memory::set_memory_op<T, Device>;
+    using delmem_complex_op = base_device::memory::delete_memory_op<T, Device>;
+    T* psi_nk_real = new T[wfcpw->nrxx];
+    T* psi_mq_real = new T[wfcpw->nrxx];
+    T* h_psi_recip = new T[wfcpw->npwk_max];
+    T* h_psi_real = new T[wfcpw->nrxx];
+    T* density_real = new T[wfcpw->nrxx];
+    T* density_recip = new T[rhopw->npw];
+
+    if (wg == nullptr) return 0.0;
+    // evaluate the Eexx
+    // T Eexx_ik = 0.0;
+    double Eexx_ik_real = 0.0;
+    for (int ik = 0; ik < wfcpw->nks; ik++)
+    {
+        //        auto k = this->pw_wfc->kvec_c[ik];
+        //        std::cout << k << std::endl;
+        for (int n_iband = 0; n_iband < psi.get_nbands(); n_iband++)
+        {
+            setmem_complex_op()(h_psi_recip, 0, wfcpw->npwk_max);
+            setmem_complex_op()(h_psi_real, 0, rhopw->nrxx);
+            setmem_complex_op()(density_real, 0, rhopw->nrxx);
+            setmem_complex_op()(density_recip, 0, rhopw->npw);
+
+            // double wg_ikb_real = GlobalC::exx_helper.wg(this->ik, n_iband);
+            double wg_ikb_real = (*wg)(ik, n_iband);
+            T wg_ikb = wg_ikb_real;
+            if (wg_ikb_real < 1e-12)
+            {
+                continue;
+            }
+
+            //            std::cout << "ik = " << ik << " nb = " << n_iband << " wg_ikb = " << wg_ikb_real << std::endl;
+
+            // const T *psi_nk = get_pw(n_iband, ik);
+            psi.fix_kb(ik, n_iband);
+            const T* psi_nk = psi.get_pointer();
+            // retrieve \psi_nk in real space
+            wfcpw->recip_to_real(ctx, psi_nk, psi_nk_real, ik);
+
+            // for \psi_nk, get the pw of iq and band m
+            // q_points is a vector of integers, 0 to nks-1
+            std::vector<int> q_points;
+            for (int iq = 0; iq < wfcpw->nks; iq++)
+            {
+                q_points.push_back(iq);
+            }
+            double nqs = q_points.size();
+
+            //            std::cout << "ik = " << ik << " ib = " << n_iband << " wg_kb = " << wg_ikb_real << " wk_ik = " << kv->wk[ik] << std::endl;
+            for (int iq: q_points)
+            {
+                for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
+                {
+                    // double wg_f = GlobalC::exx_helper.wg(iq, m_iband);
+                    double wg_iqb_real = (*wg)(iq, m_iband);
+                    T wg_iqb = wg_iqb_real;
+                    if (wg_iqb_real < 1e-12)
+                    {
+                        continue;
+                    }
+
+                    //                    std::cout << "iq = " << iq << " mb = " << m_iband << " wg_iqb = " << wg_iqb_real << std::endl;
+
+                    psi_.fix_kb(iq, m_iband);
+                    const T* psi_mq = psi_.get_pointer();
+                    // const T* psi_mq = get_pw(m_iband, iq);
+                    wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq);
+
+                    T omega_inv = 1.0 / ucell->omega;
+
+                    // direct multiplication in real space, \psi_nk(r) * \psi_mq(r)
+                    #ifdef _OPENMP
+                    #pragma omp parallel for
+                    #endif
+                    for (int ir = 0; ir < wfcpw->nrxx; ir++)
+                    {
+                        // assert(is_finite(psi_nk_real[ir]));
+                        // assert(is_finite(psi_mq_real[ir]));
+                        density_real[ir] = psi_nk_real[ir] * std::conj(psi_mq_real[ir]) * omega_inv;
+                    }
+                    // to be changed into kernel function
+
+                    // bring the density to recip space
+                    rhopw->real2recip(density_real, density_recip);
+
+                    #ifdef _OPENMP
+                    #pragma omp parallel for reduction(+:Eexx_ik_real)
+                    #endif
+                    for (int ig = 0; ig < rhopw->npw; ig++)
+                    {
+                        int nks = wfcpw->nks;
+                        int npw = rhopw->npw;
+                        Real Fac = pot[ik * nks * npw + iq * npw + ig];
+                        Eexx_ik_real += Fac * (density_recip[ig] * std::conj(density_recip[ig])).real()
+                                        * wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik];
+                    }
+
+                } // m_iband
+
+            } // iq
+
+        } // n_iband
+
+    } // ik
+    Eexx_ik_real *= 0.5 * ucell->omega;
+    Parallel_Reduce::reduce_pool(Eexx_ik_real);
+    //    std::cout << "omega = " << this_->pelec->omega << " tpiba = " << this_->pw_rho->tpiba2 << " exx_div = " << exx_div << std::endl;
+
+    double Eexx = Eexx_ik_real;
+    return Eexx;
 }
 
 template <>

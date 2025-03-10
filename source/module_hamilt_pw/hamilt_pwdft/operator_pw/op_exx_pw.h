@@ -8,7 +8,6 @@
 #include "operator_pw.h"
 #include "module_basis/module_pw/pw_basis_k.h"
 #include "module_base/macros.h"
-#include "module_esolver/esolver_ks_pw.h"
 #include "module_base/kernels/math_kernel_op.h"
 #include "module_base/blas_connector.h"
 
@@ -24,7 +23,7 @@ class OperatorEXXPW : public OperatorPW<T, Device>
 {
   private:
     using Real = typename GetTypeReal<T>::type;
-    using ExxHelper = Exx_Helper<T, Device>;
+
   public:
     OperatorEXXPW(const int* isk_in,
                   const ModulePW::PW_Basis_K* wfcpw_in,
@@ -45,28 +44,15 @@ class OperatorEXXPW : public OperatorPW<T, Device>
                      const int ngk_ik = 0,
                      const bool is_first_node = false) const override;
 
-    void act_op(const int nbands,
-                const int nbasis,
-                const int npol,
-                const T *tmpsi_in,
-                T *tmhpsi,
-                const int ngk_ik = 0,
-                const bool is_first_node = false) const;
+    double cal_exx_energy(psi::Psi<T, Device> *psi_) const;
 
-    void act_op_ace(const int nbands,
-                    const int nbasis,
-                    const int npol,
-                    const T *tmpsi_in,
-                    T *tmhpsi,
-                    const int ngk_ik = 0,
-                    const bool is_first_node = false) const;
+    void set_psi(psi::Psi<T, Device> &psi_in) const { psi = psi_in; }
 
-    void set_exx_helper(ExxHelper *p_exx_helper_in) const
-    {
-        this->p_exx_helper = p_exx_helper_in;
-    }
+    void set_wg(const ModuleBase::matrix *wg_in) { wg = wg_in; }
 
-    double cal_exx_energy() const;
+    void construct_ace() const;
+
+    bool first_iter = false;
 
   private:
     const int *isk = nullptr;
@@ -85,19 +71,39 @@ class OperatorEXXPW : public OperatorPW<T, Device>
 
     void get_potential() const;
 
-    void construct_ace() const;
+    void act_op(const int nbands,
+                const int nbasis,
+                const int npol,
+                const T *tmpsi_in,
+                T *tmhpsi,
+                const int ngk_ik = 0,
+                const bool is_first_node = false) const;
+
+    void act_op_ace(const int nbands,
+                    const int nbasis,
+                    const int npol,
+                    const T *tmpsi_in,
+                    T *tmhpsi,
+                    const int ngk_ik = 0,
+                    const bool is_first_node = false) const;
+
+    double cal_exx_energy_op(psi::Psi<T, Device> *psi_) const;
+
+    double cal_exx_energy_ace(psi::Psi<T, Device> *psi_) const;
 
     mutable int cnt = 0;
 
     mutable bool potential_got = false;
     
     // pws
-    mutable std::vector<std::unique_ptr<T[]>> pws;
+//    mutable std::vector<std::unique_ptr<T[]>> pws;
 
     // k vectors
     K_Vectors *kv = nullptr;
 
-    mutable ExxHelper *p_exx_helper = nullptr;
+    // psi
+    mutable psi::Psi<T, Device> psi;
+    const ModuleBase::matrix* wg;
 
     // real space memory
     T *psi_nk_real = nullptr;
@@ -120,7 +126,7 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     mutable std::map<int, std::vector<int>> q_points;
 
     // occupational number
-    ModuleBase::matrix wg;
+    const ModuleBase::matrix *p_wg;
 
 //    mutable bool update_psi = false;
 
@@ -133,9 +139,10 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     using delmem_complex_op = base_device::memory::delete_memory_op<T, Device>;
     using syncmem_complex_op = base_device::memory::synchronize_memory_op<T, Device, Device>;
     using resmem_real_op = base_device::memory::resize_memory_op<Real, Device>;
+    using delmem_real_op = base_device::memory::delete_memory_op<Real, Device>;
     using gemm_complex_op = ModuleBase::gemm_op<T, Device>;
     using vec_add_vec_complex_op = ModuleBase::constantvector_addORsub_constantVector_op<T, Device>;
-
+    using dot_op = ModuleBase::dot_real_op<T, Device>;
 };
 
 } // namespace hamilt

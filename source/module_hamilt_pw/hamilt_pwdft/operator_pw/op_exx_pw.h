@@ -115,8 +115,6 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     mutable std::vector<T*> Xi_ace_k; // L^{-1} (H \Psi)^{\dagger}, \Xi in the paper
 //    mutable T* Xi_ace = nullptr; // L^{-1} (H \Psi)^{\dagger}, \Xi in the paper
 
-    bool ace = true;
-
     mutable std::map<int, std::vector<int>> q_points;
 
     // occupational number

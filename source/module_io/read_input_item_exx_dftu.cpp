@@ -17,7 +17,6 @@ void ReadInput::item_exx()
                 std::string& dft_functional = para.input.dft_functional;
                 std::string dft_functional_lower = dft_functional;
                 std::transform(dft_functional.begin(), dft_functional.end(), dft_functional_lower.begin(), tolower);
-                printf("dft_functional_lower = %s\n", dft_functional_lower.c_str());
                 if (dft_functional_lower == "hf")
                 {
                     para.input.exx_hybrid_alpha = "1";

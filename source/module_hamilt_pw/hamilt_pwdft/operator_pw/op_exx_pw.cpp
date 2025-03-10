@@ -28,6 +28,24 @@ extern "C"
 namespace hamilt
 {
 template <typename T, typename Device>
+struct trtri_op
+{
+    void operator()(char *uplo, char *diag, int *n, T *a, int *lda, int *info)
+    {
+        std::cout << "trtri_op not implemented" << std::endl;
+    }
+};
+
+template <typename T, typename Device>
+struct potrf_op
+{
+    void operator()(char *uplo, int *n, T *a, int *lda, int *info)
+    {
+        std::cout << "potrf_op not implemented" << std::endl;
+    }
+};
+
+template <typename T, typename Device>
 OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
                                         const ModulePW::PW_Basis_K* wfcpw_in,
                                         const ModulePW::PW_Basis* rhopw_in,
@@ -122,7 +140,7 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
         setmem_complex_op()(tmhpsi, 0, nbasis*nbands/npol);
     }
 
-    if (ace)
+    if (PARAM.inp.exxace)
     {
         act_op_ace(nbands, nbasis, npol, tmpsi_in, tmhpsi, ngk_ik, is_first_node);
     }
@@ -377,14 +395,6 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         p_exx_helper->psi.fix_kb(ik, 0);
         T* p_psi = p_exx_helper->psi.get_pointer();
 
-        // if (ik == 1 && GlobalV::RANK_IN_POOL == 0)
-        // {
-        //     std::ofstream ofs_psi("psi.dat", std::ios::binary);
-        //     // p_exx_helper->psi.fix_kb(0, 0);
-        //     ofs_psi.write(reinterpret_cast<char*>(p_psi), nbands * nbasis * sizeof(T));
-        //     ofs_psi.close();
-        // }
-
         setmem_complex_op()(h_psi_ace, 0, nbands * nbasis);
 
         *ik_ptr = ik;
@@ -398,13 +408,6 @@ void OperatorEXXPW<T, Device>::construct_ace() const
             nbasis,
             false
             );
-
-        // if (ik == 1 && GlobalV::RANK_IN_POOL == 0)
-        // {
-        //     std::ofstream ofs_hpsi("hpsi.dat", std::ios::binary);
-        //     ofs_hpsi.write(reinterpret_cast<char*>(h_psi_ace), nbands * nbasis * sizeof(T));
-        //     ofs_hpsi.close();
-        // }
 
         // psi_h_psi_ace = psi^\dagger * h_psi_ace
         // p_exx_helper->psi.fix_kb(0, 0);
@@ -423,14 +426,7 @@ void OperatorEXXPW<T, Device>::construct_ace() const
                           nbands);
 
         // reduction of psi_h_psi_ace, due to distributed memory
-        Parallel_Reduce::reduce_pool(psi_h_psi_ace, nbands * nbands); 
-        
-        // if (ik == 1 && GlobalV::RANK_IN_POOL == 0)
-        // {  // save psi_h_psi_ace to disk
-        //    std::ofstream ofs_psi_hpsi("psihpsi.dat", std::ios::binary);
-        //    ofs_psi_hpsi.write(reinterpret_cast<char*>(psi_h_psi_ace), nbands * nbands * sizeof(T));
-        //    ofs_psi_hpsi.close();
-        // }
+        Parallel_Reduce::reduce_pool(psi_h_psi_ace, nbands * nbands);
 
         // L_ace = cholesky(-psi_h_psi_ace)
         #ifdef _OPENMP
@@ -447,18 +443,11 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         int info = 0;
         char up = 'U', lo = 'L';
 
-        if constexpr (std::is_same<T, std::complex<float>>::value)
-        {
-            cpotrf_(&lo, &nbands, L_ace, &nbands, &info);
-        }
-        else if constexpr (std::is_same<T, std::complex<double>>::value)
-        {
-            zpotrf_(&lo, &nbands, L_ace, &nbands, &info);
-        }
+        potrf_op<T, Device>()(&lo, &nbands, L_ace, &nbands, &info);
 
         // expand for-loop
         #ifdef _OPENMP
-        #pragma omp parallel for schedule(static)
+        #pragma omp parallel for schedule(static) collapse(2)
         #endif
         for (int i = 0; i < nbands; i++)
         {
@@ -472,36 +461,10 @@ void OperatorEXXPW<T, Device>::construct_ace() const
             }
         }
 
-        // // save L_ace to disk
-        // if (ik == 1 && GlobalV::RANK_IN_POOL == 0)
-        // {
-        //     std::ofstream ofs_L("L.dat", std::ios::binary);
-        //     ofs_L.write(reinterpret_cast<char*>(L_ace), nbands * nbands * sizeof(T));
-        //     ofs_L.close();
-        // }
-
         // L_ace inv in place
         // T == std::complex<float> or std::complex<double>
-        if constexpr (std::is_same<T, std::complex<float>>::value)
-        {
-            char non_unitary = 'N';
-
-            ctrtri_(&lo, &non_unitary, &nbands, L_ace, &nbands, &info);
-        }
-        else if constexpr (std::is_same<T, std::complex<double>>::value)
-        {
-            char non_unitary = 'N';
-
-            ztrtri_(&lo, &non_unitary, &nbands, L_ace, &nbands, &info);
-        }
-
-        // // save L_ace inv to disk
-        // if (ik == 1 && GlobalV::RANK_IN_POOL == 0)
-        // {   
-        //     std::ofstream ofs_L_inv("L_inv.dat", std::ios::binary);
-        //     ofs_L_inv.write(reinterpret_cast<char*>(L_ace), nbands * nbands * sizeof(T));
-        //     ofs_L_inv.close();
-        // }
+        char non = 'N';
+        trtri_op<T, Device>()(&lo, &non, &nbands, L_ace, &nbands, &info);
 
         // Xi_ace = L_ace^-1 * h_psi_ace^dagger
         gemm_complex_op()('N',
@@ -518,22 +481,6 @@ void OperatorEXXPW<T, Device>::construct_ace() const
                           Xi_ace,
                           nbands);
 
-            // save Xi_ace to disk
-        // if (ik == 1 && GlobalV::RANK_IN_POOL == 0)
-        // {   
-        //     std::ofstream ofs_Xi("Xi.dat", std::ios::binary);
-        //     ofs_Xi.write(reinterpret_cast<char*>(Xi_ace), nbands * nbasis * sizeof(T));
-        //     ofs_Xi.close();
-        // }
-        //
-        // //    std::cout << "nkb: " << nkb << std::endl;
-        // if (ik == 1 && GlobalV::RANK_IN_POOL == 0)
-        // {
-        //     std::cout << "nbands: " << p_exx_helper->psi.get_nbands() << std::endl;
-        //     std::cout << "nbasis: " << nbasis << std::endl;
-        //     std::cout << "npwk: " << npwk << std::endl;
-        // }
-
         // clear mem
         setmem_complex_op()(h_psi_ace, 0, nbands * nbasis);
         setmem_complex_op()(psi_h_psi_ace, 0, nbands * nbands);
@@ -542,14 +489,6 @@ void OperatorEXXPW<T, Device>::construct_ace() const
     }
 
     *ik_ptr = ik_store;
-
-//    // save h_psi_ace to disk
-//    std::ofstream ofs_hpsi("hpsi.dat", std::ios::binary);
-//    ofs_hpsi.write(reinterpret_cast<char*>(h_psi_ace), nkb * nbasis * sizeof(T));
-//    ofs_hpsi.close();
-
-
-
 
 }
 
@@ -572,7 +511,7 @@ std::vector<int> OperatorEXXPW<T, Device>::get_q_points(const int ik) const
         }
     }
     // else
-    // {    
+    // {
     //     for (int iq = 0; iq < wfcpw->nks; iq++)
     //     {
     //         kv->
@@ -775,10 +714,35 @@ void OperatorEXXPW<T, Device>::exx_divergence()
 
 }
 
+template <>
+void trtri_op<std::complex<float>, base_device::DEVICE_CPU>::operator()(char *uplo, char *diag, int *n, std::complex<float> *a, int *lda, int *info)
+{
+    ctrtri_(uplo, diag, n, a, lda, info);
+}
+
+template <>
+void trtri_op<std::complex<double>, base_device::DEVICE_CPU>::operator()(char *uplo, char *diag, int *n, std::complex<double> *a, int *lda, int *info)
+{
+    ztrtri_(uplo, diag, n, a, lda, info);
+}
+
+template <>
+void potrf_op<std::complex<float>, base_device::DEVICE_CPU>::operator()(char *uplo, int *n, std::complex<float> *a, int *lda, int *info)
+{
+    cpotrf_(uplo, n, a, lda, info);
+}
+
+template <>
+void potrf_op<std::complex<double>, base_device::DEVICE_CPU>::operator()(char *uplo, int *n, std::complex<double> *a, int *lda, int *info)
+{
+    zpotrf_(uplo, n, a, lda, info);
+}
+
 template class OperatorEXXPW<std::complex<float>, base_device::DEVICE_CPU>;
 template class OperatorEXXPW<std::complex<double>, base_device::DEVICE_CPU>;
 #if ((defined __CUDA) || (defined __ROCM))
-// to be implemented
+template class OperatorEXXPW<std::complex<float>, base_device::DEVICE_GPU>;
+template class OperatorEXXPW<std::complex<double>, base_device::DEVICE_GPU>;
 #endif
 
 } // namespace hamilt

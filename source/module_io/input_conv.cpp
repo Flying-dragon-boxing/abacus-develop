@@ -424,9 +424,10 @@ void Input_Conv::Convert()
             ModuleBase::WARNING_QUIT("Input_Conv", "EXX PW works only with nspin=1");
         }
 
-        if (GlobalV::KPAR != 1)
+        std::cout << "device: " << PARAM.inp.device << std::endl;
+        if (PARAM.inp.device != "cpu")
         {
-            ModuleBase::WARNING_QUIT("Input_Conv", "EXX PW doesn't support K-point parallelism");
+            ModuleBase::WARNING_QUIT("Input_Conv", "EXX PW works only with device=cpu");
         }
     }
 

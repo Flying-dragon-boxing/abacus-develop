@@ -38,6 +38,5 @@ struct Exx_Helper
     psi::Psi<T, Device> *psi = nullptr;
     const ModuleBase::matrix *wg = nullptr;
 
-
 };
 #endif // EXX_HELPER_H

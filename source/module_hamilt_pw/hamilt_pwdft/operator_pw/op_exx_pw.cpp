@@ -53,7 +53,7 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
                                         const UnitCell *ucell)
     : isk(isk_in), wfcpw(wfcpw_in), rhopw(rhopw_in), kv(kv_in), ucell(ucell)
 {
-
+    gamma_extrapolation = PARAM.inp.exx_gamma_extrapolation;
     if (GlobalV::KPAR != 1)
     {
         // GlobalV::ofs_running << "EXX Calculation does not support k-point parallelism" << std::endl;

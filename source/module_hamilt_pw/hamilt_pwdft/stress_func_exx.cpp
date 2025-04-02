@@ -10,7 +10,7 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                                            const psi::Psi<complex<FPTYPE>, Device>* d_psi_in, const UnitCell& ucell)
 {
     double nqs_half1 = 0.5 * p_kv->nmp[0], nqs_half2 = 0.5 * p_kv->nmp[1], nqs_half3 = 0.5 * p_kv->nmp[2];
-    bool gamma_extrapolation = true;
+    bool gamma_extrapolation = PARAM.inp.exx_gamma_extrapolation;
     auto isint = [](double x) { return std::abs(x - std::round(x)) < 1e-6; };
 
     // T is complex of FPTYPE, if FPTYPE is double, T is std::complex<double>
@@ -274,7 +274,8 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                                 }
                                 else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erf)
                                 {
-                                    // do nothing
+                                    double grid_factor = gamma_extrapolation ? 8.0/7.0 : 1.0;
+                                    sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * (-pot_local) / grid_factor / _4pi_e2 - delta_ab) ;
                                 }
                                 else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Hf)
                                 {

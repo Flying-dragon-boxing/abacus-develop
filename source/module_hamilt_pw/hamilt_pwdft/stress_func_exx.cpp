@@ -10,7 +10,7 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                                            const psi::Psi<complex<FPTYPE>, Device>* d_psi_in, const UnitCell& ucell)
 {
     double nqs_half1 = 0.5 * p_kv->nmp[0], nqs_half2 = 0.5 * p_kv->nmp[1], nqs_half3 = 0.5 * p_kv->nmp[2];
-    bool gamma_extrapolation = false;
+    bool gamma_extrapolation = true;
     auto isint = [](double x) { return std::abs(x - std::round(x)) < 1e-6; };
 
     // T is complex of FPTYPE, if FPTYPE is double, T is std::complex<double>
@@ -268,7 +268,24 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                                 double density_recip2 = std::real(density_recip[ig] * std::conj(density_recip[ig]));
                                 double pot_local = pot[ig + iq * rhopw->npw + ik * rhopw->npw * nqs];
                                 double _4pi_e2 = ModuleBase::FOUR_PI * ModuleBase::e2;
-                                sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * (-pot_local) / _4pi_e2 - delta_ab) ;
+                                if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
+                                {
+                                    // do nothing
+                                }
+                                else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erf)
+                                {
+                                    // do nothing
+                                }
+                                else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Hf)
+                                {
+                                    double grid_factor = gamma_extrapolation ? 8.0/7.0 : 1.0;
+                                    sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * (-pot_local) / grid_factor / _4pi_e2 - delta_ab) ;
+                                }
+                                else
+                                {
+                                    std::cerr << "Error: unknown ccp_type" << std::endl;
+                                    exit(1);
+                                }
 //                                if (std::abs(pot_local + 22.235163511253440) < 1e-2)
 //                                {
 //                                    std::cout << "delta_ab: " << delta_ab << std::endl;

@@ -37,12 +37,14 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
     T* density_real = nullptr;
     T* density_recip = nullptr;
     Real* pot = nullptr; // This factor is 2x of the potential in 10.1103/PhysRevB.73.125120
+    Real* pot_stress = nullptr;
 
     resmem_complex_op()(psi_nk_real, wfcpw->nrxx);
     resmem_complex_op()(psi_mq_real, wfcpw->nrxx);
     resmem_complex_op()(density_real, rhopw->nrxx);
     resmem_complex_op()(density_recip, rhopw->npw);
     resmem_real_op()(pot, rhopw->npw * nks * nks);
+    resmem_real_op()(pot_stress, rhopw->npw * nks * nks);
 
     // prepare the coefficients
     double exx_div = 0;
@@ -187,14 +189,18 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                     if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
                     {
                         pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = fac * (1.0 - std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
+                        pot_stress[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = (1.0 - (1.0 + gg / 4.0 / hse_omega2) * std::exp(-gg / 4.0 / hse_omega2)) / (1.0 - std::exp(-gg / 4.0 / hse_omega2));
                     }
                     else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erf)
                     {
-                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = fac * (std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
+                        ModuleBase::WARNING("Stress_PW", "Stress for Erf is not implemented yet");
+                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = fac * grid_factor;
+                        pot_stress[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = 1.0 / gg;
                     }
-                    else
+                    else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Hf)
                     {
                         pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = fac * grid_factor;
+                        pot_stress[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = 1.0 / gg;
                     }
                 }
                 // }
@@ -267,35 +273,15 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                                 // equation 10 of 10.1103/PhysRevB.73.125120
                                 double density_recip2 = std::real(density_recip[ig] * std::conj(density_recip[ig]));
                                 double pot_local = pot[ig + iq * rhopw->npw + ik * rhopw->npw * nqs];
-                                double _4pi_e2 = ModuleBase::FOUR_PI * ModuleBase::e2;
-                                if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
-                                {
-                                    // do nothing
-                                }
-                                else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erf)
-                                {
-                                    double grid_factor = gamma_extrapolation ? 8.0/7.0 : 1.0;
-                                    sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * (-pot_local) / grid_factor / _4pi_e2 - delta_ab) ;
-                                }
-                                else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Hf)
-                                {
-                                    double grid_factor = gamma_extrapolation ? 8.0/7.0 : 1.0;
-                                    sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * (-pot_local) / grid_factor / _4pi_e2 - delta_ab) ;
-                                }
-                                else
-                                {
-                                    std::cerr << "Error: unknown ccp_type" << std::endl;
-                                    exit(1);
-                                }
-//                                if (std::abs(pot_local + 22.235163511253440) < 1e-2)
-//                                {
-//                                    std::cout << "delta_ab: " << delta_ab << std::endl;
-//                                    std::cout << "density_recip2: " << density_recip2 << std::endl;
-//                                    std::cout << "pot_local: " << pot_local << std::endl;
-//                                    std::cout << "kqg_alpha: " << kqg_alpha << std::endl;
-//                                    std::cout << "kqg_beta: " << kqg_beta << std::endl;
-//
-//                                }
+                                double pot_stress_local = pot_stress[ig + iq * rhopw->npw + ik * rhopw->npw * nqs];
+                                // if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Hf)
+                                // {
+                                    sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * pot_stress_local - delta_ab) ;
+                                // }
+
+                                //     double grid_factor = gamma_extrapolation ? 8.0/7.0 : 1.0;
+                                //     sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * (-pot_local) / grid_factor / _4pi_e2 - delta_ab) ;
+
                             }
 
                             // 0.5 in the following line is caused by 2x in the pot

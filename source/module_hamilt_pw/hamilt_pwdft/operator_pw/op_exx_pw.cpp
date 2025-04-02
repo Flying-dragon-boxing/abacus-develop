@@ -664,7 +664,6 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     }
 
     Real nqs_half1 = 0.5 * kv->nmp[0], nqs_half2 = 0.5 * kv->nmp[1], nqs_half3 = 0.5 * kv->nmp[2];
-    printf("nmp: %d %d %d\n", kv->nmp[0], kv->nmp[1], kv->nmp[2]);
 
     // here we follow the exx_divergence subroutine in q-e (PW/src/exx_base.f90)
     double alpha = 10.0 / wfcpw->gk_ecut;
@@ -761,7 +760,7 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     double omega = ucell->omega;
     div -= ModuleBase::e2 * omega * aa;
     exx_div = div * wfcpw->nks;
-    std::cout << "EXX divergence: " << exx_div << std::endl;
+    // std::cout << "EXX divergence: " << exx_div << std::endl;
 
     return;
 }

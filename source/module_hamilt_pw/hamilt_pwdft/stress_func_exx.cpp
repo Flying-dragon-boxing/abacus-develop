@@ -9,6 +9,10 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                                            const K_Vectors *p_kv,
                                            const psi::Psi<complex<FPTYPE>, Device>* d_psi_in, const UnitCell& ucell)
 {
+    double nqs_half1 = 0.5 * p_kv->nmp[0], nqs_half2 = 0.5 * p_kv->nmp[1], nqs_half3 = 0.5 * p_kv->nmp[2];
+    bool gamma_extrapolation = false;
+    auto isint = [](double x) { return std::abs(x - std::round(x)) < 1e-6; };
+
     // T is complex of FPTYPE, if FPTYPE is double, T is std::complex<double>
     // but if FPTYPE is std::complex<double>, T is still std::complex<double>
     using T = std::complex<FPTYPE>;
@@ -58,24 +62,39 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
         // temporarily for all k points, should be replaced to q points later
         for (int ik = 0; ik < wfcpw->nks; ik++)
         {
-            auto k = wfcpw->kvec_c[ik];
+            auto k_c = wfcpw->kvec_c[ik];
+            auto k_d = wfcpw->kvec_d[ik];
 #ifdef _OPENMP
 #pragma omp parallel for reduction(+:div)
 #endif
             for (int ig = 0; ig < rhopw->npw; ig++)
             {
-                auto q = k + rhopw->gcar[ig];
-                double qq = q.norm2();
+                auto q_c = k_c + rhopw->gcar[ig];
+                auto q_d = k_d + rhopw->gdirect[ig];
+                double qq = q_c.norm2();
+                double grid_factor = 1;
+                if (gamma_extrapolation)
+                {
+                    if (isint(q_d[0] * nqs_half1) && isint(q_d[1] * nqs_half2) && isint(q_d[2] * nqs_half3))
+                    {
+                        grid_factor = 0;
+                    }
+                    else
+                    {
+                        grid_factor = 8.0/7.0;
+                    }
+                }
+
                 if (qq <= 1e-8) continue;
                 else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
                 {
                     double hse_omega = GlobalC::exx_info.info_global.hse_omega;
                     double omega2 = hse_omega * hse_omega;
-                    div += std::exp(-alpha * qq) / qq * (1.0 - std::exp(-qq*tpiba2 / 4.0 / omega2));
+                    div += std::exp(-alpha * qq) / qq * (1.0 - std::exp(-qq*tpiba2 / 4.0 / omega2)) * grid_factor;
                 }
                 else
                 {
-                    div += std::exp(-alpha * qq) / qq;
+                    div += std::exp(-alpha * qq) / qq * grid_factor;
                 }
             }
         }
@@ -84,14 +103,18 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
         // std::cout << "EXX div: " << div << std::endl;
 
         // if (PARAM.inp.dft_functional == "hse")
-        if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
+        if (!gamma_extrapolation)
         {
-            double hse_omega = GlobalC::exx_info.info_global.hse_omega;
-            div += tpiba2 / 4.0 / hse_omega / hse_omega; // compensate for the finite value when qq = 0
-        }
-        else
-        {
-            div -= alpha;
+            if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
+            {
+                double omega = GlobalC::exx_info.info_global.hse_omega;
+                div += tpiba2 / 4.0 / omega / omega; // compensate for the finite value when qq = 0
+            }
+            else
+            {
+                div -= alpha;
+            }
+
         }
 
         div *= ModuleBase::e2 * ModuleBase::FOUR_PI / tpiba2 / wfcpw->nks;
@@ -127,25 +150,67 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
     // prepare for the potential
     for (int ik = 0; ik < nks; ik++)
     {
-        for (int iq = 0; iq < nqs; iq++)
+        for (int iq = 0; iq < nks; iq++)
         {
-            auto k = wfcpw->kvec_c[ik];
-            auto q = wfcpw->kvec_c[iq];
+            auto k_c = wfcpw->kvec_c[ik];
+            auto k_d = wfcpw->kvec_d[ik];
+            auto q_c = wfcpw->kvec_c[iq];
+            auto q_d = wfcpw->kvec_d[iq];
+
             #ifdef _OPENMP
             #pragma omp parallel for schedule(static)
             #endif
             for (int ig = 0; ig < rhopw->npw; ig++)
             {
-                FPTYPE qq = (k - q + rhopw->gcar[ig]).norm2() * tpiba2;
-                FPTYPE fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / qq;
-                if (qq < 1e-8)
+                auto g_d = rhopw->gdirect[ig];
+                auto kqg_d = k_d - q_d + g_d;
+                Real grid_factor = 1;
+                if (gamma_extrapolation)
                 {
-                    pot[ig + iq * rhopw->npw + ik * rhopw->npw * nqs] = exx_div;
+                    if (isint(kqg_d[0] * nqs_half1) && isint(kqg_d[1] * nqs_half2) && isint(kqg_d[2] * nqs_half3))
+                    {
+                        grid_factor = 0;
+                    }
+                    else
+                    {
+                        grid_factor = 8.0/7.0;
+                    }
                 }
+
+                Real gg = (k_c - q_c + rhopw->gcar[ig]).norm2() * tpiba2;
+                Real hse_omega2 = GlobalC::exx_info.info_global.hse_omega * GlobalC::exx_info.info_global.hse_omega;
+                // if (kqgcar2 > 1e-12) // vasp uses 1/40 of the smallest (k spacing)**2
+                if (gg >= 1e-8)
+                {
+                    Real fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg;
+                    // if (PARAM.inp.dft_functional == "hse")
+                    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
+                    {
+                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = fac * (1.0 - std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
+                    }
+                    else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erf)
+                    {
+                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = fac * (std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
+                    }
+                    else
+                    {
+                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = fac * grid_factor;
+                    }
+                }
+                // }
                 else
                 {
-                    pot[ig + iq * rhopw->npw + ik * rhopw->npw * nqs] = fac;
+                    // if (PARAM.inp.dft_functional == "hse")
+                    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc && !gamma_extrapolation)
+                    {
+                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = exx_div - ModuleBase::PI * ModuleBase::e2 / hse_omega2;
+                    }
+                    else
+                    {
+                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = exx_div;
+                    }
                 }
+                // assert(is_finite(density_recip[ig]));
             }
         }
     }

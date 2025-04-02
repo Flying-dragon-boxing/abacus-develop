@@ -209,11 +209,13 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                     // if (PARAM.inp.dft_functional == "hse")
                     if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc && !gamma_extrapolation)
                     {
-                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = exx_div - ModuleBase::PI * ModuleBase::e2 / hse_omega2;
+                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = - ModuleBase::PI * ModuleBase::e2 / hse_omega2; // maybe we should add a exx_div here, but q-e does not do that
+                        pot_stress[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = 1 / 4.0 / hse_omega2;
                     }
                     else
                     {
                         pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = exx_div;
+                        pot_stress[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = 0;
                     }
                 }
                 // assert(is_finite(density_recip[ig]));

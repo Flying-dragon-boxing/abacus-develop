@@ -189,7 +189,7 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                     if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
                     {
                         pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = fac * (1.0 - std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
-                        pot_stress[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = (1.0 - (1.0 + gg / 4.0 / hse_omega2) * std::exp(-gg / 4.0 / hse_omega2)) / (1.0 - std::exp(-gg / 4.0 / hse_omega2));
+                        pot_stress[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = (1.0 - (1.0 + gg / 4.0 / hse_omega2) * std::exp(-gg / 4.0 / hse_omega2)) / (1.0 - std::exp(-gg / 4.0 / hse_omega2)) / gg;
                     }
                     else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erf)
                     {

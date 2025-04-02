@@ -580,6 +580,8 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const OperatorEXXPW<T_in, Device_in> *op
 template <typename T, typename Device>
 void OperatorEXXPW<T, Device>::get_potential() const
 {
+    Real nqs_half1 = 0.5 * kv->nmp[0], nqs_half2 = 0.5 * kv->nmp[1], nqs_half3 = 0.5 * kv->nmp[2];
+
     int nks = wfcpw->nks, npw = rhopw->npw;
     double tpiba2 = tpiba * tpiba;
     // calculate the pot
@@ -587,15 +589,34 @@ void OperatorEXXPW<T, Device>::get_potential() const
     {
         for (int iq = 0; iq < nks; iq++)
         {
-            auto k = wfcpw->kvec_c[ik];
-            auto q = wfcpw->kvec_c[iq];
+            auto k_c = wfcpw->kvec_c[ik];
+            auto k_d = wfcpw->kvec_d[ik];
+            auto q_c = wfcpw->kvec_c[iq];
+            auto q_d = wfcpw->kvec_d[iq];
 
             #ifdef _OPENMP
             #pragma omp parallel for schedule(static)
             #endif
             for (int ig = 0; ig < rhopw->npw; ig++)
             {
-                Real gg = (k - q + rhopw->gcar[ig]).norm2() * tpiba2;
+                auto g_d = rhopw->gdirect[ig];
+                auto kqg_d = k_d - q_d + g_d;
+                Real grid_factor = 1;
+                if (gamma_extrapolation)
+                {
+                    // if isint(kqg_d[0] * nqs_half1) && isint(kqg_d[1] * nqs_half2) && isint(kqg_d[2] * nqs_half3)
+                    auto isint = [](double x) { return std::abs(x - std::round(x)) < 1e-6; };
+                    if (isint(kqg_d[0] * nqs_half1) && isint(kqg_d[1] * nqs_half2) && isint(kqg_d[2] * nqs_half3))
+                    {
+                        grid_factor = 0;
+                    }
+                    else
+                    {
+                        grid_factor = 8.0/7.0;
+                    }
+                }
+
+                Real gg = (k_c - q_c + rhopw->gcar[ig]).norm2() * tpiba2;
                 Real hse_omega2 = GlobalC::exx_info.info_global.hse_omega * GlobalC::exx_info.info_global.hse_omega;
                 // if (kqgcar2 > 1e-12) // vasp uses 1/40 of the smallest (k spacing)**2
                 if (gg >= 1e-8)
@@ -604,18 +625,22 @@ void OperatorEXXPW<T, Device>::get_potential() const
                     // if (PARAM.inp.dft_functional == "hse")
                     if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
                     {
-                        pot[ik * nks * npw + iq * npw + ig] = fac * (1.0 - std::exp(-gg / 4.0 / hse_omega2));
+                        pot[ik * nks * npw + iq * npw + ig] = fac * (1.0 - std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
+                    }
+                    else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erf)
+                    {
+                        pot[ik * nks * npw + iq * npw + ig] = fac * (std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
                     }
                     else
                     {
-                        pot[ik * nks * npw + iq * npw + ig] = fac;
+                        pot[ik * nks * npw + iq * npw + ig] = fac * grid_factor;
                     }
                 }
                 // }
                 else
                 {
                     // if (PARAM.inp.dft_functional == "hse")
-                    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
+                    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc && !gamma_extrapolation)
                     {
                         pot[ik * nks * npw + iq * npw + ig] = exx_div - ModuleBase::PI * ModuleBase::e2 / hse_omega2;
                     }
@@ -638,6 +663,9 @@ void OperatorEXXPW<T, Device>::exx_divergence()
         return;
     }
 
+    Real nqs_half1 = 0.5 * kv->nmp[0], nqs_half2 = 0.5 * kv->nmp[1], nqs_half3 = 0.5 * kv->nmp[2];
+    printf("nmp: %d %d %d\n", kv->nmp[0], kv->nmp[1], kv->nmp[2]);
+
     // here we follow the exx_divergence subroutine in q-e (PW/src/exx_base.f90)
     double alpha = 10.0 / wfcpw->gk_ecut;
     double tpiba2 = tpiba * tpiba;
@@ -647,25 +675,41 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     // temporarily for all k points, should be replaced to q points later
     for (int ik = 0; ik < wfcpw->nks; ik++)
     {
-        auto k = wfcpw->kvec_c[ik];
+        auto k_c = wfcpw->kvec_c[ik];
+        auto k_d = wfcpw->kvec_d[ik];
 #ifdef _OPENMP
 #pragma omp parallel for reduction(+:div)
 #endif
         for (int ig = 0; ig < rhopw->npw; ig++)
         {
-            auto q = k + rhopw->gcar[ig];
-            double qq = q.norm2();
+            auto q_c = k_c + rhopw->gcar[ig];
+            auto q_d = k_d + rhopw->gdirect[ig];
+            double qq = q_c.norm2();
+            Real grid_factor = 1;
+            if (gamma_extrapolation)
+            {
+                auto isint = [](double x) { return std::abs(x - std::round(x)) < 1e-6; };
+                if (isint(q_d[0] * nqs_half1) && isint(q_d[1] * nqs_half2) && isint(q_d[2] * nqs_half3))
+                {
+                    grid_factor = 0;
+                }
+                else
+                {
+                    grid_factor = 8.0/7.0;
+                }
+            }
+
             if (qq <= 1e-8) continue;
             // else if (PARAM.inp.dft_functional == "hse")
             else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
             {
                 double omega = GlobalC::exx_info.info_global.hse_omega;
                 double omega2 = omega * omega;
-                div += std::exp(-alpha * qq) / qq * (1.0 - std::exp(-qq*tpiba2 / 4.0 / omega2));
+                div += std::exp(-alpha * qq) / qq * (1.0 - std::exp(-qq*tpiba2 / 4.0 / omega2)) * grid_factor;
             }
             else
             {
-                div += std::exp(-alpha * qq) / qq;
+                div += std::exp(-alpha * qq) / qq * grid_factor;
             }
         }
     }
@@ -674,14 +718,18 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     // std::cout << "EXX div: " << div << std::endl;
 
     // if (PARAM.inp.dft_functional == "hse")
-    if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
+    if (!gamma_extrapolation)
     {
-        double omega = GlobalC::exx_info.info_global.hse_omega;
-        div += tpiba2 / 4.0 / omega / omega; // compensate for the finite value when qq = 0
-    }
-    else
-    {
-        div -= alpha;
+        if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
+        {
+            double omega = GlobalC::exx_info.info_global.hse_omega;
+            div += tpiba2 / 4.0 / omega / omega; // compensate for the finite value when qq = 0
+        }
+        else
+        {
+            div -= alpha;
+        }
+
     }
 
     div *= ModuleBase::e2 * ModuleBase::FOUR_PI / tpiba2 / wfcpw->nks;
@@ -713,10 +761,9 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     double omega = ucell->omega;
     div -= ModuleBase::e2 * omega * aa;
     exx_div = div * wfcpw->nks;
-    // std::cout << "EXX divergence: " << exx_div << std::endl;
+    std::cout << "EXX divergence: " << exx_div << std::endl;
 
     return;
-
 }
 
 template <typename T, typename Device>
@@ -880,6 +927,13 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
     Eexx_ik_real *= 0.5 * ucell->omega;
     Parallel_Reduce::reduce_pool(Eexx_ik_real);
     //    std::cout << "omega = " << this_->pelec->omega << " tpiba = " << this_->pw_rho->tpiba2 << " exx_div = " << exx_div << std::endl;
+
+    delete[] psi_nk_real;
+    delete[] psi_mq_real;
+    delete[] h_psi_recip;
+    delete[] h_psi_real;
+    delete[] density_real;
+    delete[] density_recip;
 
     double Eexx = Eexx_ik_real;
     return Eexx;

@@ -143,6 +143,9 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     using gemm_complex_op = ModuleBase::gemm_op<T, Device>;
     using vec_add_vec_complex_op = ModuleBase::constantvector_addORsub_constantVector_op<T, Device>;
     using dot_op = ModuleBase::dot_real_op<T, Device>;
+
+    bool gamma_extrapolation = true;
+
 };
 
 } // namespace hamilt

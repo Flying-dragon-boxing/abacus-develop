@@ -344,7 +344,7 @@ void OperatorEXXPW<T, Device>::act_op_ace(const int nbands,
 //    vec_add_vec_complex_op()(this->ctx, nbands * nbasis, tmhpsi, hpsi, -1, tmhpsi, 1);
 //    delmem_complex_op()(hpsi);
     delmem_complex_op()(Xi_psi);
-    ModuleBase::timer::tick("OperatorEXXPW", "act_op");
+    ModuleBase::timer::tick("OperatorEXXPW", "act_op_ace");
 
 }
 

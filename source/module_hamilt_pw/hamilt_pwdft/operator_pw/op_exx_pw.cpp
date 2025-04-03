@@ -351,6 +351,7 @@ void OperatorEXXPW<T, Device>::act_op_ace(const int nbands,
 template <typename T, typename Device>
 void OperatorEXXPW<T, Device>::construct_ace() const
 {
+    ModuleBase::timer::tick("OperatorEXXPW", "construct_ace");
 //    int nkb = p_exx_helper->psi.get_nbands() * p_exx_helper->psi.get_nk();
     int nbands = psi.get_nbands();
     int nbasis = psi.get_nbasis();
@@ -494,6 +495,7 @@ void OperatorEXXPW<T, Device>::construct_ace() const
     }
 
     *ik_ = ik_save;
+    ModuleBase::timer::tick("OperatorEXXPW", "construct_ace");
 
 }
 

@@ -11,6 +11,10 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
 {
     double nqs_half1 = 0.5 * p_kv->nmp[0], nqs_half2 = 0.5 * p_kv->nmp[1], nqs_half3 = 0.5 * p_kv->nmp[2];
     bool gamma_extrapolation = PARAM.inp.exx_gamma_extrapolation;
+    if (p_kv->nmp[0] == 0 || p_kv->nmp[1] == 0 || p_kv->nmp[2] == 0)
+    {
+        gamma_extrapolation = false;
+    }
     auto isint = [](double x) { return std::abs(x - std::round(x)) < 1e-6; };
 
     // T is complex of FPTYPE, if FPTYPE is double, T is std::complex<double>

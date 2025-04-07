@@ -54,7 +54,7 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
     : isk(isk_in), wfcpw(wfcpw_in), rhopw(rhopw_in), kv(kv_in), ucell(ucell)
 {
     gamma_extrapolation = PARAM.inp.exx_gamma_extrapolation;
-    if (kv_in->nmp[0] == 0 || kv_in->nmp[1] == 0 || kv_in->nmp[2] == 0)
+    if (!kv_in->get_is_mp())
     {
         gamma_extrapolation = false;
     }

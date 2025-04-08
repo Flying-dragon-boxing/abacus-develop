@@ -610,11 +610,19 @@ void OperatorEXXPW<T, Device>::get_potential() const
             {
                 const ModuleBase::Vector3<double> g_d = rhopw->gdirect[ig];
                 const ModuleBase::Vector3<double> kqg_d = k_d - q_d + g_d;
+                // For gamma_extrapolation (https://doi.org/10.1103/PhysRevB.79.205114)
+                // 7/8 of the points in the grid are "activated" and 1/8 are disabled.
+                // grid_factor is designed for the 7/8 of the grid to function like all of the points
                 Real grid_factor = 1;
+                double extrapolate_grid = 8.0/7.0;
                 if (gamma_extrapolation)
                 {
                     // if isint(kqg_d[0] * nqs_half1) && isint(kqg_d[1] * nqs_half2) && isint(kqg_d[2] * nqs_half3)
-                    auto isint = [](double x) { return std::abs(x - std::round(x)) < 1e-6; };
+                    auto isint = [](double x)
+                    {
+                        double epsilon = 1e-6; // this follows the isint judgement in q-e
+                        return std::abs(x - std::round(x)) < epsilon;
+                    };
                     if (isint(kqg_d[0] * nqs_half1) &&
                         isint(kqg_d[1] * nqs_half2) &&
                         isint(kqg_d[2] * nqs_half3))
@@ -623,7 +631,7 @@ void OperatorEXXPW<T, Device>::get_potential() const
                     }
                     else
                     {
-                        grid_factor = 8.0/7.0;
+                        grid_factor = extrapolate_grid;
                     }
                 }
 
@@ -700,10 +708,18 @@ void OperatorEXXPW<T, Device>::exx_divergence()
             const ModuleBase::Vector3<double> q_c = k_c + rhopw->gcar[ig];
             const ModuleBase::Vector3<double> q_d = k_d + rhopw->gdirect[ig];
             double qq = q_c.norm2();
+            // For gamma_extrapolation (https://doi.org/10.1103/PhysRevB.79.205114)
+            // 7/8 of the points in the grid are "activated" and 1/8 are disabled.
+            // grid_factor is designed for the 7/8 of the grid to function like all of the points
             Real grid_factor = 1;
+            double extrapolate_grid = 8.0/7.0;
             if (gamma_extrapolation)
             {
-                auto isint = [](double x) { return std::abs(x - std::round(x)) < 1e-6; };
+                auto isint = [](double x)
+                {
+                    double epsilon = 1e-6; // this follows the isint judgement in q-e
+                    return std::abs(x - std::round(x)) < epsilon;
+                };
                 if (isint(q_d[0] * nqs_half1) &&
                     isint(q_d[1] * nqs_half2) &&
                     isint(q_d[2] * nqs_half3))
@@ -712,7 +728,7 @@ void OperatorEXXPW<T, Device>::exx_divergence()
                 }
                 else
                 {
-                    grid_factor = 8.0/7.0;
+                    grid_factor = extrapolate_grid;
                 }
             }
 

@@ -17,7 +17,11 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
     {
         gamma_extrapolation = false;
     }
-    auto isint = [](double x) { return std::abs(x - std::round(x)) < 1e-6; };
+    auto isint = [](double x)
+    {
+        double epsilon = 1e-6; // this follows the isint judgement in q-e
+        return std::abs(x - std::round(x)) < epsilon;
+    };
 
     // T is complex of FPTYPE, if FPTYPE is double, T is std::complex<double>
     // but if FPTYPE is std::complex<double>, T is still std::complex<double>
@@ -80,7 +84,11 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                 const ModuleBase::Vector3<double> q_c = k_c + rhopw->gcar[ig];
                 const ModuleBase::Vector3<double> q_d = k_d + rhopw->gdirect[ig];
                 double qq = q_c.norm2();
+                // For gamma_extrapolation (https://doi.org/10.1103/PhysRevB.79.205114)
+                // 7/8 of the points in the grid are "activated" and 1/8 are disabled.
+                // grid_factor is designed for the 7/8 of the grid to function like all of the points
                 double grid_factor = 1;
+                double extrapolate_grid = 8.0/7.0;
                 if (gamma_extrapolation)
                 {
                     if (isint(q_d[0] * nqs_half1) &&
@@ -91,9 +99,10 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                     }
                     else
                     {
-                        grid_factor = 8.0/7.0;
+                        grid_factor = extrapolate_grid;
                     }
                 }
+
 
                 if (qq <= 1e-8) continue;
                 else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
@@ -174,9 +183,14 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
             {
                 const ModuleBase::Vector3<double> g_d = rhopw->gdirect[ig];
                 const ModuleBase::Vector3<double> kqg_d = k_d - q_d + g_d;
+
+                // For gamma_extrapolation (https://doi.org/10.1103/PhysRevB.79.205114)
+                // 7/8 of the points in the grid are "activated" and 1/8 are disabled.
+                // grid_factor is designed for the 7/8 of the grid to function like all of the points
                 Real grid_factor = 1;
                 if (gamma_extrapolation)
                 {
+                    double extrapolate_grid = 8.0/7.0;
                     if (isint(kqg_d[0] * nqs_half1) &&
                         isint(kqg_d[1] * nqs_half2) &&
                         isint(kqg_d[2] * nqs_half3))
@@ -185,7 +199,7 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                     }
                     else
                     {
-                        grid_factor = 8.0/7.0;
+                        grid_factor = extrapolate_grid;
                     }
                 }
 
@@ -289,13 +303,7 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                                 const int idx = ig + iq * rhopw->npw + ik * rhopw->npw * nqs;
                                 double pot_local = pot[idx];
                                 double pot_stress_local = pot_stress[idx];
-                                // if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Hf)
-                                // {
-                                    sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * pot_stress_local - delta_ab) ;
-                                // }
-
-                                //     double grid_factor = gamma_extrapolation ? 8.0/7.0 : 1.0;
-                                //     sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * (-pot_local) / grid_factor / _4pi_e2 - delta_ab) ;
+                                sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * pot_stress_local - delta_ab) ;
 
                             }
 
@@ -319,17 +327,6 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
     }
 
     Parallel_Reduce::reduce_all(sigma.c, sigma.nr * sigma.nc);
-
-////    print sigma
-//    for (int i = 0; i < 3; i++)
-//    {
-//        for (int j = 0; j < 3; j++)
-//        {
-//            std::cout << sigma(i, j) * ModuleBase::RYDBERG_SI / pow(ModuleBase::BOHR_RADIUS_SI, 3) * 1.0e-8 << " ";
-//            sigma(i, j) = 0;
-//        }
-//        std::cout << std::endl;
-//    }
 
 
     delmem_complex_op()(psi_nk_real);

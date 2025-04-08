@@ -9,7 +9,9 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                                            const K_Vectors *p_kv,
                                            const psi::Psi<complex<FPTYPE>, Device>* d_psi_in, const UnitCell& ucell)
 {
-    double nqs_half1 = 0.5 * p_kv->nmp[0], nqs_half2 = 0.5 * p_kv->nmp[1], nqs_half3 = 0.5 * p_kv->nmp[2];
+    double nqs_half1 = 0.5 * p_kv->nmp[0];
+    double nqs_half2 = 0.5 * p_kv->nmp[1];
+    double nqs_half3 = 0.5 * p_kv->nmp[2];
     bool gamma_extrapolation = PARAM.inp.exx_gamma_extrapolation;
     if (!p_kv->get_is_mp())
     {
@@ -68,20 +70,22 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
         // temporarily for all k points, should be replaced to q points later
         for (int ik = 0; ik < wfcpw->nks; ik++)
         {
-            auto k_c = wfcpw->kvec_c[ik];
-            auto k_d = wfcpw->kvec_d[ik];
+            const ModuleBase::Vector3<double> k_c = wfcpw->kvec_c[ik];
+            const ModuleBase::Vector3<double> k_d = wfcpw->kvec_d[ik];
 #ifdef _OPENMP
 #pragma omp parallel for reduction(+:div)
 #endif
             for (int ig = 0; ig < rhopw->npw; ig++)
             {
-                auto q_c = k_c + rhopw->gcar[ig];
-                auto q_d = k_d + rhopw->gdirect[ig];
+                const ModuleBase::Vector3<double> q_c = k_c + rhopw->gcar[ig];
+                const ModuleBase::Vector3<double> q_d = k_d + rhopw->gdirect[ig];
                 double qq = q_c.norm2();
                 double grid_factor = 1;
                 if (gamma_extrapolation)
                 {
-                    if (isint(q_d[0] * nqs_half1) && isint(q_d[1] * nqs_half2) && isint(q_d[2] * nqs_half3))
+                    if (isint(q_d[0] * nqs_half1) &&
+                        isint(q_d[1] * nqs_half2) &&
+                        isint(q_d[2] * nqs_half3))
                     {
                         grid_factor = 0;
                     }
@@ -136,9 +140,9 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
         {
             double hse_omega = GlobalC::exx_info.info_global.hse_omega;
             double omega2 = hse_omega * hse_omega;
-#ifdef _OPENMP
-#pragma omp parallel for reduction(+:aa)
-#endif
+            #ifdef _OPENMP
+            #pragma omp parallel for reduction(+:aa)
+            #endif
             for (int i = 0; i < nqq; i++)
             {
                 double q = dq * (i+0.5);
@@ -158,22 +162,24 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
     {
         for (int iq = 0; iq < nks; iq++)
         {
-            auto k_c = wfcpw->kvec_c[ik];
-            auto k_d = wfcpw->kvec_d[ik];
-            auto q_c = wfcpw->kvec_c[iq];
-            auto q_d = wfcpw->kvec_d[iq];
+            const ModuleBase::Vector3<double> k_c = wfcpw->kvec_c[ik];
+            const ModuleBase::Vector3<double> k_d = wfcpw->kvec_d[ik];
+            const ModuleBase::Vector3<double> q_c = wfcpw->kvec_c[iq];
+            const ModuleBase::Vector3<double> q_d = wfcpw->kvec_d[iq];
 
             #ifdef _OPENMP
             #pragma omp parallel for schedule(static)
             #endif
             for (int ig = 0; ig < rhopw->npw; ig++)
             {
-                auto g_d = rhopw->gdirect[ig];
-                auto kqg_d = k_d - q_d + g_d;
+                const ModuleBase::Vector3<double> g_d = rhopw->gdirect[ig];
+                const ModuleBase::Vector3<double> kqg_d = k_d - q_d + g_d;
                 Real grid_factor = 1;
                 if (gamma_extrapolation)
                 {
-                    if (isint(kqg_d[0] * nqs_half1) && isint(kqg_d[1] * nqs_half2) && isint(kqg_d[2] * nqs_half3))
+                    if (isint(kqg_d[0] * nqs_half1) &&
+                        isint(kqg_d[1] * nqs_half2) &&
+                        isint(kqg_d[2] * nqs_half3))
                     {
                         grid_factor = 0;
                     }
@@ -182,6 +188,8 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                         grid_factor = 8.0/7.0;
                     }
                 }
+
+                const int ig_kq = ik * nks * rhopw->npw + iq * rhopw->npw + ig;
 
                 Real gg = (k_c - q_c + rhopw->gcar[ig]).norm2() * tpiba2;
                 Real hse_omega2 = GlobalC::exx_info.info_global.hse_omega * GlobalC::exx_info.info_global.hse_omega;
@@ -192,19 +200,19 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                     // if (PARAM.inp.dft_functional == "hse")
                     if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
                     {
-                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = fac * (1.0 - std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
-                        pot_stress[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = (1.0 - (1.0 + gg / 4.0 / hse_omega2) * std::exp(-gg / 4.0 / hse_omega2)) / (1.0 - std::exp(-gg / 4.0 / hse_omega2)) / gg;
+                        pot[ig_kq] = fac * (1.0 - std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
+                        pot_stress[ig_kq] = (1.0 - (1.0 + gg / 4.0 / hse_omega2) * std::exp(-gg / 4.0 / hse_omega2)) / (1.0 - std::exp(-gg / 4.0 / hse_omega2)) / gg;
                     }
                     else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erf)
                     {
                         ModuleBase::WARNING("Stress_PW", "Stress for Erf is not implemented yet");
-                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = fac * grid_factor;
-                        pot_stress[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = 1.0 / gg;
+                        pot[ig_kq] = fac * grid_factor;
+                        pot_stress[ig_kq] = 1.0 / gg;
                     }
                     else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Hf)
                     {
-                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = fac * grid_factor;
-                        pot_stress[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = 1.0 / gg;
+                        pot[ig_kq] = fac * grid_factor;
+                        pot_stress[ig_kq] = 1.0 / gg;
                     }
                 }
                 // }
@@ -213,13 +221,13 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                     // if (PARAM.inp.dft_functional == "hse")
                     if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc && !gamma_extrapolation)
                     {
-                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = - ModuleBase::PI * ModuleBase::e2 / hse_omega2; // maybe we should add a exx_div here, but q-e does not do that
-                        pot_stress[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = 1 / 4.0 / hse_omega2;
+                        pot[ig_kq] = - ModuleBase::PI * ModuleBase::e2 / hse_omega2; // maybe we should add a exx_div here, but q-e does not do that
+                        pot_stress[ig_kq] = 1 / 4.0 / hse_omega2;
                     }
                     else
                     {
-                        pot[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = exx_div;
-                        pot_stress[ik * nks * rhopw->npw + iq * rhopw->npw + ig] = 0;
+                        pot[ig_kq] = exx_div;
+                        pot_stress[ig_kq] = 0;
                     }
                 }
                 // assert(is_finite(density_recip[ig]));
@@ -273,13 +281,14 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                             #endif
                             for (int ig = 0; ig < rhopw->npw; ig++)
                             {
-                                auto kqg = wfcpw->kvec_c[ik] - wfcpw->kvec_c[iq] + rhopw->gcar[ig];
+                                const ModuleBase::Vector3<double> kqg = wfcpw->kvec_c[ik] - wfcpw->kvec_c[iq] + rhopw->gcar[ig];
                                 double kqg_alpha = kqg[alpha] * tpiba;
                                 double kqg_beta = kqg[beta] * tpiba;
                                 // equation 10 of 10.1103/PhysRevB.73.125120
                                 double density_recip2 = std::real(density_recip[ig] * std::conj(density_recip[ig]));
-                                double pot_local = pot[ig + iq * rhopw->npw + ik * rhopw->npw * nqs];
-                                double pot_stress_local = pot_stress[ig + iq * rhopw->npw + ik * rhopw->npw * nqs];
+                                const int idx = ig + iq * rhopw->npw + ik * rhopw->npw * nqs;
+                                double pot_local = pot[idx];
+                                double pot_stress_local = pot_stress[idx];
                                 // if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Hf)
                                 // {
                                     sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * pot_stress_local - delta_ab) ;

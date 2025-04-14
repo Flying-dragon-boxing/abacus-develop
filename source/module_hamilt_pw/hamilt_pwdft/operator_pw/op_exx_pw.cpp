@@ -80,8 +80,9 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
     // allocate h_psi recip space memory
     resmem_complex_op()(h_psi_recip, wfcpw->npwk_max);
     // resmem_complex_op()(this->ctx, psi_all_real, wfcpw->nrxx * GlobalV::NBANDS);
+
     int nks = wfcpw->nks;
-//    std::cout << "nks: " << nks << std::endl;
+    int nk_fac = PARAM.inp.nspin == 2 ? 2 : 1;
     resmem_real_op()(pot, rhopw->npw * nks * nks);
 
     tpiba = ucell->tpiba;
@@ -518,7 +519,23 @@ std::vector<int> OperatorEXXPW<T, Device>::get_q_points(const int ik) const
     {
         for (int iq = 0; iq < wfcpw->nks; iq++)
         {
-            q_points_ik.push_back(iq);
+            if (PARAM.inp.nspin ==1 )
+            {
+                q_points_ik.push_back(iq);
+            }
+            else if (PARAM.inp.nspin == 2)
+            {
+                int nk_fac = 2;
+                int nk = wfcpw->nks / nk_fac;
+                if (iq % nk == ik % nk)
+                {
+                    q_points_ik.push_back(iq);
+                }
+            }
+            else
+            {
+                ModuleBase::WARNING_QUIT("OperatorEXXPW", "nspin == 4 not supported");
+            }
         }
     }
     // else
@@ -539,6 +556,8 @@ void OperatorEXXPW<T, Device>::multiply_potential(T *density_recip, int ik, int 
     ModuleBase::timer::tick("OperatorEXXPW", "multiply_potential");
     int npw = rhopw->npw;
     int nks = wfcpw->nks;
+    int nk_fac = PARAM.inp.nspin == 2 ? 2 : 1;
+    int nk = nks / nk_fac;
 
     #ifdef _OPENMP
     #pragma omp parallel for schedule(static)
@@ -635,6 +654,8 @@ void OperatorEXXPW<T, Device>::get_potential() const
                     }
                 }
 
+                const int nk_fac = PARAM.inp.nspin == 2 ? 2 : 1;
+                const int nk = nks / nk_fac;
                 const int ig_kq = ik * nks * npw + iq * npw + ig;
 
                 Real gg = (k_c - q_c + rhopw->gcar[ig]).norm2() * tpiba2;
@@ -688,6 +709,8 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     Real nqs_half1 = 0.5 * kv->nmp[0];
     Real nqs_half2 = 0.5 * kv->nmp[1];
     Real nqs_half3 = 0.5 * kv->nmp[2];
+
+    int nk_fac = PARAM.inp.nspin == 2 ? 2 : 1;
 
     // here we follow the exx_divergence subroutine in q-e (PW/src/exx_base.f90)
     double alpha = 10.0 / wfcpw->gk_ecut;
@@ -793,7 +816,7 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     //    printf("ucell: %p\n", ucell);
     double omega = ucell->omega;
     div -= ModuleBase::e2 * omega * aa;
-    exx_div = div * wfcpw->nks;
+    exx_div = div * wfcpw->nks / nk_fac;
     // std::cout << "EXX divergence: " << exx_div << std::endl;
 
     return;
@@ -802,14 +825,14 @@ void OperatorEXXPW<T, Device>::exx_divergence()
 template <typename T, typename Device>
 double OperatorEXXPW<T, Device>::cal_exx_energy(psi::Psi<T, Device> *psi_) const
 {
-    if (PARAM.inp.exxace && GlobalC::exx_info.info_global.separate_loop)
-    {
-        return cal_exx_energy_ace(psi_);
-    }
-    else
-    {
+//    if (PARAM.inp.exxace && GlobalC::exx_info.info_global.separate_loop)
+//    {
+//        return cal_exx_energy_ace(psi_);
+//    }
+//    else
+//    {
         return cal_exx_energy_op(psi_);
-    }
+//    }
 }
 
 template <typename T, typename Device>
@@ -862,8 +885,7 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
     T* density_recip = new T[rhopw->npw];
 
     if (wg == nullptr) return 0.0;
-    // evaluate the Eexx
-    // T Eexx_ik = 0.0;
+    const int nk_fac = PARAM.inp.nspin == 2 ? 2 : 1;
     double Eexx_ik_real = 0.0;
     for (int ik = 0; ik < wfcpw->nks; ik++)
     {
@@ -884,8 +906,6 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
                 continue;
             }
 
-            //            std::cout << "ik = " << ik << " nb = " << n_iband << " wg_ikb = " << wg_ikb_real << std::endl;
-
             // const T *psi_nk = get_pw(n_iband, ik);
             psi.fix_kb(ik, n_iband);
             const T* psi_nk = psi.get_pointer();
@@ -901,7 +921,6 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
             }
             double nqs = q_points.size();
 
-            //            std::cout << "ik = " << ik << " ib = " << n_iband << " wg_kb = " << wg_ikb_real << " wk_ik = " << kv->wk[ik] << std::endl;
             for (int iq: q_points)
             {
                 for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
@@ -913,8 +932,6 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
                     {
                         continue;
                     }
-
-                    //                    std::cout << "iq = " << iq << " mb = " << m_iband << " wg_iqb = " << wg_iqb_real << std::endl;
 
                     psi_.fix_kb(iq, m_iband);
                     const T* psi_mq = psi_.get_pointer();
@@ -945,6 +962,7 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
                     {
                         int nks = wfcpw->nks;
                         int npw = rhopw->npw;
+                        int nk = nks / nk_fac;
                         Real Fac = pot[ik * nks * npw + iq * npw + ig];
                         Eexx_ik_real += Fac * (density_recip[ig] * std::conj(density_recip[ig])).real()
                                         * wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik];

@@ -17,20 +17,25 @@
 #ifdef __MPI
 #include "mpi.h"
 #endif
+
 #ifdef USE_PAW
 #include "module_cell/module_paw/paw_cell.h"
 #endif
+
 #ifdef __LCAO
 #include "../module_basis/module_ao/ORB_read.h" // to use 'ORB' -- mohan 2021-01-30
 #endif
 
 #include "update_cell.h"
-UnitCell::UnitCell() {
+UnitCell::UnitCell() 
+{
     itia2iat.create(1, 1);
 }
 
-UnitCell::~UnitCell() {
-    if (set_atom_flag) {
+UnitCell::~UnitCell() 
+{
+    if (set_atom_flag) 
+    {
         delete[] atoms;
     }
 }
@@ -186,8 +191,8 @@ void UnitCell::setup_cell(const std::string& fn, std::ofstream& log)
 
     // (1) init mag
     assert(ntype > 0);
-    delete[] magnet.start_magnetization;
-    magnet.start_magnetization = new double[this->ntype];
+    delete[] magnet.start_mag;
+    magnet.start_mag = new double[this->ntype];
 
     // (2) init *Atom class array.
     this->atoms = new Atom[this->ntype]; // atom species.
@@ -511,7 +516,7 @@ void UnitCell::setup(const std::string& latname_in,
     } else {
         ModuleBase::WARNING_QUIT(
             "Input",
-            "fixed_axes should be None,volume,shape,a,b,c,ab,ac,bc or abc!");
+            "fixed_axes should be none, volume, shape, a, b, c, ab, ac, bc or abc!");
     }
     return;
 }

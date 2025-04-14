@@ -7,6 +7,7 @@ list(APPEND objects
     cif_io.cpp
     write_dos_pw.cpp
     nscf_band.cpp
+    nscf_fermi_surf.cpp
     write_istate_info.cpp
     numerical_basis.cpp
     numerical_basis_jyjy.cpp
@@ -48,9 +49,10 @@ list(APPEND objects_advanced
 if(ENABLE_LCAO)
   list(APPEND objects
       write_dos_lcao.cpp
+      cal_pdos_gamma.cpp
+      cal_pdos_multik.cpp
       write_orb_info.cpp
       write_proj_band_lcao.cpp
-      nscf_fermi_surf.cpp
       get_pchg_lcao.cpp
       get_wf_lcao.cpp
       read_wfc_nao.cpp
@@ -58,7 +60,6 @@ if(ENABLE_LCAO)
       write_wfc_nao.cpp
       io_dmk.cpp
       write_dmr.cpp
-      dos_nao.cpp
       sparse_matrix.cpp
       file_reader.cpp
       csr_reader.cpp

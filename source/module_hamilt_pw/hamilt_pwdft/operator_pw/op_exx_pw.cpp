@@ -169,6 +169,12 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
                                    const int ngk_ik,
                                    const bool is_first_node) const
 {
+//    std::cout << "nbands: " << nbands
+//              << " nbasis: " << nbasis
+//              << " npol: " << npol
+//              << " ngk_ik: " << ngk_ik
+//              << " is_first_node: " << is_first_node
+//              << std::endl;
     if (!potential_got)
     {
         get_potential();
@@ -200,6 +206,7 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
         Real nqs = q_points.size();
         for (int iq: q_points)
         {
+//            std::cout << "ik" << this->ik << " iq" << iq << std::endl;
             for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
             {
                 // double wg_mqb_real = GlobalC::exx_helper.wg(iq, m_iband);
@@ -527,7 +534,7 @@ std::vector<int> OperatorEXXPW<T, Device>::get_q_points(const int ik) const
             {
                 int nk_fac = 2;
                 int nk = wfcpw->nks / nk_fac;
-                if (iq % nk == ik % nk)
+                if (iq / nk == ik / nk)
                 {
                     q_points_ik.push_back(iq);
                 }
@@ -789,6 +796,7 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     }
 
     div *= ModuleBase::e2 * ModuleBase::FOUR_PI / tpiba2 / wfcpw->nks;
+//    std::cout << "div: " << div << std::endl;
 
     // numerically value the mean value of F(q) in the reciprocal space
     // This means we need to calculate the average of F(q) in the first brillouin zone
@@ -817,7 +825,8 @@ void OperatorEXXPW<T, Device>::exx_divergence()
     double omega = ucell->omega;
     div -= ModuleBase::e2 * omega * aa;
     exx_div = div * wfcpw->nks / nk_fac;
-    // std::cout << "EXX divergence: " << exx_div << std::endl;
+//    exx_div = 0;
+//    std::cout << "EXX divergence: " << exx_div << std::endl;
 
     return;
 }
@@ -825,14 +834,14 @@ void OperatorEXXPW<T, Device>::exx_divergence()
 template <typename T, typename Device>
 double OperatorEXXPW<T, Device>::cal_exx_energy(psi::Psi<T, Device> *psi_) const
 {
-//    if (PARAM.inp.exxace && GlobalC::exx_info.info_global.separate_loop)
-//    {
-//        return cal_exx_energy_ace(psi_);
-//    }
-//    else
-//    {
+    if (PARAM.inp.exxace && GlobalC::exx_info.info_global.separate_loop)
+    {
+        return cal_exx_energy_ace(psi_);
+    }
+    else
+    {
         return cal_exx_energy_op(psi_);
-//    }
+    }
 }
 
 template <typename T, typename Device>

@@ -259,10 +259,11 @@
     - [block\_down](#block_down)
     - [block\_up](#block_up)
     - [block\_height](#block_height)
-  - [Exact Exchange](#exact-exchange)
+  - [Exact Exchange (Common)](#exact-exchange-common)
     - [exx\_hybrid\_alpha](#exx_hybrid_alpha)
     - [exx\_hse\_omega](#exx_hse_omega)
     - [exx\_separate\_loop](#exx_separate_loop)
+  - [Exact Exchange (LCAO/LCAO in PW)](#exact-exchange-lcaolcao-in-pw)
     - [exx\_hybrid\_step](#exx_hybrid_step)
     - [exx\_mixing\_beta](#exx_mixing_beta)
     - [exx\_lambda](#exx_lambda)
@@ -286,6 +287,9 @@
     - [rpa\_ccp\_rmesh\_times](#rpa_ccp_rmesh_times)
     - [exx\_symmetry\_realspace](#exx_symmetry_realspace)
     - [out\_ri\_cv](#out_ri_cv)
+  - [Exact Exchange (PW)](#exact-exchange-pw)
+    - [exxace](#exxace)
+    - [exx\_gamma\_extrapolation](#exx_gamma_extrapolation)
   - [Molecular Dynamics](#molecular-dynamics)
     - [md\_type](#md_type)
     - [md\_nstep](#md_nstep)
@@ -2668,11 +2672,14 @@ These variables are relevant to gate field (compensating charge) [Detailed intro
 
 [back to top](#full-list-of-input-keywords)
 
-## Exact Exchange
+## Exact Exchange (Common)
 
-These variables are relevant when using hybrid functionals.
+These variables are relevant when using hybrid functionals. Currently ABACUS supports hybrid functionals when *[basis_type](#basis_type)==lcao/lcao_in_pw*. 
+Support for hybrid functionals in the *pw [basis_type](#basis_type)* is under active development.
 
-**Availablity**: *[dft_functional](#dft_functional)==hse/hf/pbe0/scan0/opt_orb* or *[rpa](#rpa)==True*, and *[basis_type](#basis_type)==lcao/lcao_in_pw*
+The following parameters apply to *[basis_type](#basis_type)==lcao/lcao_in_pw/pw*. For basis specific parameters, see the sections *[Exact Exchange (LCAO/LCAO in PW)](#exact-exchange-lcaolcao-in-pw)* and *[Exact Exchange (PW)](#exact-exchange-pw)*.
+
+**Availablity**: *[dft_functional](#dft_functional)==hse/hf/pbe0/scan0/opt_orb* or *[rpa](#rpa)==True*. 
 
 ### exx_hybrid_alpha
 
@@ -2695,6 +2702,10 @@ These variables are relevant when using hybrid functionals.
   - False: Start with a GGA-Loop, and then Hybrid-Loop, in which EXX Hamiltonian $H_{exx}$ is updated with electronic iterations.
   - True: A two-step method is employed, i.e. in the inner iterations, density matrix is updated, while in the outer iterations, $H_{exx}$ is calculated based on density matrix that converges in the inner iteration.
 - **Default**: True
+
+## Exact Exchange (LCAO/LCAO in PW)
+
+These variables are relevant when using hybrid functionals with *[basis_type](#basis_type)==lcao/lcao_in_pw*.
 
 ### exx_hybrid_step
 
@@ -2856,6 +2867,23 @@ These variables are relevant when using hybrid functionals.
 - **Default**: false
 
 [back to top](#full-list-of-input-keywords)
+
+## Exact Exchange (PW)
+
+These variables are relevant when using hybrid functionals with *[basis_type](#basis_type)==pw*. Note that hybrid functionals in *[basis_type](#basis_type)==pw* is under active development, and currently limited to *[nspin](#nspin) == 1 or 2* and *[symmetry](#symmetry)==-1
+
+### exxace
+- **Type**: Boolean
+- **Availability**: *[exx_separate_loop](#exx_separate_loop)==True*. 
+- **Description**: Whether to use the ACE method (https://doi.org/10.1021/acs.jctc.6b00092) to accelerate the calculation the Fock exchange matrix. Should be set to true most of the time.
+  - True: Use the ACE method to calculate the Fock exchange operator.
+  - False: Use the traditional method to calculate the Fock exchange operator.
+- **Default**: True
+
+### exx_gamma_extrapolation
+- **Type**: Boolean
+- **Description**: Whether to use the gamma point extrapolation method to calculate the Fock exchange operator. See [https://doi.org/10.1103/PhysRevB.79.205114](https://doi.org/10.1103/PhysRevB.79.205114) for details. Should be set to true most of the time.
+- **Default**: True
 
 ## Molecular dynamics
 

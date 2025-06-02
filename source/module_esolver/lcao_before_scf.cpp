@@ -28,7 +28,6 @@
 #include "module_hamilt_lcao/module_deltaspin/spin_constrain.h"
 #include "module_io/cube_io.h"
 #include "module_io/write_elecstat_pot.h"
-#include "module_io/write_wfc_nao.h"
 #ifdef __EXX
 #include "module_io/restart_exx_csr.h"
 #endif
@@ -53,7 +52,7 @@ void ESolver_KS_LCAO<TK, TR>::before_scf(UnitCell& ucell, const int istep)
                                                    PARAM.globalv.gamma_only_local);
 
     //! 3) use search_radius to search adj atoms
-    atom_arrange::search(PARAM.inp.search_pbc,
+    atom_arrange::search(PARAM.globalv.search_pbc,
                          GlobalV::ofs_running,
                          this->gd,
                          ucell,
@@ -160,8 +159,8 @@ void ESolver_KS_LCAO<TK, TR>::before_scf(UnitCell& ucell, const int istep)
             ,
             istep,
             GlobalC::exx_info.info_ri.real_number ? &this->exd->two_level_step : &this->exc->two_level_step,
-            GlobalC::exx_info.info_ri.real_number ? &exx_lri_double->Hexxs : nullptr,
-            GlobalC::exx_info.info_ri.real_number ? nullptr : &exx_lri_complex->Hexxs
+            GlobalC::exx_info.info_ri.real_number ? &this->exd->get_Hexxs() : nullptr,
+            GlobalC::exx_info.info_ri.real_number ? nullptr : &this->exc->get_Hexxs()
 #endif
         );
     }
@@ -242,6 +241,11 @@ void ESolver_KS_LCAO<TK, TR>::before_scf(UnitCell& ucell, const int istep)
     dynamic_cast<elecstate::ElecStateLCAO<TK>*>(this->pelec)
         ->get_DM()
         ->init_DMR(*(dynamic_cast<hamilt::HamiltLCAO<TK, TR>*>(this->p_hamilt)->getHR()));
+
+#ifdef __DEEPKS
+    // initialize DMR of DeePKS
+    this->ld.init_DMR(ucell, orb_, this->pv, this->gd);
+#endif
 
     // 15) two cases are considered:
     // 1. DMK in DensityMatrix is not empty (istep > 0), then DMR is initialized by DMK

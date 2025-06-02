@@ -23,7 +23,6 @@
 #include "module_io/to_wannier90_lcao_in_pw.h"
 #include "module_io/write_dmr.h" 
 #include "module_io/write_elecstat_pot.h"
-#include "module_io/write_istate_info.h"
 #include "module_io/write_wfc_nao.h"
 #include "module_io/cal_pLpR.h"
 #include "module_parameter/parameter.h"
@@ -178,14 +177,18 @@ void ESolver_KS_LCAO<TK, TR>::after_scf(UnitCell& ucell, const int istep, const 
     //------------------------------------------------------------------
     if (elecstate::ElecStateLCAO<TK>::out_wfc_lcao && (istep % PARAM.inp.out_interval == 0))
     {
-        ModuleIO::write_wfc_nao(elecstate::ElecStateLCAO<TK>::out_wfc_lcao,
-                                this->psi[0],
-                                this->pelec->ekb,
-                                this->pelec->wg,
-                                this->pelec->klist->kvec_c,
-                                this->pv,
-                                istep);
-    }
+		ModuleIO::write_wfc_nao(elecstate::ElecStateLCAO<TK>::out_wfc_lcao,
+				PARAM.inp.out_app_flag,
+				this->psi[0],
+				this->pelec->ekb,
+				this->pelec->wg,
+				this->pelec->klist->kvec_c,
+				this->pelec->klist->ik2iktot,
+				this->pelec->klist->get_nkstot(),
+				this->pv,
+				PARAM.inp.nspin,
+				istep);
+	}
 
     //------------------------------------------------------------------
     //! 7) write DeePKS information in LCAO basis
@@ -305,6 +308,7 @@ void ESolver_KS_LCAO<TK, TR>::after_scf(UnitCell& ucell, const int istep, const 
         //! Print out sparse matrix
         ModuleIO::output_mat_sparse(PARAM.inp.out_mat_hs2,
                                     PARAM.inp.out_mat_dh,
+                                    PARAM.inp.out_mat_ds,
                                     PARAM.inp.out_mat_t,
                                     PARAM.inp.out_mat_r,
                                     istep,
@@ -475,7 +479,7 @@ void ESolver_KS_LCAO<TK, TR>::after_scf(UnitCell& ucell, const int istep, const 
             /*test_deconstructor=*/PARAM.inp.test_deconstructor,
             /*test_grid=*/PARAM.inp.test_grid,
             /*test_atom_input=*/PARAM.inp.test_atom_input,
-            /*search_pbc=*/PARAM.inp.search_pbc,
+            /*search_pbc=*/PARAM.globalv.search_pbc,
             /*ofs=*/&GlobalV::ofs_running,
             /*rank=*/GlobalV::MY_RANK
         );

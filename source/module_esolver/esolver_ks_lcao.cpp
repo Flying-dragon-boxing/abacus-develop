@@ -26,11 +26,7 @@
 #include "module_io/to_wannier90_lcao.h"
 #include "module_io/to_wannier90_lcao_in_pw.h"
 #include "module_io/write_HS.h"
-#include "module_io/write_dmr.h"
 #include "module_io/write_elecstat_pot.h"
-#include "module_io/write_istate_info.h"
-#include "module_io/write_proj_band_lcao.h"
-#include "module_io/write_wfc_nao.h"
 #include "module_parameter/parameter.h"
 
 // be careful of hpp, there may be multiple definitions of functions, 20250302, mohan
@@ -85,13 +81,11 @@ ESolver_KS_LCAO<TK, TR>::ESolver_KS_LCAO()
     //  because some members like two_level_step are used outside if(cal_exx)
     if (GlobalC::exx_info.info_ri.real_number)
     {
-        this->exx_lri_double = std::make_shared<Exx_LRI<double>>(GlobalC::exx_info.info_ri);
-        this->exd = std::make_shared<Exx_LRI_Interface<TK, double>>(exx_lri_double);
+        this->exd = std::make_shared<Exx_LRI_Interface<TK, double>>(GlobalC::exx_info.info_ri);
     }
     else
     {
-        this->exx_lri_complex = std::make_shared<Exx_LRI<std::complex<double>>>(GlobalC::exx_info.info_ri);
-        this->exc = std::make_shared<Exx_LRI_Interface<TK, std::complex<double>>>(exx_lri_complex);
+        this->exc = std::make_shared<Exx_LRI_Interface<TK, std::complex<double>>>(GlobalC::exx_info.info_ri);
     }
 #endif
 }
@@ -167,8 +161,14 @@ void ESolver_KS_LCAO<TK, TR>::before_all_runners(UnitCell& ucell, const Input_pa
 
     // 5) read psi from file
     if (PARAM.inp.init_wfc == "file")
-    {
-        if (!ModuleIO::read_wfc_nao(PARAM.globalv.global_readin_dir, this->pv, *(this->psi), this->pelec))
+	{
+		if (!ModuleIO::read_wfc_nao(PARAM.globalv.global_readin_dir, 
+					this->pv, 
+					*(this->psi), 
+					this->pelec, 
+                    this->pelec->klist->ik2iktot,
+                    this->pelec->klist->get_nkstot(),
+					PARAM.inp.nspin))
         {
             ModuleBase::WARNING_QUIT("ESolver_KS_LCAO", "read electronic wave functions failed");
         }
@@ -194,12 +194,12 @@ void ESolver_KS_LCAO<TK, TR>::before_all_runners(UnitCell& ucell, const Input_pa
             // initialize 2-center radial tables for EXX-LRI
             if (GlobalC::exx_info.info_ri.real_number)
             {
-                this->exx_lri_double->init(MPI_COMM_WORLD, ucell, this->kv, orb_);
+                this->exd->init(MPI_COMM_WORLD, ucell, this->kv, orb_);
                 this->exd->exx_before_all_runners(this->kv, ucell, this->pv);
             }
             else
             {
-                this->exx_lri_complex->init(MPI_COMM_WORLD, ucell, this->kv, orb_);
+                this->exc->init(MPI_COMM_WORLD, ucell, this->kv, orb_);
                 this->exc->exx_before_all_runners(this->kv, ucell, this->pv);
             }
         }
@@ -347,8 +347,8 @@ void ESolver_KS_LCAO<TK, TR>::cal_force(UnitCell& ucell, ModuleBase::matrix& for
                        this->ld,
 #endif
 #ifdef __EXX
-                       *this->exx_lri_double,
-                       *this->exx_lri_complex,
+                       *this->exd,
+                       *this->exc,
 #endif
                        &ucell.symm);
 
@@ -457,8 +457,8 @@ void ESolver_KS_LCAO<TK, TR>::after_all_runners(UnitCell& ucell)
                                     this->gd
 #ifdef __EXX
                                     ,
-                                    this->exx_lri_double ? &this->exx_lri_double->Hexxs : nullptr,
-                                    this->exx_lri_complex ? &this->exx_lri_complex->Hexxs : nullptr
+                                    this->exd ? &this->exd->get_Hexxs() : nullptr,
+                                    this->exc ? &this->exc->get_Hexxs() : nullptr
 #endif
         );
     }
@@ -480,8 +480,8 @@ void ESolver_KS_LCAO<TK, TR>::after_all_runners(UnitCell& ucell)
                                       this->gd
 #ifdef __EXX
                                       ,
-                                      this->exx_lri_double ? &this->exx_lri_double->Hexxs : nullptr,
-                                      this->exx_lri_complex ? &this->exx_lri_complex->Hexxs : nullptr
+                                      this->exd ? &this->exd->get_Hexxs() : nullptr,
+                                      this->exc ? &this->exc->get_Hexxs() : nullptr
 #endif
         );
     }
@@ -510,8 +510,8 @@ void ESolver_KS_LCAO<TK, TR>::after_all_runners(UnitCell& ucell)
                                             this->two_center_bundle_
 #ifdef __EXX
                                             ,
-                                            this->exx_lri_double ? &this->exx_lri_double->Hexxs : nullptr,
-                                            this->exx_lri_complex ? &this->exx_lri_complex->Hexxs : nullptr
+                                            this->exd ? &this->exd->get_Hexxs() : nullptr,
+                                            this->exc ? &this->exc->get_Hexxs() : nullptr
 #endif
         );
     }
@@ -690,11 +690,11 @@ void ESolver_KS_LCAO<TK, TR>::iter_init(UnitCell& ucell, const int istep, const 
     {
         this->p_hamilt->refresh();
     }
-    if (iter == 1 && istep == 0)
-    {
-        // initialize DMR
-        this->ld.init_DMR(ucell, orb_, this->pv, this->gd);
-    }
+    // if (iter == 1 && istep == 0)
+    // {
+    //     // initialize DMR
+    //     this->ld.init_DMR(ucell, orb_, this->pv, this->gd);
+    // }
 #endif
 
     if (PARAM.inp.vl_in_h)

@@ -1,5 +1,6 @@
 #include "klist.h"
 
+#include "k_vector_utils.h"
 #include "module_base/formatter.h"
 #include "module_base/memory.h"
 #include "module_base/parallel_common.h"
@@ -127,6 +128,12 @@ void K_Vectors::set(const UnitCell& ucell,
     // Complement the coordinates of k point
     this->set_both_kvec(reciprocal_vec, latvec, skpt2);
 
+    std::cout << "after set_both_kvec" << std::endl;
+    std::cout << "nks: " << nks << std::endl;
+    std::cout << "nkstot: " << nkstot << std::endl;
+    std::cout << "size of kvec_d: " << kvec_d.size() << std::endl;
+    std::cout << "size of kvec_c: " << kvec_c.size() << std::endl;
+
     if (GlobalV::MY_RANK == 0)
     {
         // output kpoints file
@@ -162,6 +169,12 @@ void K_Vectors::set(const UnitCell& ucell,
     this->cal_ik_global();
 
     this->print_klists(ofs);
+
+    std::cout << "after print_klists" << std::endl;
+    std::cout << "nks: " << nks << std::endl;
+    std::cout << "nkstot: " << nkstot << std::endl;
+    std::cout << "size of kvec_d: " << kvec_d.size() << std::endl;
+    std::cout << "size of kvec_c: " << kvec_c.size() << std::endl;
 
     // std::cout << " NUMBER OF K-POINTS   : " << nkstot << std::endl;
 
@@ -1034,50 +1047,14 @@ void K_Vectors::set_both_kvec(const ModuleBase::Matrix3& G, const ModuleBase::Ma
     // set cartesian k vectors.
     if (!kc_done && kd_done)
     {
-        for (int i = 0; i < nkstot; i++)
-        {
-            // wrong!!   kvec_c[i] = G * kvec_d[i];
-            //  mohan fixed bug 2010-1-10
-            if (std::abs(kvec_d[i].x) < 1.0e-10) {
-                kvec_d[i].x = 0.0;
-            }
-            if (std::abs(kvec_d[i].y) < 1.0e-10) {
-                kvec_d[i].y = 0.0;
-            }
-            if (std::abs(kvec_d[i].z) < 1.0e-10) {
-                kvec_d[i].z = 0.0;
-            }
-
-            kvec_c[i] = kvec_d[i] * G;
-
-            // mohan add2012-06-10
-            if (std::abs(kvec_c[i].x) < 1.0e-10) {
-                kvec_c[i].x = 0.0;
-            }
-            if (std::abs(kvec_c[i].y) < 1.0e-10) {
-                kvec_c[i].y = 0.0;
-            }
-            if (std::abs(kvec_c[i].z) < 1.0e-10) {
-                kvec_c[i].z = 0.0;
-            }
-        }
+        KVectorUtils::k_vec_d2c(*this, G);
         kc_done = true;
     }
 
     // set direct k vectors
     else if (kc_done && !kd_done)
     {
-        ModuleBase::Matrix3 RT = R.Transpose();
-        for (int i = 0; i < nkstot; i++)
-        {
-            //			std::cout << " ik=" << i
-            //				<< " kvec.x=" << kvec_c[i].x
-            //				<< " kvec.y=" << kvec_c[i].y
-            //				<< " kvec.z=" << kvec_c[i].z << std::endl;
-            // wrong!            kvec_d[i] = RT * kvec_c[i];
-            // mohan fixed bug 2011-03-07
-            kvec_d[i] = kvec_c[i] * RT;
-        }
+        KVectorUtils::k_vec_c2d(*this, R);
         kd_done = true;
     }
     std::string table;
@@ -1360,50 +1337,8 @@ void K_Vectors::set_after_vc(const int& nspin_in,
     ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "nspin", nspin);
 
     // set cartesian k vectors.
-    kd_done = true;
-    kc_done = false;
-    if (!kc_done && kd_done)
-    {
-        for (int i = 0; i < nks; i++)
-        {
-            // wrong!!   kvec_c[i] = G * kvec_d[i];
-            //  mohan fixed bug 2010-1-10
-            if (std::abs(kvec_d[i].x) < 1.0e-10) {
-                kvec_d[i].x = 0.0;
-            }
-            if (std::abs(kvec_d[i].y) < 1.0e-10) {
-                kvec_d[i].y = 0.0;
-            }
-            if (std::abs(kvec_d[i].z) < 1.0e-10) {
-                kvec_d[i].z = 0.0;
-            }
+    KVectorUtils::k_vec_d2c(*this, reciprocal_vec);
 
-            kvec_c[i] = kvec_d[i] * reciprocal_vec;
-
-            // mohan add2012-06-10
-            if (std::abs(kvec_c[i].x) < 1.0e-10) {
-                kvec_c[i].x = 0.0;
-            }
-            if (std::abs(kvec_c[i].y) < 1.0e-10) {
-                kvec_c[i].y = 0.0;
-            }
-            if (std::abs(kvec_c[i].z) < 1.0e-10) {
-                kvec_c[i].z = 0.0;
-            }
-        }
-        kc_done = true;
-    }
-
-    // set direct k vectors
-    else if (kc_done && !kd_done)
-    {
-        ModuleBase::Matrix3 RT = latvec.Transpose();
-        for (int i = 0; i < nks; i++)
-        {
-            kvec_d[i] = kvec_c[i] * RT;
-        }
-        kd_done = true;
-    }
     std::string table;
     table += "K-POINTS DIRECT COORDINATES\n";
     table += FmtCore::format("%8s%12s%12s%12s%8s\n", "KPOINTS", "DIRECT_X", "DIRECT_Y", "DIRECT_Z", "WEIGHT");

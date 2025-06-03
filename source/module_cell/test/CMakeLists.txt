@@ -33,7 +33,6 @@ list(APPEND cell_simple_srcs
     ../../module_elecstate/cal_wfc.cpp
     ../../module_elecstate/cal_nelec_nband.cpp
     ../../module_elecstate/read_orb.cpp
-	../k_vector_utils.cpp
 )
 
 add_library(cell_info OBJECT ${cell_simple_srcs})
@@ -69,13 +68,13 @@ AddTest(
 AddTest(
   TARGET MODULE_CELL_klist_test
   LIBS parameter  ${math_libs} base device symmetry 
-  SOURCES klist_test.cpp ../klist.cpp ../parallel_kpoints.cpp ../../module_io/output.cpp
+  SOURCES klist_test.cpp ../klist.cpp ../parallel_kpoints.cpp ../../module_io/output.cpp ../k_vector_utils.cpp
 )
 
 AddTest(
   TARGET MODULE_CELL_klist_test_para1
   LIBS parameter  ${math_libs} base device symmetry 
-  SOURCES klist_test_para.cpp ../klist.cpp ../parallel_kpoints.cpp ../../module_io/output.cpp
+  SOURCES klist_test_para.cpp ../klist.cpp ../parallel_kpoints.cpp ../../module_io/output.cpp ../k_vector_utils.cpp
 )
 
 add_test(NAME MODULE_CELL_klist_test_para4

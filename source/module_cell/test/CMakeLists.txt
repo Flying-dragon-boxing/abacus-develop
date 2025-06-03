@@ -33,6 +33,7 @@ list(APPEND cell_simple_srcs
     ../../module_elecstate/cal_wfc.cpp
     ../../module_elecstate/cal_nelec_nband.cpp
     ../../module_elecstate/read_orb.cpp
+	../k_vector_utils.cpp
 )
 
 add_library(cell_info OBJECT ${cell_simple_srcs})

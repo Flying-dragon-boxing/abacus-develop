@@ -122,9 +122,23 @@ void ReadInput::item_elec_stru()
                 }
                 else if (ks_solver == "cusolver" || ks_solver == "cusolvermp")
                 {
+                    std::string warningstr;
 #ifndef __MPI
                     ModuleBase::WARNING_QUIT("ReadInput", "Cusolver can not be used for series version.");
 #endif
+#ifndef __CUDA
+                    warningstr = "ks_solver is set to " + ks_solver + " but ABACUS is built with CPU only!\n"
+                    + " Please rebuild ABACUS with GPU support or change the ks_solver.";  
+                    ModuleBase::WARNING_QUIT("ReadInput", warningstr);
+#endif
+                    if( ks_solver == "cusolvermp")
+                    {
+#ifndef __CUSOLVERMP
+                    warningstr = "ks_solver is set to cusolvermp, but ABACUS is not built with cusolvermp support\n"
+                    " Please rebuild ABACUS with cusolvermp support or change the ks_solver.";
+                    ModuleBase::WARNING_QUIT("ReadInput", warningstr);
+#endif              
+                    }
                 }
                 else if (ks_solver == "pexsi")
                 {
@@ -167,28 +181,6 @@ void ReadInput::item_elec_stru()
             {
                 const std::string warningstr = nofound_str(basis_types, "basis_type");
                 ModuleBase::WARNING_QUIT("ReadInput", warningstr);
-            }
-        };
-        this->add_item(item);
-    }
-    {
-        Input_Item item("use_paw");
-        item.annotation = "whether to use PAW in pw calculation";
-        read_sync_bool(input.use_paw);
-        item.check_value = [](const Input_Item& item, const Parameter& para) {
-            if (para.input.use_paw)
-            {
-#ifndef USE_PAW
-                ModuleBase::WARNING_QUIT("ReadInput", "to use PAW, compile with USE_PAW");
-#endif
-                if (para.input.basis_type != "pw")
-                {
-                    ModuleBase::WARNING_QUIT("ReadInput", "PAW is for pw basis only");
-                }
-                if (para.input.dft_functional == "default")
-                {
-                    ModuleBase::WARNING_QUIT("ReadInput", "dft_functional must be set when use_paw is true");
-                }
             }
         };
         this->add_item(item);
@@ -514,7 +506,7 @@ void ReadInput::item_elec_stru()
             {
                 if (para.input.nspin == 4)
                 {
-                    ModuleBase::WARNING_QUIT("NOTICE", "nspin=4(soc or noncollinear-spin) does not support gamma only calculation");
+                    ModuleBase::WARNING_QUIT("NOTICE", "nspin=4 (soc or noncollinear-spin) does not support gamma\n only calculation");
                 }
             }
         };
@@ -696,12 +688,6 @@ void ReadInput::item_elec_stru()
         Input_Item item("search_radius");
         item.annotation = "input search radius (Bohr)";
         read_sync_double(input.search_radius);
-        this->add_item(item);
-    }
-    {
-        Input_Item item("search_pbc");
-        item.annotation = "input periodic boundary condition";
-        read_sync_bool(input.search_pbc);
         this->add_item(item);
     }
     {

@@ -22,11 +22,11 @@ InfoNonlocal::InfoNonlocal() {}
 InfoNonlocal::~InfoNonlocal() {}
 #endif
 Magnetism::Magnetism() {
-    this->tot_magnetization = 0.0;
-    this->abs_magnetization = 0.0;
-    this->start_magnetization = nullptr;
+    this->tot_mag = 0.0;
+    this->abs_mag = 0.0;
+    this->start_mag = nullptr;
 }
-Magnetism::~Magnetism() { delete[] this->start_magnetization; }
+Magnetism::~Magnetism() { delete[] this->start_mag; }
 #define private public
 #include "module_parameter/parameter.h"
 #undef private
@@ -173,11 +173,8 @@ TEST_F(UcellDeathTest, ReadCellPPWarning4) {
     testing::internal::CaptureStdout();
     EXPECT_NO_THROW(elecstate::read_cell_pseudopots(pp_dir, ofs, *ucell));
     output = testing::internal::GetCapturedStdout();
-    EXPECT_THAT(output, testing::HasSubstr("dft_functional readin is: LDA"));
-    EXPECT_THAT(output,
-                testing::HasSubstr("dft_functional in pseudopot file is: PBE"));
-    EXPECT_THAT(output,
-                testing::HasSubstr("Please make sure this is what you need"));
+    EXPECT_THAT(output, testing::HasSubstr("DFT FUNC. (PSEUDO)   : PBE"));
+    EXPECT_THAT(output, testing::HasSubstr("DFT FUNC. (SET TO)   : LDA"));
 }
 
 TEST_F(UcellDeathTest, ReadCellPPWarning5) {
@@ -346,14 +343,14 @@ TEST_F(UcellDeathTest, CheckStructure) {
     testing::internal::CaptureStdout();
     double factor = 0.2;
     ucell->set_iat2itia();
-    EXPECT_NO_THROW(Check_Atomic_Stru::check_atomic_stru(*ucell, factor));
+    EXPECT_NO_THROW(unitcell::check_atomic_stru(*ucell, factor));
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output,testing::HasSubstr("WARNING: Some atoms are too close!!!"));
     // trial 2
     GlobalV::ofs_running.open("CheckStructure2.txt");
     ::testing::FLAGS_gtest_death_test_style = "threadsafe";
     factor = 0.4;
-    EXPECT_EXIT(Check_Atomic_Stru::check_atomic_stru(*ucell, factor),
+    EXPECT_EXIT(unitcell::check_atomic_stru(*ucell, factor),
                 ::testing::ExitedWithCode(1),
                 "");
     std::ifstream ifs("CheckStructure2.txt");
@@ -370,7 +367,7 @@ TEST_F(UcellDeathTest, CheckStructure) {
     ucell->atoms[0].label = "arbitrary";
     testing::internal::CaptureStdout();
     factor = 0.2;
-    EXPECT_NO_THROW(Check_Atomic_Stru::check_atomic_stru(*ucell, factor));
+    EXPECT_NO_THROW(unitcell::check_atomic_stru(*ucell, factor));
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output,testing::HasSubstr("Notice: symbol 'arbitrary' is not an element "
                            "symbol!!!! set the covalent radius to be 0."));
@@ -378,7 +375,7 @@ TEST_F(UcellDeathTest, CheckStructure) {
     ucell->atoms[0].label = "Fe1";
     testing::internal::CaptureStdout();
     factor = 0.2;
-    EXPECT_NO_THROW(Check_Atomic_Stru::check_atomic_stru(*ucell, factor));
+    EXPECT_NO_THROW(unitcell::check_atomic_stru(*ucell, factor));
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output,testing::HasSubstr("WARNING: Some atoms are too close!!!"));
 }

@@ -12,17 +12,27 @@
 namespace elecstate
 {
       const double* ElecState::getRho(int spin) const{return &(this->eferm.ef);}//just for mock
-      void ElecState::calculate_weights(){}
 }
 
-// mock wfc_lcao_gen_fname
-std::string ModuleIO::wfc_nao_gen_fname(const int out_type,
-                                         const bool gamma_only,
-                                         const bool out_app_flag,
-                                         const int ik,
-                                         const int istep)
+
+namespace ModuleIO
 {
-      return "WFC_NAO_GAMMA2.txt";
+// mock filename_output
+std::string filename_output(
+            const std::string &directory,
+            const std::string &property,
+            const std::string &basis,
+            const int ik,
+            const std::vector<int> &ik2iktot,
+            const int nspin,
+            const int nkstot,
+            const int out_type,
+            const bool out_app_flag,
+            const bool gamma_only,
+            const int istep)
+{
+      return "./support/wfs1_nao.txt";
+}
 }
 
 /************************************************
@@ -46,10 +56,11 @@ protected:
 TEST_F(ReadWfcNaoTest,ReadWfcNao)
 {
       //Global variables
-      int nbands = 3;
-      int nlocal = 3;
+      const int nbands = 3;
+      const int nlocal = 3;
       PARAM.sys.global_readin_dir = "./support/";
-      int nks = 1;
+      const int nks = 1;
+      const int nspin = 1;
       int my_rank = 0;
 
       Parallel_Orbitals ParaV;
@@ -69,8 +80,13 @@ TEST_F(ReadWfcNaoTest,ReadWfcNao)
       elecstate::ElecState pelec;
       pelec.ekb.create(nks,nbands);
       pelec.wg.create(nks,nbands);
+
+      std::vector<int> ik2iktot = {0};
+      const int nkstot = 1;
+
       // Act
-      ModuleIO::read_wfc_nao(PARAM.sys.global_readin_dir, ParaV, psid, &(pelec));
+	  ModuleIO::read_wfc_nao(PARAM.sys.global_readin_dir, ParaV, psid, 
+			  &(pelec), ik2iktot, nkstot, nspin);
       // Assert
       EXPECT_NEAR(pelec.ekb(0,1),0.31482195194888534794941393,1e-5);
       EXPECT_NEAR(pelec.wg(0,1),0.0,1e-5);
@@ -79,6 +95,7 @@ TEST_F(ReadWfcNaoTest,ReadWfcNao)
             EXPECT_NEAR(psid(0,0,0),5.3759239842e-01,1e-5);
       }
 }
+
 TEST_F(ReadWfcNaoTest, ReadWfcNaoPart)
 {
     //Global variables
@@ -87,6 +104,7 @@ TEST_F(ReadWfcNaoTest, ReadWfcNaoPart)
     const int nlocal = 3;
     PARAM.sys.global_readin_dir = "./support/";
     const int nks = 1;
+    const int nspin = 1;
     int my_rank = 0;
 
     Parallel_Orbitals ParaV;
@@ -106,8 +124,14 @@ TEST_F(ReadWfcNaoTest, ReadWfcNaoPart)
     elecstate::ElecState pelec;
     pelec.ekb.create(nks, nbands);
     pelec.wg.create(nks, nbands);
-    // Act
-    ModuleIO::read_wfc_nao(PARAM.sys.global_readin_dir, ParaV, psid, &(pelec), /*skip_band=*/1);
+
+	std::vector<int> ik2iktot = {0};
+	const int nkstot = 1;
+
+	// Act
+	ModuleIO::read_wfc_nao(PARAM.sys.global_readin_dir, ParaV, psid, 
+			&(pelec), ik2iktot, nkstot, nspin, skip_band);
+
     // Assert
     EXPECT_NEAR(pelec.ekb(0, 1), 7.4141254894954844445464914e-01, 1e-5);
     if (my_rank == 0)

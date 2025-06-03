@@ -67,7 +67,7 @@ class ESolver_KS_LCAO : public ESolver_KS<TK>
 
     virtual void iter_init(UnitCell& ucell, const int istep, const int iter) override;
 
-    virtual void hamilt2density_single(UnitCell& ucell, const int istep, const int iter, const double ethr) override;
+    virtual void hamilt2rho_single(UnitCell& ucell, const int istep, const int iter, const double ethr) override;
 
     virtual void update_pot(UnitCell& ucell, const int istep, const int iter, const bool conv_esolver) override;
 
@@ -116,8 +116,6 @@ class ESolver_KS_LCAO : public ESolver_KS<TK>
 #ifdef __EXX
     std::shared_ptr<Exx_LRI_Interface<TK, double>> exd = nullptr;
     std::shared_ptr<Exx_LRI_Interface<TK, std::complex<double>>> exc = nullptr;
-    std::shared_ptr<Exx_LRI<double>> exx_lri_double = nullptr;
-    std::shared_ptr<Exx_LRI<std::complex<double>>> exx_lri_complex = nullptr;
 #endif
 
     friend class LR::ESolver_LR<double, double>;

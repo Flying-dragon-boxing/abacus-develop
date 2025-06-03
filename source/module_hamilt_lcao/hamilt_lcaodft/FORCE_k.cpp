@@ -35,8 +35,8 @@ void Force_LCAO<std::complex<double>>::allocate(const UnitCell& ucell,
                                                 const int& nks,
                                                 const std::vector<ModuleBase::Vector3<double>>& kvec_d)
 {
-    ModuleBase::TITLE("Force_LCAO", "allocate");
-    ModuleBase::timer::tick("Force_LCAO", "allocate");
+    ModuleBase::TITLE("Forces", "allocate");
+    ModuleBase::timer::tick("Forces", "allocate");
 
     const int nnr = pv.nnr;
 
@@ -160,7 +160,7 @@ void Force_LCAO<std::complex<double>>::allocate(const UnitCell& ucell,
         }
     }
 
-    ModuleBase::timer::tick("Force_LCAO", "allocate");
+    ModuleBase::timer::tick("Forces", "allocate");
     return;
 }
 
@@ -216,8 +216,8 @@ void Force_LCAO<std::complex<double>>::ftable(const bool isforce,
                                               const K_Vectors* kv,
                                               Record_adj* ra)
 {
-    ModuleBase::TITLE("Force_LCAO", "ftable");
-    ModuleBase::timer::tick("Force_LCAO", "ftable");
+    ModuleBase::TITLE("Forces", "ftable");
+    ModuleBase::timer::tick("Forces", "ftable");
 
     elecstate::DensityMatrix<complex<double>, double>* dm
         = dynamic_cast<const elecstate::ElecStateLCAO<std::complex<double>>*>(pelec)->get_DM();
@@ -268,10 +268,8 @@ void Force_LCAO<std::complex<double>>::ftable(const bool isforce,
 #ifdef __DEEPKS
     if (PARAM.inp.deepks_scf)
     {
-        const std::vector<std::vector<std::complex<double>>>& dm_k = dm->get_DMK_vector();
-
         // No need to update E_delta since it have been done in LCAO_Deepks_Interface in after_scf
-        DeePKS_domain::cal_f_delta<std::complex<double>>(dm_k,
+        DeePKS_domain::cal_f_delta<std::complex<double>>(ld.dm_r,
                                                          ucell,
                                                          orb,
                                                          gd,
@@ -318,6 +316,6 @@ void Force_LCAO<std::complex<double>>::ftable(const bool isforce,
     }
 #endif
 
-    ModuleBase::timer::tick("Force_LCAO", "ftable");
+    ModuleBase::timer::tick("Forces", "ftable");
     return;
 }

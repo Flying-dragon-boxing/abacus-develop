@@ -5,7 +5,7 @@
 #include "module_elecstate/module_charge/charge.h"
 #include "module_parameter/parameter.h"
 #include "module_psi/psi.h"
-#include "potentials/potential_new.h"
+#include "module_pot/potential_new.h"
 
 namespace elecstate
 {
@@ -60,6 +60,10 @@ class ElecState
     {
         return;
     }
+    virtual void cal_tau(const psi::Psi<std::complex<float>>& psi)
+    {
+        return;
+    }
 
     // update charge density for next scf step
     // in this function, 1. input rho for construct Hamilt and 2. calculated rho from Psi will mix to 3. new charge
@@ -72,12 +76,11 @@ class ElecState
         return;
     }
 
-    // calculate wg from ekb
-    virtual void calculate_weights();
+
 
     // use occupied weights from INPUT and skip calculate_weights
     // mohan updated on 2024-06-08
-    void fixed_weights(const std::vector<double>& ocp_kb, const int& nbands, const double& nelec);
+    
 
     // if nupdown is not 0(TWO_EFERMI case),
     // nelec_spin will be fixed and weights will be constrained
@@ -132,12 +135,8 @@ class ElecState
     bool vnew_exist = false;
     void cal_converged();
     void cal_energies(const int type);
-#ifdef __EXX
-#ifdef __LCAO
     void set_exx(const double& Eexx);
     void set_exx(const std::complex<double>& Eexx);
-#endif //__LCAO
-#endif //__EXX
 
     double get_hartree_energy();
     double get_etot_efield();
@@ -167,11 +166,11 @@ class ElecState
     ModuleBase::matrix wg;  ///< occupation weight for each k-point and band
 
   public:
-    // calculate ebands for all k points and all occupied bands
-    void calEBand();
 
     bool skip_weights = false;
 };
+    
+
 
 } // namespace elecstate
 #endif

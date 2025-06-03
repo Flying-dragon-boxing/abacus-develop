@@ -10,6 +10,8 @@
 #include "module_parameter/parameter.h"
 #include "nonlocal_maths.hpp"
 
+#include "module_base/parallel_comm.h" // different MPI worlds (POOL_WORLD)
+
 namespace hamilt
 {
 
@@ -282,7 +284,6 @@ void FS_Nonlocal_tools<FPTYPE, Device>::cal_becp(const int& ik,
               &ModuleBase::ZERO,
               this->becp + index0,
               this->nkb);
-    ModuleBase::timer::tick("FS_Nonlocal_tools", "cal_becp");
 }
 
 template <typename FPTYPE, typename Device>
@@ -294,7 +295,7 @@ void FS_Nonlocal_tools<FPTYPE, Device>::reduce_pool_becp(const int& npm)
 #ifdef __MPI
     if (GlobalV::NPROC_IN_POOL > 1)
     {
-        Parallel_Common::reduce_dev<std::complex<FPTYPE>, Device>(this->becp, size_becp_act, POOL_WORLD);
+        Parallel_Common::reduce_data(this->becp, size_becp_act, POOL_WORLD);
     }
 #endif
 }

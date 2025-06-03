@@ -2,9 +2,6 @@
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 #include "module_parameter/parameter.h"
 #include "module_base/global_function.h"
-#ifdef USE_PAW
-#include "module_cell/module_paw/paw_cell.h"
-#endif
 
 #ifdef USE_LIBXC
 #include "xc_functional_libxc.h"
@@ -40,6 +37,9 @@ method. */
     else if (ucell.atoms[0].ncpp.xc_func == "SCAN0") {
         XC_Functional::set_xc_type("scan");
     }
+    else if (ucell.atoms[0].ncpp.xc_func == "B3LYP") {
+        XC_Functional::set_xc_type("blyp");
+    }
 }
 
 // The setting values of functional id according to the index in LIBXC
@@ -63,19 +63,6 @@ void XC_Functional::set_xc_type(const std::string xc_func_in)
         func_id.push_back(XC_LDA_C_PZ);
         func_type = 1;
         use_libxc = false;
-#ifdef USE_PAW
-        if(PARAM.inp.use_paw)
-        {
-            if(PARAM.inp.nspin != 1)
-            {
-                ModuleBase::WARNING_QUIT("set_xc_type","paw does not support pz with spin polarization");
-            }
-            else
-            {
-                GlobalC::paw_cell.set_libpaw_xc(1,2);
-            }
-        }
-#endif
 	}
     else if (xc_func == "PWLDA")
     {
@@ -83,10 +70,6 @@ void XC_Functional::set_xc_type(const std::string xc_func_in)
         func_id.push_back(XC_LDA_C_PW);
         func_type = 1;
         use_libxc = false;
-#ifdef USE_PAW
-        if(PARAM.inp.use_paw) { GlobalC::paw_cell.set_libpaw_xc(1,7);
-}
-#endif
     }
 	else if ( xc_func == "PBE" || xc_func == "SLAPWPBXPBC") //PBX+PBC
 	{
@@ -94,10 +77,6 @@ void XC_Functional::set_xc_type(const std::string xc_func_in)
         func_id.push_back(XC_GGA_C_PBE);
         func_type = 2;
         use_libxc = false;
-#ifdef USE_PAW
-        if(PARAM.inp.use_paw) { GlobalC::paw_cell.set_libpaw_xc(2,11);
-}
-#endif
 	}
 	else if ( xc_func == "PBESOL") //PBX_S+PBC_S
 	{
@@ -112,10 +91,6 @@ void XC_Functional::set_xc_type(const std::string xc_func_in)
         func_id.push_back(XC_GGA_C_PBE);
         func_type = 2;
         use_libxc = false;
-#ifdef USE_PAW
-        if(PARAM.inp.use_paw) { GlobalC::paw_cell.set_libpaw_xc(2,14);
-}
-#endif
 	}
 	else if ( xc_func == "WC") //WC+PBC
 	{
@@ -244,6 +219,12 @@ void XC_Functional::set_xc_type(const std::string xc_func_in)
         func_type = 2;
         use_libxc = true;
     }
+    else if (xc_func == "B3LYP")
+    {
+        func_id.push_back(XC_HYB_GGA_XC_B3LYP);
+        func_type = 4;
+        use_libxc = true;
+    }
 #endif
     else
     {
@@ -254,7 +235,11 @@ void XC_Functional::set_xc_type(const std::string xc_func_in)
         func_id = std::get<1>(type_id);
         use_libxc = true;
 #else
-        ModuleBase::WARNING_QUIT("xc_functional.cpp","functional name not recognized!");
+        std::string message = "Unrecognized exchange-correlation functional '"+ xc_func +"'.\n"
+                              " Possible source: Pseudopotential file or dft_functional parameter.\n"
+                              " Please explicitly set dft_functional in INPUT,\n"
+                              " or verify the functional name is supported.";
+        ModuleBase::WARNING_QUIT("xc_functional.cpp",message);
 #endif
     }
 
@@ -268,19 +253,19 @@ void XC_Functional::set_xc_type(const std::string xc_func_in)
         std::cerr << "\n OPTX untested please test,";
     }
 
-    if((func_type == 4 || func_type == 5) && PARAM.inp.basis_type == "pw")
-    {
-        ModuleBase::WARNING_QUIT("set_xc_type","hybrid functional not realized for planewave yet");
-    }
+    // if((func_type == 4 || func_type == 5) && PARAM.inp.basis_type == "pw")
+    // {
+    //     ModuleBase::WARNING_QUIT("set_xc_type","hybrid functional not realized for planewave yet");
+    // }
     if((func_type == 3 || func_type == 5) && PARAM.inp.nspin==4)
     {
         ModuleBase::WARNING_QUIT("set_xc_type","meta-GGA has not been implemented for nspin = 4 yet");
     }
 
 #ifndef __EXX
-    if(func_type == 4 || func_type == 5)
+    if((func_type == 4 || func_type == 5) && PARAM.inp.basis_type == "lcao")
     {
-        ModuleBase::WARNING_QUIT("set_xc_type","compile with libri to use hybrid functional");
+        ModuleBase::WARNING_QUIT("set_xc_type","compile with libri to use hybrid functional in lcao basis");
     }
 #endif
 

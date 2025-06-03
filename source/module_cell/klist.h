@@ -6,6 +6,7 @@
 #include "module_base/matrix3.h"
 #include "module_cell/unitcell.h"
 #include "parallel_kpoints.h"
+#include "k_vector_utils.h"
 #include <vector>
 
 class K_Vectors
@@ -158,7 +159,7 @@ public:
     bool kd_done = false;
     double koffset[3] = {0.0}; // used only in automatic k-points.
     std::string k_kword;       // LiuXh add 20180619
-    int k_nkstot = 0;          // LiuXh add 20180619
+    int k_nkstot = 0;          // LiuXh add 20180619 // WHAT IS THIS?????
     bool is_mp = false;        // Monkhorst-Pack
 
     /**
@@ -390,5 +391,8 @@ public:
      * @return this->ik2iktot[ik]
      */
     void cal_ik_global();
+
+    friend void KVectorUtils::set_both_kvec(K_Vectors& kv, const ModuleBase::Matrix3& G, const ModuleBase::Matrix3& R, std::string& skpt);
+    friend void KVectorUtils::set_after_vc(K_Vectors& kv, const int& nspin_in, const ModuleBase::Matrix3& reciprocal_vec);
 };
 #endif // KVECT_H

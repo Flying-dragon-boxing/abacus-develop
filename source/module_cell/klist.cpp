@@ -1017,68 +1017,8 @@ void K_Vectors::ibz_kpoint(const ModuleSymmetry::Symmetry& symm,
 // if direct coordinates are given, then cartesian coordinates are calculated
 void K_Vectors::set_both_kvec(const ModuleBase::Matrix3& G, const ModuleBase::Matrix3& R, std::string& skpt)
 {
+    KVectorUtils::set_both_kvec(*this, G, R, skpt);
 
-    if (PARAM.inp.final_scf) // LiuXh add 20180606
-    {
-        if (k_nkstot == 0)
-        {
-            kd_done = true;
-            kc_done = false;
-        }
-        else
-        {
-            if (k_kword == "Cartesian" || k_kword == "C")
-            {
-                kc_done = true;
-                kd_done = false;
-            }
-            else if (k_kword == "Direct" || k_kword == "D")
-            {
-                kd_done = true;
-                kc_done = false;
-            }
-            else
-            {
-                GlobalV::ofs_warning << " Error : neither Cartesian nor Direct kpoint." << std::endl;
-            }
-        }
-    }
-
-    // set cartesian k vectors.
-    if (!kc_done && kd_done)
-    {
-        KVectorUtils::k_vec_d2c(*this, G);
-        kc_done = true;
-    }
-
-    // set direct k vectors
-    else if (kc_done && !kd_done)
-    {
-        KVectorUtils::k_vec_c2d(*this, R);
-        kd_done = true;
-    }
-    std::string table;
-    table += " K-POINTS DIRECT COORDINATES\n";
-    table += FmtCore::format("%8s%12s%12s%12s%8s\n", "KPOINTS", "DIRECT_X", "DIRECT_Y", "DIRECT_Z", "WEIGHT");
-    for (int i = 0; i < nkstot; i++)
-    {
-        table += FmtCore::format("%8d%12.8f%12.8f%12.8f%8.4f\n",
-                                 i + 1,
-                                 this->kvec_d[i].x,
-                                 this->kvec_d[i].y,
-                                 this->kvec_d[i].z,
-                                 this->wk[i]);
-    }
-    GlobalV::ofs_running << table << std::endl;
-    if (GlobalV::MY_RANK == 0)
-    {
-        std::stringstream ss;
-        ss << " " << std::setw(40) << "nkstot now"
-           << " = " << nkstot << std::endl;
-        ss << table << std::endl;
-        skpt = ss.str();
-    }
-    return;
 }
 
 void K_Vectors::normalize_wk(const int& degspin)
@@ -1332,29 +1272,7 @@ void K_Vectors::set_after_vc(const int& nspin_in,
 {
     ModuleBase::TITLE("K_Vectors", "set_after_vc");
 
-    GlobalV::ofs_running << "\n SETUP K-POINTS" << std::endl;
-    this->nspin = nspin_in;
-    ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "nspin", nspin);
-
-    // set cartesian k vectors.
-    KVectorUtils::k_vec_d2c(*this, reciprocal_vec);
-
-    std::string table;
-    table += "K-POINTS DIRECT COORDINATES\n";
-    table += FmtCore::format("%8s%12s%12s%12s%8s\n", "KPOINTS", "DIRECT_X", "DIRECT_Y", "DIRECT_Z", "WEIGHT");
-    for (int i = 0; i < nks; i++)
-    {
-        table += FmtCore::format("%8d%12.8f%12.8f%12.8f%8.4f\n",
-                                 i + 1,
-                                 this->kvec_d[i].x,
-                                 this->kvec_d[i].y,
-                                 this->kvec_d[i].z,
-                                 this->wk[i]);
-    }
-    GlobalV::ofs_running << table << std::endl;
-    // this->set_both_kvec(reciprocal_vec, latvec);
-
-    this->print_klists(GlobalV::ofs_running);
+    KVectorUtils::set_after_vc(*this, nspin_in, reciprocal_vec);
 
     return;
 }

@@ -153,6 +153,9 @@ void set_after_vc(K_Vectors& kv,
     }
     GlobalV::ofs_running << table << std::endl;
 
+    kv.kd_done = true;
+    kv.kc_done = true;
+
     kv.print_klists(GlobalV::ofs_running);
 }
 } // namespace KVectorUtils

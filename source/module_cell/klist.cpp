@@ -126,8 +126,8 @@ void K_Vectors::set(const UnitCell& ucell,
     // Improve k point information
 
     // Complement the coordinates of k point
-    this->set_both_kvec(reciprocal_vec, latvec, skpt2);
-
+//    this->set_both_kvec(reciprocal_vec, latvec, skpt2);
+    KVectorUtils::set_both_kvec(*this, reciprocal_vec, latvec, skpt2);
     std::cout << "after set_both_kvec" << std::endl;
     std::cout << "nks: " << nks << std::endl;
     std::cout << "nkstot: " << nkstot << std::endl;
@@ -1012,15 +1012,6 @@ void K_Vectors::ibz_kpoint(const ModuleSymmetry::Symmetry& symm,
     return;
 }
 
-// complement coordinates of k-points according to existing coordinates
-// if cartesian coordinates are given, then direct coordinates are calculated
-// if direct coordinates are given, then cartesian coordinates are calculated
-void K_Vectors::set_both_kvec(const ModuleBase::Matrix3& G, const ModuleBase::Matrix3& R, std::string& skpt)
-{
-    KVectorUtils::set_both_kvec(*this, G, R, skpt);
-
-}
-
 void K_Vectors::normalize_wk(const int& degspin)
 {
     if (GlobalV::MY_RANK != 0) {
@@ -1261,18 +1252,5 @@ void K_Vectors::print_klists(std::ofstream& ofs)
                                  this->wk[i]);
     }
     GlobalV::ofs_running << "\n" << table << std::endl;
-    return;
-}
-
-// LiuXh add a new function here,
-// 20180515
-void K_Vectors::set_after_vc(const int& nspin_in,
-                             const ModuleBase::Matrix3& reciprocal_vec,
-                             const ModuleBase::Matrix3& latvec)
-{
-    ModuleBase::TITLE("K_Vectors", "set_after_vc");
-
-    KVectorUtils::set_after_vc(*this, nspin_in, reciprocal_vec);
-
     return;
 }

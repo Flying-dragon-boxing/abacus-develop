@@ -80,32 +80,8 @@ public:
         std::string& skpt,
         const UnitCell& ucell,
         bool& match);
-    // LiuXh add 20180515
 
-    /**
-     * @brief Sets up the k-points after a volume change.
-     *
-     * This function sets up the k-points after a volume change in the system.
-     * It sets the Cartesian and direct k-vectors based on the new reciprocal and real space lattice vectors.
-     *
-     * @param nspin_in The number of spins. 1 for non-spin-polarized calculations and 2 for spin-polarized calculations.
-     * @param reciprocal_vec The new reciprocal lattice matrix.
-     * @param latvec The new real space lattice matrix.
-     *
-     * @return void
-     *
-     * @note The function first sets the number of spins (nspin) to the input value.
-     * @note If the direct k-vectors have been set (kd_done = true) and the Cartesian k-vectors have not (kc_done =
-     * false), the function calculates the Cartesian k-vectors by multiplying the direct k-vectors with the reciprocal
-     * lattice matrix.
-     * @note If the Cartesian k-vectors have been set (kc_done = true) and the direct k-vectors have not (kd_done =
-     * false), the function calculates the direct k-vectors by multiplying the Cartesian k-vectors with the transpose of
-     * the real space lattice matrix.
-     * @note The function also prints a table of the direct k-vectors and their weights.
-     * @note The function calls the print_klists function to print the k-points in both Cartesian and direct
-     * coordinates.
-     */
-    void set_after_vc(const int& nspin, const ModuleBase::Matrix3& reciprocal_vec, const ModuleBase::Matrix3& latvec);
+
 
     int get_nks() const
     {
@@ -282,26 +258,7 @@ public:
                         const std::vector<ModuleBase::Vector3<double>>& kvec_d_ibz,
                         const std::vector<double>& wk_ibz);
 
-    /**
-     * @brief Sets both the direct and Cartesian k-vectors.
-     *
-     * This function sets both the direct and Cartesian k-vectors based on the input parameters.
-     * It also checks the k-point type and sets the corresponding flags.
-     *
-     * @param G The reciprocal lattice matrix.
-     * @param R The real space lattice matrix.
-     * @param skpt A string to store the k-point table.
-     *
-     * @return void
-     *
-     * @note If the k-point type is neither "Cartesian" nor "Direct", an error message will be printed.
-     * @note The function sets the flags kd_done and kc_done to indicate whether the direct and Cartesian k-vectors have
-     * been set, respectively.
-     * @note The function also prints a table of the direct k-vectors and their weights.
-     * @note If the function is called by the master process (MY_RANK == 0), the k-point table is also stored in the
-     * string skpt.
-     */
-    void set_both_kvec(const ModuleBase::Matrix3& G, const ModuleBase::Matrix3& R, std::string& skpt);
+//    void set_both_kvec(const ModuleBase::Matrix3& G, const ModuleBase::Matrix3& R, std::string& skpt);
 
     /**
      * @brief Normalizes the weights of the k-points.

@@ -14,7 +14,13 @@ namespace KVectorUtils
 {
 void k_vec_d2c(K_Vectors& kv, const ModuleBase::Matrix3& reciprocal_vec)
 {
-    for (int i = 0; i < kv.get_nks(); i++)
+    if (kv.kvec_d.size() != kv.kvec_c.size())
+    {
+        ModuleBase::WARNING_QUIT("k_vec_d2c", "Size of Cartesian and Direct K vectors mismatch. ");
+    }
+    int nks = kv.kvec_d.size(); // always convert all k vectors
+
+    for (int i = 0; i < nks; i++)
     {
         // wrong!!   kvec_c[i] = G * kvec_d[i];
         //  mohan fixed bug 2010-1-10
@@ -50,8 +56,14 @@ void k_vec_d2c(K_Vectors& kv, const ModuleBase::Matrix3& reciprocal_vec)
 }
 void k_vec_c2d(K_Vectors& kv, const ModuleBase::Matrix3& latvec)
 {
+    if (kv.kvec_d.size() != kv.kvec_c.size())
+    {
+        ModuleBase::WARNING_QUIT("k_vec_c2d", "Size of Cartesian and Direct K vectors mismatch. ");
+    }
+    int nks = kv.kvec_d.size(); // always convert all k vectors
+
     ModuleBase::Matrix3 RT = latvec.Transpose();
-    for (int i = 0; i < kv.get_nks(); i++)
+    for (int i = 0; i < nks; i++)
     {
         //			std::cout << " ik=" << i
         //				<< " kvec.x=" << kvec_c[i].x
@@ -128,9 +140,7 @@ void set_both_kvec(K_Vectors& kv, const ModuleBase::Matrix3& G, const ModuleBase
     return;
 }
 
-void set_after_vc(K_Vectors& kv,
-                  const int& nspin_in,
-                  const ModuleBase::Matrix3& reciprocal_vec)
+void set_after_vc(K_Vectors& kv, const int& nspin_in, const ModuleBase::Matrix3& reciprocal_vec)
 {
     GlobalV::ofs_running << "\n SETUP K-POINTS" << std::endl;
     kv.nspin = nspin_in;

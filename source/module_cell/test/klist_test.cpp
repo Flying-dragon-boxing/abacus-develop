@@ -593,7 +593,8 @@ TEST_F(KlistTest, SetAfterVC)
     kv->kvec_c[0].x = 0;
     kv->kvec_c[0].y = 0;
     kv->kvec_c[0].z = 0;
-    kv->set_after_vc(PARAM.input.nspin, ucell.G, ucell.latvec);
+//    kv->set_after_vc(PARAM.input.nspin, ucell.G, ucell.latvec);
+
     EXPECT_TRUE(kv->kd_done);
     EXPECT_TRUE(kv->kc_done);
     EXPECT_DOUBLE_EQ(kv->kvec_d[0].x, 0);
@@ -613,7 +614,8 @@ TEST_F(KlistTest, PrintKlists)
     kv->kvec_c[0].x = 0;
     kv->kvec_c[0].y = 0;
     kv->kvec_c[0].z = 0;
-    kv->set_after_vc(PARAM.input.nspin, ucell.G, ucell.latvec);
+//    kv->set_after_vc(PARAM.input.nspin, ucell.G, ucell.latvec);
+    KVectorUtils::set_after_vc(*kv, PARAM.input.nspin, ucell.G);
     EXPECT_TRUE(kv->kd_done);
     kv->print_klists(GlobalV::ofs_running);
     GlobalV::ofs_running.close();
@@ -653,24 +655,28 @@ TEST_F(KlistTest, SetBothKvecFinalSCF)
     kv->kc_done = false;
     // case 1
     kv->k_nkstot = 0;
-    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
+//    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
+    KVectorUtils::set_both_kvec(*kv, ucell.G, ucell.latvec, skpt);
     EXPECT_TRUE(kv->kd_done);
     EXPECT_TRUE(kv->kc_done);
     // case 2
     kv->k_nkstot = 1;
     kv->k_kword = "D";
-    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
+//    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
+    KVectorUtils::set_both_kvec(*kv, ucell.G, ucell.latvec, skpt);
     EXPECT_TRUE(kv->kd_done);
     EXPECT_TRUE(kv->kc_done);
     // case 3
     kv->k_kword = "C";
-    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
+//    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
+    KVectorUtils::set_both_kvec(*kv, ucell.G, ucell.latvec, skpt);
     EXPECT_TRUE(kv->kc_done);
     EXPECT_TRUE(kv->kd_done);
     // case 4
     GlobalV::ofs_warning.open("klist_tmp_warning_8");
     kv->k_kword = "arbitrary";
-    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
+//    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
+    KVectorUtils::set_both_kvec(*kv, ucell.G, ucell.latvec, skpt);
     GlobalV::ofs_warning.close();
     ifs.open("klist_tmp_warning_8");
     std::string str((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
@@ -692,11 +698,13 @@ TEST_F(KlistTest, SetBothKvec)
     kv->kd_done = true;
     std::string skpt;
     PARAM.input.final_scf = false;
-    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
+//    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
+    KVectorUtils::set_both_kvec(*kv, ucell.G, ucell.latvec, skpt);
     EXPECT_TRUE(kv->kc_done);
     kv->kc_done = true;
     kv->kd_done = false;
-    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
+//    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
+    KVectorUtils::set_both_kvec(*kv, ucell.G, ucell.latvec, skpt);
     EXPECT_TRUE(kv->kd_done);
 }
 

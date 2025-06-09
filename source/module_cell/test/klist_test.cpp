@@ -156,7 +156,7 @@ std::vector<stru_> stru_lib{stru_{1,
                                                                    }}}}};
 // used to construct cell and analyse its symmetry
 
-class KlistTest : public testing::Tests
+class KlistTest : public testing::Test
 {
   protected:
     std::unique_ptr<K_Vectors> kv{new K_Vectors};

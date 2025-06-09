@@ -128,11 +128,6 @@ void K_Vectors::set(const UnitCell& ucell,
     // Complement the coordinates of k point
 //    this->set_both_kvec(reciprocal_vec, latvec, skpt2);
     KVectorUtils::set_both_kvec(*this, reciprocal_vec, latvec, skpt2);
-    std::cout << "after set_both_kvec" << std::endl;
-    std::cout << "nks: " << nks << std::endl;
-    std::cout << "nkstot: " << nkstot << std::endl;
-    std::cout << "size of kvec_d: " << kvec_d.size() << std::endl;
-    std::cout << "size of kvec_c: " << kvec_c.size() << std::endl;
 
     if (GlobalV::MY_RANK == 0)
     {
@@ -169,12 +164,6 @@ void K_Vectors::set(const UnitCell& ucell,
     this->cal_ik_global();
 
     this->print_klists(ofs);
-
-    std::cout << "after print_klists" << std::endl;
-    std::cout << "nks: " << nks << std::endl;
-    std::cout << "nkstot: " << nkstot << std::endl;
-    std::cout << "size of kvec_d: " << kvec_d.size() << std::endl;
-    std::cout << "size of kvec_c: " << kvec_c.size() << std::endl;
 
     // std::cout << " NUMBER OF K-POINTS   : " << nkstot << std::endl;
 

@@ -14,9 +14,11 @@ namespace KVectorUtils
 {
 void k_vec_d2c(K_Vectors& kv, const ModuleBase::Matrix3& reciprocal_vec)
 {
+//    throw std::runtime_error("k_vec_d2c: This function is not implemented in the new codebase. Please use the new implementation.");
     if (kv.kvec_d.size() != kv.kvec_c.size())
     {
-        ModuleBase::WARNING_QUIT("k_vec_d2c", "Size of Cartesian and Direct K vectors mismatch. ");
+//        ModuleBase::WARNING_QUIT("k_vec_d2c", "Size of Cartesian and Direct K vectors mismatch. ");
+        kv.kvec_c.resize(kv.kvec_d.size());
     }
     int nks = kv.kvec_d.size(); // always convert all k vectors
 
@@ -58,7 +60,7 @@ void k_vec_c2d(K_Vectors& kv, const ModuleBase::Matrix3& latvec)
 {
     if (kv.kvec_d.size() != kv.kvec_c.size())
     {
-        ModuleBase::WARNING_QUIT("k_vec_c2d", "Size of Cartesian and Direct K vectors mismatch. ");
+        kv.kvec_d.resize(kv.kvec_c.size());
     }
     int nks = kv.kvec_d.size(); // always convert all k vectors
 

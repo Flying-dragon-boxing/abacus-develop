@@ -156,7 +156,7 @@ std::vector<stru_> stru_lib{stru_{1,
                                                                    }}}}};
 // used to construct cell and analyse its symmetry
 
-class KlistTest : public testing::Test
+class KlistTest : public testing::Tests
 {
   protected:
     std::unique_ptr<K_Vectors> kv{new K_Vectors};
@@ -594,6 +594,7 @@ TEST_F(KlistTest, SetAfterVC)
     kv->kvec_c[0].y = 0;
     kv->kvec_c[0].z = 0;
 //    kv->set_after_vc(PARAM.input.nspin, ucell.G, ucell.latvec);
+    KVectorUtils::set_after_vc(*kv, PARAM.input.nspin, ucell.G);
 
     EXPECT_TRUE(kv->kd_done);
     EXPECT_TRUE(kv->kc_done);

@@ -77,7 +77,7 @@ void k_vec_c2d(K_Vectors& kv, const ModuleBase::Matrix3& latvec)
 
 void set_both_kvec(K_Vectors& kv, const ModuleBase::Matrix3& G, const ModuleBase::Matrix3& R, std::string& skpt)
 {
-    if (PARAM.inp.final_scf) // Todo: Any way to avoid directly using input variables?
+    if (true) // Originally GlobalV::FINAL_SCF, but we don't have this variable in the new code.
     {
         if (kv.k_nkstot == 0)
         {

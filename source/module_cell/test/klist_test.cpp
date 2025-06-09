@@ -650,7 +650,7 @@ TEST_F(KlistTest, SetBothKvecFinalSCF)
     kv->kvec_c[0].y = 0.0;
     kv->kvec_c[0].z = 0.0;
     std::string skpt;
-    PARAM.input.final_scf = true;
+//    PARAM.input.final_scf = true;
     kv->kd_done = false;
     kv->kc_done = false;
     // case 1
@@ -697,7 +697,7 @@ TEST_F(KlistTest, SetBothKvec)
     kv->kc_done = false;
     kv->kd_done = true;
     std::string skpt;
-    PARAM.input.final_scf = false;
+//    PARAM.input.final_scf = false;
 //    kv->set_both_kvec(ucell.G, ucell.latvec, skpt);
     KVectorUtils::set_both_kvec(*kv, ucell.G, ucell.latvec, skpt);
     EXPECT_TRUE(kv->kc_done);

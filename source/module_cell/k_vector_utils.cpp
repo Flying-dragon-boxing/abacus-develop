@@ -572,7 +572,7 @@ void kvec_ibz_kpoint(K_Vectors& kv,
     // the new set kvec_d : ir_kpt
     int nkstot_ibz = 0;
 
-    assert(nkstot > 0);
+    assert(kv.get_nkstot() > 0);
     std::vector<ModuleBase::Vector3<double>> kvec_d_ibz(kv.get_nkstot());
     std::vector<double> wk_ibz(kv.get_nkstot()); // ibz kpoint wk ,weight of k points
     std::vector<int> ibz2bz(kv.get_nkstot());

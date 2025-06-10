@@ -308,7 +308,8 @@ public:
      * @return this->ik2iktot[ik]
      */
     void cal_ik_global();
-
+#ifdef __MPI
     friend void KVectorUtils::kvec_mpi_k(K_Vectors& kvec);
+#endif
 };
 #endif // KVECT_H

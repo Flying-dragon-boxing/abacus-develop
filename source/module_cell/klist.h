@@ -65,27 +65,6 @@ public:
         const ModuleBase::Matrix3& latvec,
         std::ofstream& ofs);
 
-    /**
-     * @brief Generates irreducible k-points in the Brillouin zone considering symmetry operations.
-     *
-     * This function calculates the irreducible k-points (IBZ) from the given k-points, taking into
-     * account the symmetry of the unit cell. It updates the symmetry-matched k-points and generates
-     * the corresponding weight for each k-point.
-     *
-     * @param symm The symmetry information of the system.
-     * @param use_symm A flag indicating whether to use symmetry operations.
-     * @param skpt A string to store the formatted k-points information.
-     * @param ucell The unit cell of the crystal.
-     * @param match A boolean flag that indicates if the results matches the real condition.
-     */
-    void ibz_kpoint(const ModuleSymmetry::Symmetry& symm,
-        bool use_symm,
-        std::string& skpt,
-        const UnitCell& ucell,
-        bool& match);
-
-
-
     int get_nks() const
     {
         return this->nks;
@@ -147,6 +126,27 @@ public:
     }
 
     std::vector<int> ik2iktot; ///<[nks] map ik to the global index of k points
+
+    /**
+     * @brief Updates the k-points to use the irreducible Brillouin zone (IBZ).
+     *
+     * This function updates the k-points to use the irreducible Brillouin zone (IBZ) instead of the full Brillouin
+     * zone.
+     *
+     * @return void
+     *
+     * @note This function should only be called by the master process (MY_RANK == 0).
+     * @note This function assumes that the number of k-points in the IBZ (nkstot_ibz) is greater than 0.
+     * @note This function updates the total number of k-points (nkstot) to be the number of k-points in the IBZ.
+     * @note This function resizes the vector of k-points (kvec_d) and updates its values to be the k-points in the IBZ.
+     * @note This function also updates the weights of the k-points (wk) to be the weights in the IBZ.
+     * @note After this function is called, the flag kd_done is set to true to indicate that the k-points have been
+     * updated, and the flag kc_done is set to false to indicate that the Cartesian coordinates of the k-points need to
+     * be recalculated.
+     */
+    void update_use_ibz(const int& nkstot_ibz,
+                        const std::vector<ModuleBase::Vector3<double>>& kvec_d_ibz,
+                        const std::vector<double>& wk_ibz);
 
   private:
     int nks = 0;         ///< number of symmetry-reduced k points in this pool(processor, up+dw)
@@ -258,28 +258,7 @@ public:
 
     // step 2 : set both kvec and kved; normalize weight
 
-    /**
-     * @brief Updates the k-points to use the irreducible Brillouin zone (IBZ).
-     *
-     * This function updates the k-points to use the irreducible Brillouin zone (IBZ) instead of the full Brillouin
-     * zone.
-     *
-     * @return void
-     *
-     * @note This function should only be called by the master process (MY_RANK == 0).
-     * @note This function assumes that the number of k-points in the IBZ (nkstot_ibz) is greater than 0.
-     * @note This function updates the total number of k-points (nkstot) to be the number of k-points in the IBZ.
-     * @note This function resizes the vector of k-points (kvec_d) and updates its values to be the k-points in the IBZ.
-     * @note This function also updates the weights of the k-points (wk) to be the weights in the IBZ.
-     * @note After this function is called, the flag kd_done is set to true to indicate that the k-points have been
-     * updated, and the flag kc_done is set to false to indicate that the Cartesian coordinates of the k-points need to
-     * be recalculated.
-     */
-    void update_use_ibz(const int& nkstot_ibz,
-                        const std::vector<ModuleBase::Vector3<double>>& kvec_d_ibz,
-                        const std::vector<double>& wk_ibz);
-
-//    void set_both_kvec(const ModuleBase::Matrix3& G, const ModuleBase::Matrix3& R, std::string& skpt);
+    //    void set_both_kvec(const ModuleBase::Matrix3& G, const ModuleBase::Matrix3& R, std::string& skpt);
 
     /**
      * @brief Normalizes the weights of the k-points.

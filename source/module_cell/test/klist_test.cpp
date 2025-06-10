@@ -752,7 +752,7 @@ TEST_F(KlistTest, IbzKpoint)
     std::string skpt;
     ModuleSymmetry::Symmetry::symm_flag = 1;
     bool match = true;
-    kv->ibz_kpoint(symm, ModuleSymmetry::Symmetry::symm_flag, skpt, ucell, match);
+    KVectorUtils::kvec_ibz_kpoint(*kv, symm, ModuleSymmetry::Symmetry::symm_flag, skpt, ucell, match);
     EXPECT_EQ(kv->get_nkstot(), 35);
     GlobalV::ofs_running << skpt << std::endl;
     GlobalV::ofs_running.close();
@@ -777,7 +777,7 @@ TEST_F(KlistTest, IbzKpointIsMP)
     std::string skpt;
     ModuleSymmetry::Symmetry::symm_flag = 0;
     bool match = true;
-    kv->ibz_kpoint(symm, ModuleSymmetry::Symmetry::symm_flag, skpt, ucell, match);
+    KVectorUtils::kvec_ibz_kpoint(*kv, symm, ModuleSymmetry::Symmetry::symm_flag, skpt, ucell, match);
     EXPECT_EQ(kv->get_nks(), 260);
     GlobalV::ofs_running << skpt << std::endl;
     GlobalV::ofs_running.close();

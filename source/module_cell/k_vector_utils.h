@@ -100,7 +100,9 @@ void print_klists(const K_Vectors& kv, std::ofstream& ofs);
  * direct coordinates (kvec_c and kvec_d).
  * @note If a process has no k-points to work on, the function will quit with an error message.
  */
+#ifdef __MPI
 void kvec_mpi_k(K_Vectors& kv);
+#endif // __MPI
 
 /**
  * @brief Generates irreducible k-points in the Brillouin zone considering symmetry operations.

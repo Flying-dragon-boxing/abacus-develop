@@ -339,6 +339,8 @@ void kvec_mpi_k(K_Vectors& kv)
     }
 #endif
 } // END SUBROUTINE
+#endif
+
 
 void kvec_ibz_kpoint(K_Vectors& kv,
                      const ModuleSymmetry::Symmetry& symm,
@@ -803,5 +805,4 @@ void kvec_ibz_kpoint(K_Vectors& kv,
 
     return;
 }
-#endif
 } // namespace KVectorUtils

@@ -12,9 +12,9 @@ class K_Vectors;
 
 namespace KVectorUtils
 {
-void k_vec_d2c(K_Vectors& kv, const ModuleBase::Matrix3& reciprocal_vec);
+void kvec_d2c(K_Vectors& kv, const ModuleBase::Matrix3& reciprocal_vec);
 
-void k_vec_c2d(K_Vectors& kv, const ModuleBase::Matrix3& latvec);
+void kvec_c2d(K_Vectors& kv, const ModuleBase::Matrix3& latvec);
 
 /**
      * @brief Sets both the direct and Cartesian k-vectors.
@@ -77,6 +77,29 @@ void set_after_vc(K_Vectors& kv, const int& nspin, const ModuleBase::Matrix3& G)
      * @note The function uses the FmtCore::format function to format the output.
  */
 void print_klists(const K_Vectors& kv, std::ofstream& ofs);
+
+// step 3 : mpi kpoints information.
+
+/**
+     * @brief Distributes k-points among MPI processes.
+     *
+     * This function distributes the k-points among the MPI processes. Each process gets a subset of the k-points to
+     * work on. The function also broadcasts various variables related to the k-points to all processes.
+     *
+     * @param kv The K_Vectors object containing the k-point information.
+     *
+     * @return void
+     *
+     * @note This function is only compiled and used if MPI is enabled.
+     * @note The function assumes that the number of k-points (nkstot) is greater than 0.
+     * @note The function broadcasts the flags kc_done and kd_done, the number of spins (nspin), the total number of
+     * k-points (nkstot), the full number of k-points (nkstot_full), the Monkhorst-Pack grid (nmp), the k-point offsets
+     * (koffset), and the segment IDs of the k-points (kl_segids).
+     * @note The function also broadcasts the indices of the k-points (isk), their weights (wk), and their Cartesian and
+     * direct coordinates (kvec_c and kvec_d).
+     * @note If a process has no k-points to work on, the function will quit with an error message.
+ */
+void kvec_mpi_k(K_Vectors& kv);
 } // namespace KVectorUtils
 
 #endif // K_VECTOR_UTILS_H

@@ -299,26 +299,7 @@ public:
      */
     void normalize_wk(const int& degspin);
 
-    // step 3 : mpi kpoints information.
 
-    /**
-     * @brief Distributes k-points among MPI processes.
-     *
-     * This function distributes the k-points among the MPI processes. Each process gets a subset of the k-points to
-     * work on. The function also broadcasts various variables related to the k-points to all processes.
-     *
-     * @return void
-     *
-     * @note This function is only compiled and used if MPI is enabled.
-     * @note The function assumes that the number of k-points (nkstot) is greater than 0.
-     * @note The function broadcasts the flags kc_done and kd_done, the number of spins (nspin), the total number of
-     * k-points (nkstot), the full number of k-points (nkstot_full), the Monkhorst-Pack grid (nmp), the k-point offsets
-     * (koffset), and the segment IDs of the k-points (kl_segids).
-     * @note The function also broadcasts the indices of the k-points (isk), their weights (wk), and their Cartesian and
-     * direct coordinates (kvec_c and kvec_d).
-     * @note If a process has no k-points to work on, the function will quit with an error message.
-     */
-    void mpi_k();
 
     // step 4 : *2 kpoints.
 
@@ -349,5 +330,6 @@ public:
      */
     void cal_ik_global();
 
+    friend void KVectorUtils::kvec_mpi_k(K_Vectors& kvec);
 };
 #endif // KVECT_H

@@ -618,7 +618,7 @@ TEST_F(KlistTest, PrintKlists)
 //    kv->set_after_vc(PARAM.input.nspin, ucell.G, ucell.latvec);
     KVectorUtils::set_after_vc(*kv, PARAM.input.nspin, ucell.G);
     EXPECT_TRUE(kv->kd_done);
-    kv->print_klists(GlobalV::ofs_running);
+    KVectorUtils::print_klists(*kv, GlobalV::ofs_running);
     GlobalV::ofs_running.close();
     remove("tmp_klist_2");
 }
@@ -633,7 +633,7 @@ TEST_F(KlistTest, PrintKlistsWarnigQuit)
     kv->kvec_c[0].y = 0;
     kv->kvec_c[0].z = 0;
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(kv->print_klists(GlobalV::ofs_running), ::testing::ExitedWithCode(1), "");
+    EXPECT_EXIT(KVectorUtils::print_klists(*kv, GlobalV::ofs_running), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("nkstot < nks"));
 }

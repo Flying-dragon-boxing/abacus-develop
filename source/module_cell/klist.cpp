@@ -163,7 +163,7 @@ void K_Vectors::set(const UnitCell& ucell,
     // get ik2iktot
     this->cal_ik_global();
 
-    this->print_klists(ofs);
+    KVectorUtils::print_klists(*this, ofs);
 
     // std::cout << " NUMBER OF K-POINTS   : " << nkstot << std::endl;
 
@@ -1203,43 +1203,3 @@ void K_Vectors::set_kup_and_kdw()
 
     return;
 } // end subroutine set_kup_and_kdw
-
-void K_Vectors::print_klists(std::ofstream& ofs)
-{
-    ModuleBase::TITLE("K_Vectors", "print_klists");
-
-    if (nkstot < nks)
-    {
-        std::cout << "\n nkstot=" << nkstot;
-        std::cout << "\n nks=" << nks;
-        ModuleBase::WARNING_QUIT("print_klists", "nkstot < nks");
-    }
-    std::string table;
-    table += " K-POINTS CARTESIAN COORDINATES\n";
-    table += FmtCore::format("%8s%12s%12s%12s%8s\n", "KPOINTS", "CARTESIAN_X", "CARTESIAN_Y", "CARTESIAN_Z", "WEIGHT");
-    for (int i = 0; i < nks; i++)
-    {
-        table += FmtCore::format("%8d%12.8f%12.8f%12.8f%8.4f\n",
-                                 i + 1,
-                                 this->kvec_c[i].x,
-                                 this->kvec_c[i].y,
-                                 this->kvec_c[i].z,
-                                 this->wk[i]);
-    }
-    GlobalV::ofs_running << "\n" << table << std::endl;
-
-    table.clear();
-    table += " K-POINTS DIRECT COORDINATES\n";
-    table += FmtCore::format("%8s%12s%12s%12s%8s\n", "KPOINTS", "DIRECT_X", "DIRECT_Y", "DIRECT_Z", "WEIGHT");
-    for (int i = 0; i < nks; i++)
-    {
-        table += FmtCore::format("%8d%12.8f%12.8f%12.8f%8.4f\n",
-                                 i + 1,
-                                 this->kvec_d[i].x,
-                                 this->kvec_d[i].y,
-                                 this->kvec_d[i].z,
-                                 this->wk[i]);
-    }
-    GlobalV::ofs_running << "\n" << table << std::endl;
-    return;
-}

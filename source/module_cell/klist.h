@@ -27,6 +27,9 @@ public:
     /// dim: [iks_ibz][(isym, kvec_d)]
     std::vector<std::map<int, ModuleBase::Vector3<double>>> kstars;
 
+    bool kc_done = false;
+    bool kd_done = false;
+
     K_Vectors(){};
     ~K_Vectors(){};
     K_Vectors& operator=(const K_Vectors&) = default;
@@ -103,6 +106,21 @@ public:
         return this->koffset[i];
     }
 
+    int get_k_nkstot() const
+    {
+        return this->k_nkstot;
+    }
+
+    int get_nspin() const
+    {
+        return this->nspin;
+    }
+
+    std::string get_k_kword() const
+    {
+        return this->k_kword;
+    }
+
     void set_nks(int value)
     {
         this->nks = value;
@@ -118,6 +136,11 @@ public:
         this->nkstot_full = value;
     }
 
+    void set_nspin(int value)
+    {
+        this->nspin = value;
+    }
+
     bool get_is_mp() const
     {
         return is_mp;
@@ -131,8 +154,6 @@ public:
     int nkstot_full = 0; ///< number of k points before symmetry reduction in full k mesh
 
     int nspin = 0;
-    bool kc_done = false;
-    bool kd_done = false;
     double koffset[3] = {0.0}; // used only in automatic k-points.
     std::string k_kword;       // LiuXh add 20180619
     int k_nkstot = 0;          // LiuXh add 20180619 // WHAT IS THIS?????
@@ -322,34 +343,11 @@ public:
      */
     void set_kup_and_kdw();
 
-    // step 5
-    // print k lists.
-
-    /**
-     * @brief Prints the k-points in both Cartesian and direct coordinates.
-     *
-     * This function prints the k-points in both Cartesian and direct coordinates to the output file stream.
-     * The output includes the index, x, y, and z coordinates, and the weight of each k-point.
-     *
-     * @param ofs The output file stream to which the k-points are printed.
-     *
-     * @return void
-     *
-     * @note The function first checks if the total number of k-points (nkstot) is less than the number of k-points for
-     * the current spin (nks). If so, it prints an error message and quits.
-     * @note The function prints the k-points in a table format, with separate tables for Cartesian and direct
-     * coordinates.
-     * @note The function uses the FmtCore::format function to format the output.
-     */
-    void print_klists(std::ofstream& fn);
-
     /**
      * @brief Gets the global index of a k-point.
      * @return this->ik2iktot[ik]
      */
     void cal_ik_global();
 
-    friend void KVectorUtils::set_both_kvec(K_Vectors& kv, const ModuleBase::Matrix3& G, const ModuleBase::Matrix3& R, std::string& skpt);
-    friend void KVectorUtils::set_after_vc(K_Vectors& kv, const int& nspin_in, const ModuleBase::Matrix3& reciprocal_vec);
 };
 #endif // KVECT_H

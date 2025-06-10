@@ -81,19 +81,19 @@ void set_both_kvec(K_Vectors& kv, const ModuleBase::Matrix3& G, const ModuleBase
 {
     if (true) // Originally GlobalV::FINAL_SCF, but we don't have this variable in the new code.
     {
-        if (kv.k_nkstot == 0)
+        if (kv.get_k_nkstot() == 0)
         {
             kv.kd_done = true;
             kv.kc_done = false;
         }
         else
         {
-            if (kv.k_kword == "Cartesian" || kv.k_kword == "C")
+            if (kv.get_k_kword() == "Cartesian" || kv.get_k_kword() == "C")
             {
                 kv.kc_done = true;
                 kv.kd_done = false;
             }
-            else if (kv.k_kword == "Direct" || kv.k_kword == "D")
+            else if (kv.get_k_kword() == "Direct" || kv.get_k_kword() == "D")
             {
                 kv.kd_done = true;
                 kv.kc_done = false;
@@ -145,8 +145,9 @@ void set_both_kvec(K_Vectors& kv, const ModuleBase::Matrix3& G, const ModuleBase
 void set_after_vc(K_Vectors& kv, const int& nspin_in, const ModuleBase::Matrix3& reciprocal_vec)
 {
     GlobalV::ofs_running << "\n SETUP K-POINTS" << std::endl;
-    kv.nspin = nspin_in;
-    ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "nspin", kv.nspin);
+//    kv.nspin = nspin_in;
+    kv.set_nspin(nspin_in);
+    ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "nspin", kv.get_nspin());
 
     // set cartesian k vectors.
     KVectorUtils::k_vec_d2c(kv, reciprocal_vec);
@@ -168,6 +169,48 @@ void set_after_vc(K_Vectors& kv, const int& nspin_in, const ModuleBase::Matrix3&
     kv.kd_done = true;
     kv.kc_done = true;
 
-    kv.print_klists(GlobalV::ofs_running);
+    print_klists(kv, GlobalV::ofs_running);
+}
+
+void print_klists(const K_Vectors& kv, std::ofstream& ofs)
+{
+    ModuleBase::TITLE("KVectorUtils", "print_klists");
+    int nks = kv.get_nks();
+    int nkstot = kv.get_nkstot();
+
+    if (nkstot < nks)
+    {
+        std::cout << "\n nkstot=" << nkstot;
+        std::cout << "\n nks=" << nks;
+        ModuleBase::WARNING_QUIT("print_klists", "nkstot < nks");
+    }
+    std::string table;
+    table += " K-POINTS CARTESIAN COORDINATES\n";
+    table += FmtCore::format("%8s%12s%12s%12s%8s\n", "KPOINTS", "CARTESIAN_X", "CARTESIAN_Y", "CARTESIAN_Z", "WEIGHT");
+    for (int i = 0; i < nks; i++)
+    {
+        table += FmtCore::format("%8d%12.8f%12.8f%12.8f%8.4f\n",
+                                 i + 1,
+                                 kv.kvec_c[i].x,
+                                 kv.kvec_c[i].y,
+                                 kv.kvec_c[i].z,
+                                 kv.wk[i]);
+    }
+    GlobalV::ofs_running << "\n" << table << std::endl;
+
+    table.clear();
+    table += " K-POINTS DIRECT COORDINATES\n";
+    table += FmtCore::format("%8s%12s%12s%12s%8s\n", "KPOINTS", "DIRECT_X", "DIRECT_Y", "DIRECT_Z", "WEIGHT");
+    for (int i = 0; i < nks; i++)
+    {
+        table += FmtCore::format("%8d%12.8f%12.8f%12.8f%8.4f\n",
+                                 i + 1,
+                                 kv.kvec_d[i].x,
+                                 kv.kvec_d[i].y,
+                                 kv.kvec_d[i].z,
+                                 kv.wk[i]);
+    }
+    GlobalV::ofs_running << "\n" << table << std::endl;
+    return;
 }
 } // namespace KVectorUtils

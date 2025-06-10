@@ -59,6 +59,24 @@ void set_both_kvec(K_Vectors& kv, const ModuleBase::Matrix3& G, const ModuleBase
      * coordinates.
  */
 void set_after_vc(K_Vectors& kv, const int& nspin, const ModuleBase::Matrix3& G);
+
+/**
+     * @brief Prints the k-points in both Cartesian and direct coordinates.
+     *
+     * This function prints the k-points in both Cartesian and direct coordinates to the output file stream.
+     * The output includes the index, x, y, and z coordinates, and the weight of each k-point.
+     *
+     * @param ofs The output file stream to which the k-points are printed.
+     *
+     * @return void
+     *
+     * @note The function first checks if the total number of k-points (nkstot) is less than the number of k-points for
+     * the current spin (nks). If so, it prints an error message and quits.
+     * @note The function prints the k-points in a table format, with separate tables for Cartesian and direct
+     * coordinates.
+     * @note The function uses the FmtCore::format function to format the output.
+ */
+void print_klists(const K_Vectors& kv, std::ofstream& ofs);
 } // namespace KVectorUtils
 
 #endif // K_VECTOR_UTILS_H

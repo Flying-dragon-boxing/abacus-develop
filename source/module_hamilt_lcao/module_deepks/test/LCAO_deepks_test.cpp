@@ -190,31 +190,8 @@ void test_deepks<T>::check_gdmx(torch::Tensor& gdmx)
                                ParaO,
                                Test_Deepks::GridD,
                                gdmx);
-    DeePKS_domain::check_gdmx(gdmx);
-
-    for (int ia = 0; ia < ucell.nat; ia++)
-    {
-        std::stringstream ss;
-        std::stringstream ss1;
-        ss.str("");
-        ss << "gdmx_" << ia << ".dat";
-        ss1.str("");
-        ss1 << "gdmx_" << ia << "_ref.dat";
-
-        this->compare_with_ref(ss.str(), ss1.str());
-
-        ss.str("");
-        ss << "gdmy_" << ia << ".dat";
-        ss1.str("");
-        ss1 << "gdmy_" << ia << "_ref.dat";
-        this->compare_with_ref(ss.str(), ss1.str());
-
-        ss.str("");
-        ss << "gdmz_" << ia << ".dat";
-        ss1.str("");
-        ss1 << "gdmz_" << ia << "_ref.dat";
-        this->compare_with_ref(ss.str(), ss1.str());
-    }
+    DeePKS_domain::check_tensor<double>(gdmx, "gdmx.dat", 0); // 0 for rank
+    this->compare_with_ref("gdmx.dat", "gdmx_ref.dat");
 }
 
 template <typename T>
@@ -224,30 +201,8 @@ void test_deepks<T>::check_gvx(torch::Tensor& gdmx)
     DeePKS_domain::cal_gevdm(ucell.nat, this->ld.inlmax, this->ld.inl2l, this->ld.pdm, gevdm);
     torch::Tensor gvx;
     DeePKS_domain::cal_gvx(ucell.nat, this->ld.inlmax, this->ld.des_per_atom, this->ld.inl2l, gevdm, gdmx, gvx, 0);
-    DeePKS_domain::check_gvx(gvx, 0);
-
-    for (int ia = 0; ia < ucell.nat; ia++)
-    {
-        std::stringstream ss;
-        std::stringstream ss1;
-        ss.str("");
-        ss << "gvx_" << ia << ".dat";
-        ss1.str("");
-        ss1 << "gvx_" << ia << "_ref.dat";
-        this->compare_with_ref(ss.str(), ss1.str());
-
-        ss.str("");
-        ss << "gvy_" << ia << ".dat";
-        ss1.str("");
-        ss1 << "gvy_" << ia << "_ref.dat";
-        this->compare_with_ref(ss.str(), ss1.str());
-
-        ss.str("");
-        ss << "gvz_" << ia << ".dat";
-        ss1.str("");
-        ss1 << "gvz_" << ia << "_ref.dat";
-        this->compare_with_ref(ss.str(), ss1.str());
-    }
+    DeePKS_domain::check_tensor<double>(gvx, "gvx.dat", 0); // 0 for rank
+    this->compare_with_ref("gvx.dat", "gvx_ref.dat");
 }
 
 template <typename T>
@@ -265,18 +220,8 @@ void test_deepks<T>::check_gdmepsl(torch::Tensor& gdmepsl)
                                   ParaO,
                                   Test_Deepks::GridD,
                                   gdmepsl);
-    DeePKS_domain::check_gdmepsl(gdmepsl);
-
-    for (int i = 0; i < 6; i++)
-    {
-        std::stringstream ss;
-        std::stringstream ss1;
-        ss.str("");
-        ss << "gdmepsl_" << i << ".dat";
-        ss1.str("");
-        ss1 << "gdmepsl_" << i << "_ref.dat";
-        this->compare_with_ref(ss.str(), ss1.str());
-    }
+    DeePKS_domain::check_tensor<double>(gdmepsl, "gdmepsl.dat", 0); // 0 for rank
+    this->compare_with_ref("gdmepsl.dat", "gdmepsl_ref.dat");
 }
 
 template <typename T>
@@ -293,18 +238,8 @@ void test_deepks<T>::check_gvepsl(torch::Tensor& gdmepsl)
                               gdmepsl,
                               gvepsl,
                               0);
-    DeePKS_domain::check_gvepsl(gvepsl, 0);
-
-    for (int i = 0; i < 6; i++)
-    {
-        std::stringstream ss;
-        std::stringstream ss1;
-        ss.str("");
-        ss << "gvepsl_" << i << ".dat";
-        ss1.str("");
-        ss1 << "gvepsl_" << i << "_ref.dat";
-        this->compare_with_ref(ss.str(), ss1.str());
-    }
+    DeePKS_domain::check_tensor<double>(gvepsl, "gvepsl.dat", 0); // 0 for rank
+    this->compare_with_ref("gvepsl.dat", "gvepsl_ref.dat");
 }
 
 template <typename T>
@@ -315,21 +250,21 @@ void test_deepks<T>::check_orbpre()
     torch::Tensor orbpre;
     DeePKS_domain::cal_gevdm(ucell.nat, this->ld.inlmax, this->ld.inl2l, this->ld.pdm, gevdm);
     DeePKS_domain::cal_orbital_precalc<T, TH>(dm,
-                                       this->ld.lmaxd,
-                                       this->ld.inlmax,
-                                       ucell.nat,
-                                       kv.nkstot,
-                                       this->ld.inl2l,
-                                       kv.kvec_d,
-                                       this->ld.phialpha,
-                                       gevdm,
-                                       this->ld.inl_index,
-                                       ucell,
-                                       ORB,
-                                       ParaO,
-                                       Test_Deepks::GridD,
-                                       orbpre);
-    DeePKS_domain::check_orbpre(orbpre);
+                                              this->ld.lmaxd,
+                                              this->ld.inlmax,
+                                              ucell.nat,
+                                              kv.nkstot,
+                                              this->ld.inl2l,
+                                              kv.kvec_d,
+                                              this->ld.phialpha,
+                                              gevdm,
+                                              this->ld.inl_index,
+                                              ucell,
+                                              ORB,
+                                              ParaO,
+                                              Test_Deepks::GridD,
+                                              orbpre);
+    DeePKS_domain::check_tensor<double>(orbpre, "orbital_precalc.dat", 0); // 0 for rank
     this->compare_with_ref("orbital_precalc.dat", "orbpre_ref.dat");
 }
 
@@ -354,8 +289,38 @@ void test_deepks<T>::check_vdpre()
                                           ParaO,
                                           Test_Deepks::GridD,
                                           vdpre);
-    DeePKS_domain::check_v_delta_precalc<T>(vdpre);
+    DeePKS_domain::check_tensor<T>(vdpre, "v_delta_precalc.dat", 0); // 0 for rank
     this->compare_with_ref("v_delta_precalc.dat", "vdpre_ref.dat");
+}
+
+template <typename T>
+void test_deepks<T>::check_vdrpre()
+{
+    std::vector<torch::Tensor> gevdm;
+    torch::Tensor vdrpre;
+    DeePKS_domain::cal_gevdm(ucell.nat, this->ld.inlmax, this->ld.inl2l, this->ld.pdm, gevdm);
+    // normally use hR to get R_size, here use phialpha[0] only for test case
+    int R_size = DeePKS_domain::get_R_size<double>(*(this->ld.phialpha[0]));
+    DeePKS_domain::cal_vdr_precalc(PARAM.sys.nlocal,
+                                   this->ld.lmaxd,
+                                   this->ld.inlmax,
+                                   ucell.nat,
+                                   kv.nkstot,
+                                   R_size,
+                                   this->ld.inl2l,
+                                   kv.kvec_d,
+                                   this->ld.phialpha,
+                                   gevdm,
+                                   this->ld.inl_index,
+                                   ucell,
+                                   ORB,
+                                   ParaO,
+                                   Test_Deepks::GridD,
+                                   vdrpre);
+    // vdrpre is large, we only check the main element in Bravo lattice vector (0, 0, 0)
+    torch::Tensor vdrpre_sliced = vdrpre.slice(0, 0, 1, 1).slice(1, 0, 1, 1).slice(2, 0, 1, 1);
+    DeePKS_domain::check_tensor<double>(vdrpre_sliced, "vdr_precalc.dat", 0); // 0 for rank
+    this->compare_with_ref("vdr_precalc.dat", "vdrpre_ref.dat");
 }
 
 template <typename T>
@@ -454,7 +419,14 @@ void test_deepks<T>::check_f_delta_and_stress_delta()
                                   fvnl_dalpha,
                                   cal_stress,
                                   svnl_dalpha);
-    DeePKS_domain::check_f_delta(ucell.nat, fvnl_dalpha, svnl_dalpha);
+    std::ofstream ofs_f("F_delta.dat");
+    std::ofstream ofs_s("stress_delta.dat");
+    ofs_f << std::setprecision(10);
+    ofs_s << std::setprecision(10);
+    fvnl_dalpha.print(ofs_f);
+    ofs_f.close();
+    svnl_dalpha.print(ofs_s);
+    ofs_s.close();
 
     this->compare_with_ref("F_delta.dat", "F_delta_ref.dat");
     this->compare_with_ref("stress_delta.dat", "stress_delta_ref.dat");
@@ -467,13 +439,11 @@ void test_deepks<T>::check_o_delta()
     const int nks = kv.nkstot;
     ModuleBase::matrix o_delta;
     o_delta.create(nks, 1);
-    DeePKS_domain::cal_o_delta<T>(dm,
-                                  ld.V_delta,
-                                  o_delta,
-                                  ParaO,
-                                  nks,
-                                  nspin);
-    DeePKS_domain::check_o_delta(o_delta);
+    DeePKS_domain::cal_o_delta<T>(dm, ld.V_delta, o_delta, ParaO, nks, nspin);
+    std::ofstream ofs("o_delta.dat");
+    ofs << std::setprecision(10);
+    o_delta.print(ofs);
+    ofs.close();
     this->compare_with_ref("o_delta.dat", "o_delta_ref.dat");
 }
 
@@ -501,8 +471,8 @@ void test_deepks<T>::compare_with_ref(const std::string f1, const std::string f2
                 return;
             }
         }
-        else if (word1[0] == '(' && word1[word1.size() - 1] == ')' && 
-                 word2[0] == '(' && word2[word2.size() - 1] == ')') // complex number
+        else if (word1[0] == '(' && word1[word1.size() - 1] == ')' && word2[0] == '('
+                 && word2[word2.size() - 1] == ')') // complex number
         {
             std::string word1_str = word1.substr(1, word1.size() - 2);
             std::string word2_str = word2.substr(1, word2.size() - 2);

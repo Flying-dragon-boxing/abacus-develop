@@ -1,8 +1,8 @@
 #include "write_HS_sparse.h"
 
 #include "module_parameter/parameter.h"
-#include "module_base/parallel_reduce.h"
-#include "module_base/timer.h"
+#include "source_base/parallel_reduce.h"
+#include "source_base/timer.h"
 #include "module_hamilt_lcao/module_tddft/td_velocity.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 #include "single_R_io.h"
@@ -411,73 +411,85 @@ void ModuleIO::save_dH_sparse(const int& istep,
         Parallel_Reduce::reduce_all(dHz_nonzero_num[ispin], total_R_num);
     }
 
-    if (PARAM.inp.nspin == 2) {
-        for (int index = 0; index < total_R_num; ++index) {
-            if (dHx_nonzero_num[0][index] != 0 || dHx_nonzero_num[1][index] != 0
-                || dHy_nonzero_num[0][index] != 0
-                || dHy_nonzero_num[1][index] != 0
-                || dHz_nonzero_num[0][index] != 0
-                || dHz_nonzero_num[1][index] != 0) {
-                output_R_number++;
-            }
-        }
-    } else {
-        for (int index = 0; index < total_R_num; ++index) {
-            if (dHx_nonzero_num[0][index] != 0 || dHy_nonzero_num[0][index] != 0
-                || dHz_nonzero_num[0][index] != 0) {
-                output_R_number++;
-            }
-        }
+	if (PARAM.inp.nspin == 2) 
+	{
+		for (int index = 0; index < total_R_num; ++index) 
+		{
+			if (dHx_nonzero_num[0][index] != 0 || dHx_nonzero_num[1][index] != 0
+					|| dHy_nonzero_num[0][index] != 0
+					|| dHy_nonzero_num[1][index] != 0
+					|| dHz_nonzero_num[0][index] != 0
+					|| dHz_nonzero_num[1][index] != 0) 
+			{
+				output_R_number++;
+			}
+		}
+	} else 
+	{
+		for (int index = 0; index < total_R_num; ++index) 
+		{
+			if (dHx_nonzero_num[0][index] != 0 || dHy_nonzero_num[0][index] != 0
+					|| dHz_nonzero_num[0][index] != 0) 
+			{
+				output_R_number++;
+			}
+		}
     }
 
     std::stringstream sshx[2];
     std::stringstream sshy[2];
     std::stringstream sshz[2];
+
 	if (PARAM.inp.calculation == "md" && !PARAM.inp.out_app_flag) 
 	{
 		sshx[0] << PARAM.globalv.global_matrix_dir
-			<< "d"<<fileflag<<"rxs1g" << step << ".csr";
+			<< "d"<<fileflag<<"rxs1g" << step << "_nao.csr";
 		sshx[1] << PARAM.globalv.global_matrix_dir
-			<< "d"<<fileflag<<"rxs2g" << step << ".csr";
+			<< "d"<<fileflag<<"rxs2g" << step << "_nao.csr";
 		sshy[0] << PARAM.globalv.global_matrix_dir
-			<< "d"<<fileflag<<"rys1g" << step << ".csr";
+			<< "d"<<fileflag<<"rys1g" << step << "_nao.csr";
 		sshy[1] << PARAM.globalv.global_matrix_dir
-			<< "d"<<fileflag<<"rys2g" << step << ".csr";
+			<< "d"<<fileflag<<"rys2g" << step << "_nao.csr";
 		sshz[0] << PARAM.globalv.global_matrix_dir
-			<< "d"<<fileflag<<"rzs1g" << step << ".csr";
+			<< "d"<<fileflag<<"rzs1g" << step << "_nao.csr";
 		sshz[1] << PARAM.globalv.global_matrix_dir
-			<< "d"<<fileflag<<"rzs2g" << step << ".csr";
-	} else {
-        sshx[0] << PARAM.globalv.global_out_dir << "d"<<fileflag<<"rxs1.csr";
-        sshx[1] << PARAM.globalv.global_out_dir << "d"<<fileflag<<"rxs2.csr";
-        sshy[0] << PARAM.globalv.global_out_dir << "d"<<fileflag<<"rys1.csr";
-        sshy[1] << PARAM.globalv.global_out_dir << "d"<<fileflag<<"rys2.csr";
-        sshz[0] << PARAM.globalv.global_out_dir << "d"<<fileflag<<"rzs1.csr";
-        sshz[1] << PARAM.globalv.global_out_dir << "d"<<fileflag<<"rzs2.csr";
+			<< "d"<<fileflag<<"rzs2g" << step << "_nao.csr";
+	} 
+	else 
+	{
+		sshx[0] << PARAM.globalv.global_out_dir << "d"<<fileflag<<"rxs1_nao.csr";
+        sshx[1] << PARAM.globalv.global_out_dir << "d"<<fileflag<<"rxs2_nao.csr";
+        sshy[0] << PARAM.globalv.global_out_dir << "d"<<fileflag<<"rys1_nao.csr";
+        sshy[1] << PARAM.globalv.global_out_dir << "d"<<fileflag<<"rys2_nao.csr";
+        sshz[0] << PARAM.globalv.global_out_dir << "d"<<fileflag<<"rzs1_nao.csr";
+        sshz[1] << PARAM.globalv.global_out_dir << "d"<<fileflag<<"rzs2_nao.csr";
     }
     std::ofstream g1x[2];
     std::ofstream g1y[2];
     std::ofstream g1z[2];
 
-    if (GlobalV::DRANK == 0) {
-        if (binary) {
-            int nlocal = PARAM.globalv.nlocal;
-            for (int ispin = 0; ispin < spin_loop; ++ispin) {
-                if (PARAM.inp.calculation == "md" && PARAM.inp.out_app_flag
-                    && step) {
-                    g1x[ispin].open(sshx[ispin].str().c_str(),
+	if (GlobalV::DRANK == 0) 
+	{
+		if (binary) // binary format 
+		{
+			int nlocal = PARAM.globalv.nlocal;
+			for (int ispin = 0; ispin < spin_loop; ++ispin) 
+			{
+				if (PARAM.inp.calculation == "md" && PARAM.inp.out_app_flag
+						&& step) 
+				{
+					g1x[ispin].open(sshx[ispin].str().c_str(),
                                     std::ios::binary | std::ios::app);
                     g1y[ispin].open(sshy[ispin].str().c_str(),
                                     std::ios::binary | std::ios::app);
                     g1z[ispin].open(sshz[ispin].str().c_str(),
                                     std::ios::binary | std::ios::app);
-                } else {
-                    g1x[ispin].open(sshx[ispin].str().c_str(),
-                                    std::ios::binary);
-                    g1y[ispin].open(sshy[ispin].str().c_str(),
-                                    std::ios::binary);
-                    g1z[ispin].open(sshz[ispin].str().c_str(),
-                                    std::ios::binary);
+				} 
+				else 
+				{
+                    g1x[ispin].open(sshx[ispin].str().c_str(),std::ios::binary);
+                    g1y[ispin].open(sshy[ispin].str().c_str(),std::ios::binary);
+                    g1z[ispin].open(sshz[ispin].str().c_str(),std::ios::binary);
                 }
 
                 g1x[ispin].write(reinterpret_cast<char*>(&step), sizeof(int));
@@ -498,14 +510,22 @@ void ModuleIO::save_dH_sparse(const int& istep,
                 g1z[ispin].write(reinterpret_cast<char*>(&output_R_number),
                                  sizeof(int));
             }
-        } else {
-            for (int ispin = 0; ispin < spin_loop; ++ispin) {
-                if (PARAM.inp.calculation == "md" && PARAM.inp.out_app_flag
-                    && step) {
-                    g1x[ispin].open(sshx[ispin].str().c_str(), std::ios::app);
+		} 
+		else 
+		{
+			for (int ispin = 0; ispin < spin_loop; ++ispin) 
+			{
+				if (PARAM.inp.calculation == "md" && PARAM.inp.out_app_flag && step) 
+				{
+					g1x[ispin].open(sshx[ispin].str().c_str(), std::ios::app);
                     g1y[ispin].open(sshy[ispin].str().c_str(), std::ios::app);
                     g1z[ispin].open(sshz[ispin].str().c_str(), std::ios::app);
-                } else {
+				} 
+				else 
+				{
+					GlobalV::ofs_running << " dH/dRx data are in file: " << sshx[ispin].str() << std::endl;
+					GlobalV::ofs_running << " dH/dRy data are in file: " << sshy[ispin].str() << std::endl;
+					GlobalV::ofs_running << " dH/dRz data are in file: " << sshz[ispin].str() << std::endl;
                     g1x[ispin].open(sshx[ispin].str().c_str());
                     g1y[ispin].open(sshy[ispin].str().c_str());
                     g1z[ispin].open(sshz[ispin].str().c_str());

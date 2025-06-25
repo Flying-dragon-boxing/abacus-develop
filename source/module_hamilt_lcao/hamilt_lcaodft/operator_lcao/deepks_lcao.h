@@ -1,8 +1,8 @@
 #ifndef DEEPKSLCAO_H
 #define DEEPKSLCAO_H
-#include "module_basis/module_ao/parallel_orbitals.h"
-#include "module_basis/module_nao/two_center_integrator.h"
-#include "module_cell/module_neighbor/sltk_grid_driver.h"
+#include "source_basis/module_ao/parallel_orbitals.h"
+#include "source_basis/module_nao/two_center_integrator.h"
+#include "source_cell/module_neighbor/sltk_grid_driver.h"
 #include "module_elecstate/module_dm/density_matrix.h"
 #include "module_hamilt_lcao/module_deepks/LCAO_deepks.h"
 #include "module_hamilt_lcao/module_hcontainer/hcontainer.h"
@@ -11,8 +11,8 @@
 namespace hamilt
 {
 
-#ifndef __DEEPKSTEMPLATE
-#define __DEEPKSTEMPLATE
+#ifndef __MLALGOTEMPLATE
+#define __MLALGOTEMPLATE
 
 /// The DeePKS class template inherits from class T
 /// it is used to calculate the Deep Potential Kohn-Sham correction from DeePKS method
@@ -39,7 +39,7 @@ class DeePKS<OperatorLCAO<TK, TR>> : public OperatorLCAO<TK, TR>
                                  const LCAO_Orbitals* ptr_orb,
                                  const int& nks_in,
                                  elecstate::DensityMatrix<TK, double>* DM_in
-#ifdef __DEEPKS
+#ifdef __MLALGO
                                  ,
                                  LCAO_Deepks<TK>* ld_in
 #endif
@@ -51,7 +51,7 @@ class DeePKS<OperatorLCAO<TK, TR>> : public OperatorLCAO<TK, TR>
      * this function is used for update hR and V_delta_R
      */
     virtual void contributeHR() override;
-#ifdef __DEEPKS
+#ifdef __MLALGO
     /**
      * @brief contribute the DeePKS correction for each k-point to V_delta
      * this function is not used for update hK, but for DeePKS module
@@ -79,7 +79,7 @@ class DeePKS<OperatorLCAO<TK, TR>> : public OperatorLCAO<TK, TR>
     const TwoCenterIntegrator* intor_orb_alpha_ = nullptr;
     const LCAO_Orbitals* ptr_orb_ = nullptr;
 
-#ifdef __DEEPKS
+#ifdef __MLALGO
 
     LCAO_Deepks<TK>* ld = nullptr;
 

@@ -1,14 +1,14 @@
 #include "gint_k.h"
 #include "grid_technique.h"
 #include "module_parameter/parameter.h"
-#include "module_base/global_function.h"
-#include "module_base/global_variable.h"
-#include "module_base/memory.h"
-#include "module_base/parallel_reduce.h"
-#include "module_base/timer.h"
-#include "module_base/ylm.h"
-#include "module_basis/module_ao/ORB_read.h"
-#include "module_cell/module_neighbor/sltk_grid_driver.h"
+#include "source_base/global_function.h"
+#include "source_base/global_variable.h"
+#include "source_base/memory.h"
+#include "source_base/parallel_reduce.h"
+#include "source_base/timer.h"
+#include "source_base/ylm.h"
+#include "source_basis/module_ao/ORB_read.h"
+#include "source_cell/module_neighbor/sltk_grid_driver.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 
 void Gint_k::distribute_pvdpR_sparseMatrix(
@@ -351,8 +351,8 @@ void Gint_k::cal_dvlocal_R_sparseMatrix(const int& current_spin,
         const int it2 = ucell.iat2it[iat2];
         const Atom* atom1 = &ucell.atoms[it1];
         const Atom* atom2 = &ucell.atoms[it2];
-        const int start1 = ucell.itia2iat(it1, ucell.iat2ia[iat1], 0);
-        const int start2 = ucell.itia2iat(it2, ucell.iat2ia[iat2], 0);
+        const int start1 = ucell.itiaiw2iwt(it1, ucell.iat2ia[iat1], 0);
+        const int start2 = ucell.itiaiw2iwt(it2, ucell.iat2ia[iat2], 0);
 
         for (int ir = 0; ir < ap.get_R_size(); ir++)
         {

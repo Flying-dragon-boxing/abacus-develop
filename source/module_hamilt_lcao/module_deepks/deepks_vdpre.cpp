@@ -1,20 +1,19 @@
 /// cal_v_delta_precalc : v_delta_precalc is used for training with v_delta label,
 //                         which equals gevdm * v_delta_pdm,
 //                         v_delta_pdm = overlap * overlap
-/// check_v_delta_precalc : check v_delta_precalc
 //  prepare_phialpha : prepare phialpha for outputting npy file
 //  prepare_gevdm : prepare gevdm for outputting npy file
 
-#ifdef __DEEPKS
+#ifdef __MLALGO
 
 #include "deepks_vdpre.h"
 
 #include "LCAO_deepks_io.h" // mohan add 2024-07-22
 #include "deepks_iterate.h"
-#include "module_base/blas_connector.h"
-#include "module_base/constants.h"
-#include "module_base/libm/libm.h"
-#include "module_base/parallel_reduce.h"
+#include "source_base/blas_connector.h"
+#include "source_base/constants.h"
+#include "source_base/libm/libm.h"
+#include "source_base/parallel_reduce.h"
 #include "module_hamilt_lcao/module_hcontainer/atom_pair.h"
 #include "module_parameter/parameter.h"
 
@@ -49,8 +48,7 @@ void DeePKS_domain::cal_v_delta_precalc(const int nlocal,
 
     torch::Tensor v_delta_pdm
         = torch::zeros({nks, nlocal, nlocal, inlmax, (2 * lmaxd + 1), (2 * lmaxd + 1)}, torch::dtype(dtype));
-    auto accessor
-        = v_delta_pdm.accessor<std::conditional_t<std::is_same<TK, double>::value, double, c10::complex<double>>, 6>();
+    auto accessor = v_delta_pdm.accessor<TK_tensor, 6>();
 
     DeePKS_domain::iterate_ad2(
         ucell,
@@ -109,7 +107,7 @@ void DeePKS_domain::cal_v_delta_precalc(const int nlocal,
                                 = (kvec_d[ik] * ModuleBase::Vector3<double>(dR1 - dR2)) * ModuleBase::TWO_PI;
                             kphase = std::complex<double>(cos(arg), sin(arg));
                         }
-                        TK_tensor* kpase_ptr = reinterpret_cast<TK_tensor*>(&kphase);
+                        TK* kpase_ptr = reinterpret_cast<TK*>(&kphase);
                         for (int L0 = 0; L0 <= orb.Alpha[0].getLmax(); ++L0)
                         {
                             for (int N0 = 0; N0 < orb.Alpha[0].getNchi(L0); ++N0)
@@ -120,9 +118,10 @@ void DeePKS_domain::cal_v_delta_precalc(const int nlocal,
                                 {
                                     for (int m2 = 0; m2 < nm; ++m2) // nm = 1 for s, 3 for p, 5 for d
                                     {
-                                        TK_tensor tmp = overlap_1->get_value(iw1, ib + m1)
+                                        TK tmp = overlap_1->get_value(iw1, ib + m1)
                                                         * overlap_2->get_value(iw2, ib + m2) * *kpase_ptr;
-                                        accessor[ik][iw1_all][iw2_all][inl][m1][m2] += tmp;
+                                        TK_tensor tmp_tensor = TK_tensor(tmp);
+                                        accessor[ik][iw1_all][iw2_all][inl][m1][m2] += tmp_tensor;
                                     }
                                 }
                                 ib += nm;
@@ -171,39 +170,6 @@ void DeePKS_domain::cal_v_delta_precalc(const int nlocal,
     return;
 }
 
-template <typename TK>
-void DeePKS_domain::check_v_delta_precalc(const torch::Tensor& v_delta_precalc)
-{
-    using TK_tensor =
-        typename std::conditional<std::is_same<TK, std::complex<double>>::value, c10::complex<double>, TK>::type;
-    auto sizes = v_delta_precalc.sizes();
-    std::ofstream ofs("v_delta_precalc.dat");
-    ofs << std::setprecision(10);
-    auto accessor
-        = v_delta_precalc
-              .accessor<std::conditional_t<std::is_same<TK, double>::value, double, c10::complex<double>>, 5>();
-    for (int iks = 0; iks < sizes[0]; ++iks)
-    {
-        for (int mu = 0; mu < sizes[1]; ++mu)
-        {
-            for (int nu = 0; nu < sizes[2]; ++nu)
-            {
-                for (int iat = 0; iat < sizes[3]; ++iat)
-                {
-                    for (int p = 0; p < sizes[4]; ++p)
-                    {
-                        TK_tensor tmp = accessor[iks][mu][nu][iat][p];
-                        TK* tmp_ptr = reinterpret_cast<TK*>(&tmp);
-                        ofs << *tmp_ptr << " ";
-                    }
-                }
-                ofs << std::endl;
-            }
-        }
-    }
-    ofs.close();
-}
-
 // prepare_phialpha and prepare_gevdm for deepks_v_delta = 2
 template <typename TK>
 void DeePKS_domain::prepare_phialpha(const int nlocal,
@@ -227,8 +193,7 @@ void DeePKS_domain::prepare_phialpha(const int nlocal,
     int nlmax = inlmax / nat;
     int mmax = 2 * lmaxd + 1;
     phialpha_out = torch::zeros({nat, nlmax, nks, nlocal, mmax}, dtype);
-    auto accessor
-        = phialpha_out.accessor<std::conditional_t<std::is_same<TK, double>::value, double, c10::complex<double>>, 5>();
+    auto accessor = phialpha_out.accessor<TK_tensor, 5>();
 
     DeePKS_domain::iterate_ad1(
         ucell,
@@ -302,45 +267,6 @@ void DeePKS_domain::prepare_phialpha(const int nlocal,
     return;
 }
 
-template <typename TK>
-void DeePKS_domain::check_vdp_phialpha(const int nat,
-                                       const int nks,
-                                       const int nlocal,
-                                       const int inlmax,
-                                       const int lmaxd,
-                                       const torch::Tensor& phialpha_out)
-{
-    using TK_tensor =
-        typename std::conditional<std::is_same<TK, std::complex<double>>::value, c10::complex<double>, TK>::type;
-    std::ofstream ofs("vdp_phialpha.dat");
-    ofs << std::setprecision(10);
-    auto accessor
-        = phialpha_out.accessor<std::conditional_t<std::is_same<TK, double>::value, double, c10::complex<double>>, 5>();
-
-    int nlmax = inlmax / nat;
-    int mmax = 2 * lmaxd + 1;
-    for (int iat = 0; iat < nat; iat++)
-    {
-        for (int nl = 0; nl < nlmax; nl++)
-        {
-            for (int iks = 0; iks < nks; iks++)
-            {
-                for (int mu = 0; mu < nlocal; mu++)
-                {
-                    for (int m = 0; m < mmax; m++)
-                    {
-                        TK_tensor tmp = accessor[iat][nl][iks][mu][m];
-                        TK* tmp_ptr = reinterpret_cast<TK*>(&tmp);
-                        ofs << *tmp_ptr << " ";
-                    }
-                }
-            }
-            ofs << std::endl;
-        }
-    }
-    ofs.close();
-}
-
 void DeePKS_domain::prepare_gevdm(const int nat,
                                   const int lmaxd,
                                   const int inlmax,
@@ -366,35 +292,6 @@ void DeePKS_domain::prepare_gevdm(const int nat,
 
     ModuleBase::timer::tick("DeePKS_domain", "prepare_gevdm");
     return;
-}
-
-void DeePKS_domain::check_vdp_gevdm(const int nat, const int lmaxd, const int inlmax, const torch::Tensor& gevdm)
-{
-    std::ofstream ofs("vdp_gevdm.dat");
-    ofs << std::setprecision(10);
-
-    auto accessor = gevdm.accessor<double, 5>();
-
-    int nlmax = inlmax / nat;
-    int mmax = 2 * lmaxd + 1;
-    for (int iat = 0; iat < nat; iat++)
-    {
-        for (int nl = 0; nl < nlmax; nl++)
-        {
-            for (int v = 0; v < mmax; v++)
-            {
-                for (int m = 0; m < mmax; m++)
-                {
-                    for (int n = 0; n < mmax; n++)
-                    {
-                        ofs << accessor[iat][nl][v][m][n] << " ";
-                    }
-                }
-            }
-            ofs << std::endl;
-        }
-    }
-    ofs.close();
 }
 
 template void DeePKS_domain::cal_v_delta_precalc<double>(const int nlocal,
@@ -429,9 +326,6 @@ template void DeePKS_domain::cal_v_delta_precalc<std::complex<double>>(
     const Grid_Driver& GridD,
     torch::Tensor& v_delta_precalc);
 
-template void DeePKS_domain::check_v_delta_precalc<double>(const torch::Tensor& v_delta_precalc);
-template void DeePKS_domain::check_v_delta_precalc<std::complex<double>>(const torch::Tensor& v_delta_precalc);
-
 template void DeePKS_domain::prepare_phialpha<double>(const int nlocal,
                                                       const int lmaxd,
                                                       const int inlmax,
@@ -458,18 +352,5 @@ template void DeePKS_domain::prepare_phialpha<std::complex<double>>(
     const Parallel_Orbitals& pv,
     const Grid_Driver& GridD,
     torch::Tensor& phialpha_out);
-
-template void DeePKS_domain::check_vdp_phialpha<double>(const int nat,
-                                                        const int nks,
-                                                        const int nlocal,
-                                                        const int inlmax,
-                                                        const int lmaxd,
-                                                        const torch::Tensor& phialpha_out);
-template void DeePKS_domain::check_vdp_phialpha<std::complex<double>>(const int nat,
-                                                                      const int nks,
-                                                                      const int nlocal,
-                                                                      const int inlmax,
-                                                                      const int lmaxd,
-                                                                      const torch::Tensor& phialpha_out);
 
 #endif

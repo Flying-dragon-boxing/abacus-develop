@@ -1,10 +1,10 @@
 #include "nonlocal_pw.h"
 
 #include "module_parameter/parameter.h"
-#include "module_base/blas_connector.h"
-#include "module_base/timer.h"
-#include "module_base/parallel_reduce.h"
-#include "module_base/tool_quit.h"
+#include "source_base/blas_connector.h"
+#include "source_base/timer.h"
+#include "source_base/parallel_reduce.h"
+#include "source_base/tool_quit.h"
 
 
 namespace hamilt {
@@ -185,7 +185,12 @@ void Nonlocal<OperatorPW<T, Device>>::add_nonlocal_pp(T *hpsi_in, const T *becp,
         int npm = m;
         //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         // denghui replace 2022-10-20
-        gemm_op()(
+        #ifdef __DSP
+            ModuleBase::gemm_op_mt<T, Device>()
+        #else
+            gemm_op()
+        #endif
+            (
             transa,
             transb,
             this->npw,
@@ -259,7 +264,12 @@ void Nonlocal<OperatorPW<T, Device>>::act(
             int npm = nbands;
             //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             // denghui replace 2022-10-20
-            gemm_op()(
+            #ifdef __DSP
+            ModuleBase::gemm_op_mt<T, Device>()
+            #else
+            gemm_op()
+            #endif
+            (
                 transa,
                 transb,
                 nkb,

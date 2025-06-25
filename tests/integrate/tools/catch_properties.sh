@@ -96,7 +96,7 @@ fi
 # total energy information
 #----------------------------
 if [ $calculation != "get_wf" ]\
-&& [ $calculation != "get_pchg" ] && [ $calculation != "get_S" ]\
+&& [ $calculation != "get_pchg" ] && [ $calculation != "get_s" ]\
 && [ $is_lr == 0 ]; then
 	etot=$(grep "ETOT_" "$running_path" | tail -1 | awk '{print $2}')
     #echo "etot = $etot"
@@ -138,7 +138,7 @@ fi
 # echo $total_charge
 #-------------------------------
 if ! test -z "$has_dos"  && [  $has_dos == 1 ]; then
-	total_dos=`cat OUT.autotest/DOS1_smear.dat | awk 'END {print}' | awk '{print $3}'`
+	total_dos=`cat OUT.autotest/doss1*.txt | awk 'END {print}' | awk '{print $3}'`
 	echo "totaldosref $total_dos" >> $1
 fi
 
@@ -198,9 +198,9 @@ fi
 # Overlap matrix
 # echo $get_s
 #-------------------------------
-if ! test -z "$get_s"  && [  $get_s == "get_S" ]; then
-	sref=refSR.csr
-	scal=OUT.autotest/SR.csr
+if ! test -z "$get_s"  && [  $get_s == "get_s" ]; then
+	sref=sr_nao.csr.ref
+	scal=OUT.autotest/sr_nao.csr
 	python3 $COMPARE_SCRIPT $sref $scal 8
 	echo "CompareS_pass $?" >>$1
 fi
@@ -210,10 +210,6 @@ fi
 # echo $out_pband
 #-------------------------------
 if ! test -z "$out_pband"  && [  $out_pband == 1 ]; then
-	#pbandref=refPBANDS_1
-	#pbandcal=OUT.autotest/PBANDS_1
-	#python3 $COMPARE_SCRIPT $pbandref $pbandcal 8
-	#echo "CompareProjBand_pass $?" >>$1
 	orbref=refOrbital
 	orbcal=OUT.autotest/Orbital
 	python3 $COMPARE_SCRIPT $orbref $orbcal 8
@@ -362,11 +358,11 @@ fi
 #-----------------------------------
 #echo $has_mat_dh
 if ! test -z "$has_mat_dh"  && [  $has_mat_dh == 1 ]; then
-    python3 $COMPARE_SCRIPT dhrxs1.csr.ref OUT.autotest/dhrxs1.csr 8
+    python3 $COMPARE_SCRIPT dhrxs1_nao.csr.ref OUT.autotest/dhrxs1_nao.csr 8
     echo "ComparerdHRx_pass $?" >>$1
-    python3 $COMPARE_SCRIPT dhrys1.csr.ref OUT.autotest/dhrys1.csr 8
+    python3 $COMPARE_SCRIPT dhrys1_nao.csr.ref OUT.autotest/dhrys1_nao.csr 8
     echo "ComparerdHRy_pass $?" >>$1
-    python3 $COMPARE_SCRIPT dhrzs1.csr.ref OUT.autotest/dhrzs1.csr 8
+    python3 $COMPARE_SCRIPT dhrzs1_nao.csr.ref OUT.autotest/dhrzs1_nao.csr 8
     echo "ComparerdHRz_pass $?" >>$1
 fi
 
@@ -563,7 +559,7 @@ bash ${script_dir}/catch_deepks_properties.sh $1
 if ! test -z "$symmetry" && [ $symmetry == 1 ]; then
 	pointgroup=`grep 'POINT GROUP' $running_path | tail -n 2 | head -n 1 | awk '{print $4}'`
 	spacegroup=`grep 'SPACE GROUP' $running_path | tail -n 1 | awk '{print $7}'`
-	nksibz=`grep ' nkstot_ibz ' $running_path | awk '{print $3}'`
+	nksibz=`grep 'Number of irreducible k-points' $running_path | awk '{print $6}'`
 	echo "pointgroupref $pointgroup" >>$1
 	echo "spacegroupref $spacegroup" >>$1
 	echo "nksibzref $nksibz" >>$1

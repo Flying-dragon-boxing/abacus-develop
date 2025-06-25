@@ -2,8 +2,8 @@
 #define INPUT_CONV_TEST_H
 #define private public
 #include "module_parameter/parameter.h"
-#include "module_cell/module_symmetry/symmetry.h"
-#include "module_cell/unitcell.h"
+#include "source_cell/module_symmetry/symmetry.h"
+#include "source_cell/unitcell.h"
 #include "module_elecstate/elecstate_lcao.h"
 #include "module_elecstate/module_charge/charge_mixing.h"
 #include "module_elecstate/occupy.h"
@@ -16,16 +16,16 @@
 #include "module_hamilt_lcao/module_tddft/td_velocity.h"
 #include "module_hamilt_pw/hamilt_pwdft/VNL_in_pw.h"
 #include "module_hamilt_pw/hamilt_pwdft/structure_factor.h"
-#include "module_hsolver/hsolver_lcao.h"
+#include "source_hsolver/hsolver_lcao.h"
 #include "module_io/berryphase.h"
 #include "module_io/restart.h"
 #include "module_md/md_func.h"
-#include "module_relax/relax_old/bfgs_basic.h"
-#include "module_relax/relax_old/ions_move_basic.h"
-#include "module_relax/relax_old/ions_move_cg.h"
-#include "module_relax/relax_old/lattice_change_basic.h"
+#include "module_relax/bfgs_basic.h"
+#include "module_relax/ions_move_basic.h"
+#include "module_relax/ions_move_cg.h"
+#include "module_relax/lattice_change_basic.h"
 #ifdef __PEXSI
-#include "module_hsolver/module_pexsi/pexsi_solver.h"
+#include "source_hsolver/module_pexsi/pexsi_solver.h"
 #endif
 #undef private
 bool berryphase::berry_phase_flag = false;

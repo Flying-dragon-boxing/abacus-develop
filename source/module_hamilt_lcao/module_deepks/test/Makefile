@@ -12,7 +12,7 @@ NP      =  4
 #==========================
 # FFTW package needed 
 #==========================
-HONG_FFTW        = -D__FFTW3 -D__DEEPKS
+HONG_FFTW        = -D__FFTW3 -D__MLALGO
 FFTW_INCLUDE_DIR = ${FFTW_DIR}/include
 FFTW_LIB_DIR     = ${FFTW_DIR}/lib
 FFTW_LIB         = -L${FFTW_LIB_DIR} -lfftw3 -Wl,-rpath=${FFTW_LIB_DIR}
@@ -45,12 +45,13 @@ OPTS = ${INCLUDES} -Ofast -std=c++14 -march=native -xHost -m64 -qopenmp -Werror 
 
 include Makefile.Objects
 
-VPATH=../../module_base\
+VPATH=../../../source_main\
+:../../source_base\
 :../../module_io\
 :../../module_hamilt_pw/hamilt_pwdft\
-:../../module_basis/module_ao\
+:../../source_basis/module_ao\
 :../../module_neighbor\
-:../../module_cell\
+:../../source_cell\
 :../../module_elecstate\
 :../../\
 :../\

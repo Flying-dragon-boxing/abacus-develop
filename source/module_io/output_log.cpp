@@ -1,11 +1,11 @@
 #include "output_log.h"
 
 #include "module_parameter/parameter.h"
-#include "module_base/constants.h"
-#include "module_base/formatter.h"
-#include "module_base/global_variable.h"
+#include "source_base/constants.h"
+#include "source_base/formatter.h"
+#include "source_base/global_variable.h"
 
-#include "module_base/parallel_comm.h"
+#include "source_base/parallel_comm.h"
 
 #ifdef __MPI
 #include <mpi.h>
@@ -17,13 +17,13 @@ void output_convergence_after_scf(const bool &convergence, double& energy, std::
 {
     if (convergence)
     {
-        ofs_running << "\n charge density convergence is achieved" << std::endl;
-        ofs_running << " final etot is " << std::setprecision(11) << energy * ModuleBase::Ry_to_eV << " eV" << std::endl;
+        ofs_running << " #SCF IS CONVERGED#" << std::endl;
+//      ofs_running << " final etot is " << std::setprecision(11) << energy * ModuleBase::Ry_to_eV << " eV" << std::endl;
     }
     else
     {
-        ofs_running << " !! convergence has not been achieved @_@" << std::endl;
-        std::cout << " !! CONVERGENCE HAS NOT BEEN ACHIEVED !!" << std::endl;
+        ofs_running << " !!SCF IS NOT CONVERGED!!" << std::endl;
+        std::cout << " !!SCF IS NOT CONVERGED!!" << std::endl;
     }
 }
 
@@ -53,8 +53,9 @@ void output_efermi(const bool &convergence, double& efermi, std::ofstream& ofs_r
 {
     if (convergence && PARAM.inp.out_level != "m")
     {
-        ofs_running << std::setprecision(16);
-        ofs_running << " EFERMI = " << std::setprecision(11) << efermi * ModuleBase::Ry_to_eV << " eV" << std::endl;
+// mohan comment out 2025-06-22
+//        ofs_running << std::setprecision(16);
+//        ofs_running << " EFERMI = " << std::setprecision(11) << efermi * ModuleBase::Ry_to_eV << " eV" << std::endl;
     }
 }
 
@@ -217,6 +218,7 @@ void print_force(std::ofstream& ofs_running,
                  const ModuleBase::matrix& force,
                  bool ry)
 {
+    // this is a magic number, mohan note 2025-06-22
     const double output_acc = 1.0e-8;
     double fac = 1.0;
     if (!ry)
@@ -230,7 +232,7 @@ void print_force(std::ofstream& ofs_running,
     std::vector<double> force_z;
     std::string table;
 
-    ofs_running << " " << name << std::endl;
+    ofs_running << "\n #" << name << "#" << std::endl;
 
     std::vector<std::string> titles({"Atoms", "Force_x", "Force_y", "Force_z"});
     int iat = 0;
@@ -291,7 +293,7 @@ void print_stress(const std::string& name, const ModuleBase::matrix& scs,
     std::vector<double> stress_z;
     std::string table;
 
-    ofs << " " << title << std::endl;
+    ofs << "\n #" << title << "#" << std::endl;
 
     std::vector<std::string> titles({"Stress_x", "Stress_y", "Stress_z"});
     for (int i = 0; i < 3; i++)
@@ -316,7 +318,7 @@ void print_stress(const std::string& name, const ModuleBase::matrix& scs,
     ofs << table;
     if (name == "TOTAL-STRESS")
     {
-        ofs << " TOTAL-PRESSURE (DO NOT INCLUDE KINETIC PART OF IONS): " << std::fixed 
+        ofs << " #TOTAL-PRESSURE# (EXCLUDE KINETIC PART OF IONS): " << std::fixed 
                              << std::setprecision(6) << pressure << unit
                              << std::endl;
     }
@@ -325,7 +327,7 @@ void print_stress(const std::string& name, const ModuleBase::matrix& scs,
         std::cout << table;
         if (name == "TOTAL-STRESS")
         {
-            std::cout << " TOTAL-PRESSURE (DO NOT INCLUDE KINETIC PART OF IONS): " << std::fixed 
+            std::cout << " TOTAL-PRESSURE (EXCLUDE KINETIC PART OF IONS): " << std::fixed 
                       << std::setprecision(6) << pressure << unit
                       << std::endl;
         }
@@ -335,8 +337,14 @@ void print_stress(const std::string& name, const ModuleBase::matrix& scs,
 
 void write_head(std::ofstream& ofs, const int& istep, const int& iter, const std::string& basisname)
 {
-    ofs << "\n " << basisname << " ALGORITHM --------------- ION=" << std::setw(4) << istep + 1
-                << "  ELEC=" << std::setw(4) << iter << "--------------------------------\n";
+    ofs << "\n";
+    ofs << " ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"<< std::endl;
+    ofs << " --> IONIC RELAXATION STEP=" << std::setw(6) << istep+1
+        << "  ELECTRONIC ITERATION STEP=" << std::setw(6) << iter << "\n"; 
+    ofs << " ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"<< std::endl;
+
+//    ofs << "\n " << basisname << " ALGORITHM --------------- ION=" << std::setw(4) << istep + 1
+//                << "  ELEC=" << std::setw(4) << iter << "--------------------------------\n";
 }
 
 }// namespace ModuleIO

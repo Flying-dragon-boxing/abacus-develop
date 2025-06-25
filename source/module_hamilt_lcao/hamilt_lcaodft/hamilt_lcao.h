@@ -1,9 +1,9 @@
 #ifndef HAMILT_LCAO_H 
 #define HAMILT_LCAO_H 
 
-#include "module_basis/module_nao/two_center_bundle.h"
-#include "module_cell/klist.h"
-#include "module_cell/module_neighbor/sltk_atom_arrange.h"
+#include "source_basis/module_nao/two_center_bundle.h"
+#include "source_cell/klist.h"
+#include "source_cell/module_neighbor/sltk_atom_arrange.h"
 #include "module_elecstate/module_dm/density_matrix.h"
 #include "module_elecstate/module_pot/potential_new.h"
 #include "module_hamilt_general/hamilt.h"
@@ -14,7 +14,7 @@
 
 #include <vector>
 
-#ifdef __DEEPKS
+#ifdef __MLALGO
 #include "module_hamilt_lcao/module_deepks/LCAO_deepks.h"
 #endif
 
@@ -51,7 +51,7 @@ class HamiltLCAO : public Hamilt<TK>
 			   const TwoCenterBundle& two_center_bundle,
                const LCAO_Orbitals& orb,
                elecstate::DensityMatrix<TK, double>* DM_in
-#ifdef __DEEPKS
+#ifdef __MLALGO
                ,
                LCAO_Deepks<TK>* ld_in
 #endif
@@ -117,7 +117,7 @@ class HamiltLCAO : public Hamilt<TK>
         return this->sR;
     }
 
-#ifdef __DEEPKS
+#ifdef __MLALGO
     /// get V_delta_R pointer of *this->V_delta_R, which is a HContainer<TR> and contains V_delta(R)
     HContainer<TR>*& get_V_delta_R()
     {
@@ -155,7 +155,7 @@ class HamiltLCAO : public Hamilt<TK>
     //! Real space overlap matrix S(R), where R is the Bravis lattice vector
     HContainer<TR>* sR = nullptr;
 
-#ifdef __DEEPKS
+#ifdef __MLALGO
     HContainer<TR>* V_delta_R = nullptr;
 #endif
 

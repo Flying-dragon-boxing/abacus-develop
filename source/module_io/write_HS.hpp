@@ -1,9 +1,9 @@
 #include "write_HS.h"
 
 #include "module_parameter/parameter.h"
-#include "module_base/parallel_reduce.h"
-#include "module_base/timer.h"
-#include "module_cell/module_neighbor/sltk_grid_driver.h"
+#include "source_base/parallel_reduce.h"
+#include "source_base/timer.h"
+#include "source_cell/module_neighbor/sltk_grid_driver.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 #include "module_io/filename.h" // use filename_output function
 
@@ -24,7 +24,6 @@ void ModuleIO::write_hsk(
         std::ofstream &ofs_running)	
 {
 
-	ofs_running << "\n WRITE H(k) OR S(k) BEGINS" << std::endl;
 	ofs_running << " >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 		">>>>>>>>>>>>>>>>>>>>>>>>>" << std::endl;
 	ofs_running << " |                                            "
@@ -35,6 +34,7 @@ void ModuleIO::write_hsk(
 		"                        |" << std::endl;
 	ofs_running << " >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 		">>>>>>>>>>>>>>>>>>>>>>>>>" << std::endl;
+	ofs_running << "\n WRITE H(k) OR S(k)" << std::endl;
 
 	for (int ik = 0; ik < nks; ++ik)
 	{

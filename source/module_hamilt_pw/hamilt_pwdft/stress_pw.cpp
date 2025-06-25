@@ -1,6 +1,6 @@
 #include "stress_pw.h"
 
-#include "module_base/timer.h"
+#include "source_base/timer.h"
 #include "module_hamilt_general/module_vdw/vdw.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 #include "module_io/output_log.h"
@@ -147,7 +147,7 @@ void Stress_PW<FPTYPE, Device>::cal_stress(ModuleBase::matrix& sigmatot,
 
     const bool ry = false;
     const bool screen = PARAM.inp.test_stress;
-    ModuleIO::print_stress("TOTAL-STRESS", sigmatot, true, ry, GlobalV::ofs_running);
+    ModuleIO::print_stress("TOTAL-STRESS", sigmatot, screen, ry, GlobalV::ofs_running);
 
     if (screen)
     {

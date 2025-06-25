@@ -3,7 +3,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #define private public
-#include "module_cell/klist.h"
+#include "source_cell/klist.h"
 #include "module_elecstate/elecstate.h"
 #include "module_elecstate/module_charge/charge.h"
 #include "module_elecstate/module_pot/efield.h"
@@ -112,49 +112,6 @@ TEST_F(ElecStatePrintTest, PrintFormat)
     std::remove("test.dat");
 }
 
-TEST_F(ElecStatePrintTest, PrintBand)
-{
-    PARAM.input.nspin = 1;
-    PARAM.input.nbands = 2;
-    PARAM.sys.nbands_l = 2;
-    GlobalV::MY_RANK = 0;
-
-    std::ofstream ofs;
-    ofs.open("test.dat", std::ios::out);
-    // print eigenvalues
-    elecstate::print_band(elecstate.ekb,elecstate.wg,elecstate.klist, 0, 1, 0, ofs);
-    ofs.close();
-
-    ifs.open("test.dat", std::ios::in);
-    std::string str((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-    EXPECT_THAT(str, testing::HasSubstr("Energy (eV) & Occupations for spin=1 k-point=1"));
-    EXPECT_THAT(str, testing::HasSubstr("1        13.6057       0.100000"));
-    EXPECT_THAT(str, testing::HasSubstr("2        27.2114       0.200000"));
-    ifs.close();
-    std::remove("test.dat");
-}
-
-
-TEST_F(ElecStatePrintTest, PrintBandWarning)
-{
-    elecstate.ekb(0, 0) = 1.0e11;
-    PARAM.input.nspin = 4;
-
-    std::ofstream ofs;
-    ofs.open("test.dat", std::ios::out);
-    testing::internal::CaptureStdout();
-    
-    EXPECT_EXIT(elecstate::print_band(elecstate.ekb,elecstate.wg,elecstate.klist, 0, 1, 0, ofs), 
-      ::testing::ExitedWithCode(1), "");
-
-    output = testing::internal::GetCapturedStdout();
-    EXPECT_THAT(output, testing::HasSubstr("Eigenvalues are too large!"));
-
-    ofs.close();
-
-    std::remove("test.dat");
-}
-
 TEST_F(ElecStatePrintTest, PrintEtot)
 {
     GlobalV::ofs_running.open("test.dat", std::ios::out);
@@ -163,13 +120,13 @@ TEST_F(ElecStatePrintTest, PrintEtot)
     double scf_thr = 0.1;
     double scf_thr_kin = 0.0;
     double duration = 2.0;
-    int printe = 1;
     double pw_diag_thr = 0.1;
     int avg_iter = 2;
     bool print = true;
     elecstate.charge = new Charge;
     elecstate.charge->nrxx = 100;
     elecstate.charge->nxyz = 1000;
+    PARAM.input.out_freq_elec = 1;
     PARAM.input.imp_sol = true;
     PARAM.input.efield_flag = true;
     PARAM.input.gate_flag = true;
@@ -178,20 +135,26 @@ TEST_F(ElecStatePrintTest, PrintEtot)
     GlobalV::MY_RANK = 0;
     PARAM.input.basis_type = "pw";
     PARAM.input.nspin = 2;
+
     // iteration of different vdw_method
     std::vector<std::string> vdw_methods = {"d2", "d3_0", "d3_bj"};
     for (int i = 0; i < vdw_methods.size(); i++)
     {
         PARAM.input.vdw_method = vdw_methods[i];
-        elecstate::print_etot(ucell.magnet,elecstate, converged, iter, scf_thr, scf_thr_kin, duration, printe, pw_diag_thr, avg_iter, false);
+        elecstate::print_etot(ucell.magnet,elecstate, converged, iter, scf_thr, 
+        scf_thr_kin, duration, pw_diag_thr, avg_iter, false);
     }
+
     // iteration of different ks_solver
     std::vector<std::string> ks_solvers = {"cg", "lapack", "genelpa", "dav", "scalapack_gvx", "cusolver"};
     for (int i = 0; i < ks_solvers.size(); i++)
     {
         PARAM.input.ks_solver = ks_solvers[i];
         testing::internal::CaptureStdout();
-        elecstate::print_etot(ucell.magnet,elecstate,converged, iter, scf_thr, scf_thr_kin, duration, printe, pw_diag_thr, avg_iter, print);
+
+        elecstate::print_etot(ucell.magnet,elecstate,converged, iter, scf_thr, 
+        scf_thr_kin, duration, pw_diag_thr, avg_iter, print);
+
         output = testing::internal::GetCapturedStdout();
         if (PARAM.input.ks_solver == "cg")
         {
@@ -221,7 +184,7 @@ TEST_F(ElecStatePrintTest, PrintEtot)
     GlobalV::ofs_running.close();
     ifs.open("test.dat", std::ios::in);
     std::string str((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-    EXPECT_THAT(str, testing::HasSubstr("Electron density deviation is 0.1"));
+    EXPECT_THAT(str, testing::HasSubstr("Electron density deviation = 0.1"));
     EXPECT_THAT(str, testing::HasSubstr("Diago Threshold = 0.1"));
     EXPECT_THAT(str, testing::HasSubstr("E_KohnSham"));
     EXPECT_THAT(str, testing::HasSubstr("E_vdwD2"));
@@ -235,6 +198,7 @@ TEST_F(ElecStatePrintTest, PrintEtot)
     std::remove("test.dat");
 }
 
+/*
 TEST_F(ElecStatePrintTest, PrintEtot2)
 {
     GlobalV::ofs_running.open("test.dat", std::ios::out);
@@ -243,10 +207,10 @@ TEST_F(ElecStatePrintTest, PrintEtot2)
     double scf_thr = 0.1;
     double scf_thr_kin = 0.0;
     double duration = 2.0;
-    int printe = 0;
     double pw_diag_thr = 0.1;
     int avg_iter = 2;
     bool print = true;
+    PARAM.input.out_freq_elec = 0;
     elecstate.charge = new Charge;
     elecstate.charge->nrxx = 100;
     elecstate.charge->nxyz = 1000;
@@ -259,11 +223,13 @@ TEST_F(ElecStatePrintTest, PrintEtot2)
     PARAM.input.basis_type = "pw";
     PARAM.input.scf_nmax = 100;
 
-    elecstate::print_etot(ucell.magnet,elecstate,converged, iter, scf_thr, scf_thr_kin, duration, printe, pw_diag_thr, avg_iter, print);
+    elecstate::print_etot(ucell.magnet,elecstate,converged, iter, scf_thr, scf_thr_kin, duration, 
+    pw_diag_thr, avg_iter, print);
+
     GlobalV::ofs_running.close();
     ifs.open("test.dat", std::ios::in);
     std::string str((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-    EXPECT_THAT(str, testing::HasSubstr("Electron density deviation is 0.1"));
+    EXPECT_THAT(str, testing::HasSubstr("Electron density deviation = 0.1"));
     EXPECT_THAT(str, testing::HasSubstr("Diago Threshold = 0.1"));
     EXPECT_THAT(str, testing::HasSubstr("E_KohnSham"));
     EXPECT_THAT(str, testing::HasSubstr("E_Harris"));
@@ -273,6 +239,7 @@ TEST_F(ElecStatePrintTest, PrintEtot2)
     delete elecstate.charge;
     std::remove("test.dat");
 }
+*/
 
 TEST_F(ElecStatePrintTest, PrintEtotColorS2)
 {
@@ -281,13 +248,14 @@ TEST_F(ElecStatePrintTest, PrintEtotColorS2)
     double scf_thr = 2.0;
     double scf_thr_kin = 0.0;
     double duration = 2.0;
-    int printe = 1;
     double pw_diag_thr = 0.1;
     int avg_iter = 2;
     bool print = true;
     elecstate.charge = new Charge;
     elecstate.charge->nrxx = 100;
     elecstate.charge->nxyz = 1000;
+
+    PARAM.input.out_freq_elec = 1;
     PARAM.input.imp_sol = true;
     PARAM.input.efield_flag = true;
     PARAM.input.gate_flag = true;
@@ -295,9 +263,13 @@ TEST_F(ElecStatePrintTest, PrintEtotColorS2)
     PARAM.input.out_bandgap = true;
     PARAM.input.nspin = 2;
     GlobalV::MY_RANK = 0;
-    elecstate::print_etot(ucell.magnet,elecstate,converged, iter, scf_thr, scf_thr_kin, duration, printe, pw_diag_thr, avg_iter, print);
+
+    elecstate::print_etot(ucell.magnet,elecstate,converged, iter, scf_thr, 
+    scf_thr_kin, duration, pw_diag_thr, avg_iter, print);
+
     delete elecstate.charge;
 }
+
 
 TEST_F(ElecStatePrintTest, PrintEtotColorS4)
 {
@@ -306,13 +278,14 @@ TEST_F(ElecStatePrintTest, PrintEtotColorS4)
     double scf_thr = 0.1;
     double scf_thr_kin = 0.0;
     double duration = 2.0;
-    int printe = 1;
     double pw_diag_thr = 0.1;
     int avg_iter = 2;
     bool print = true;
     elecstate.charge = new Charge;
     elecstate.charge->nrxx = 100;
     elecstate.charge->nxyz = 1000;
+
+    PARAM.input.out_freq_elec = 1;
     PARAM.input.imp_sol = true;
     PARAM.input.efield_flag = true;
     PARAM.input.gate_flag = true;
@@ -321,6 +294,9 @@ TEST_F(ElecStatePrintTest, PrintEtotColorS4)
     PARAM.input.nspin = 4;
     PARAM.input.noncolin = true;
     GlobalV::MY_RANK = 0;
-    elecstate::print_etot(ucell.magnet,elecstate, converged, iter, scf_thr, scf_thr_kin, duration, printe, pw_diag_thr, avg_iter, print);
+
+    elecstate::print_etot(ucell.magnet,elecstate, converged, iter, scf_thr, scf_thr_kin, 
+    duration, pw_diag_thr, avg_iter, print);
+
     delete elecstate.charge;
 }

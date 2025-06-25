@@ -1,10 +1,10 @@
 #ifndef DEEPKS_VDELTA_H
 #define DEEPKS_VDELTA_H
 
-#ifdef __DEEPKS
-#include "module_base/complexmatrix.h"
-#include "module_base/matrix.h"
-#include "module_basis/module_ao/parallel_orbitals.h"
+#ifdef __MLALGO
+#include "source_base/complexmatrix.h"
+#include "source_base/matrix.h"
+#include "source_basis/module_ao/parallel_orbitals.h"
 
 // break the circular dependency of HamiltLCAO
 namespace hamilt

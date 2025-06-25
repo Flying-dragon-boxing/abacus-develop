@@ -1,16 +1,16 @@
 #include "VNL_in_pw.h"
 
 #include "module_parameter/parameter.h"
-#include "module_base/clebsch_gordan_coeff.h"
-#include "module_base/global_function.h"
-#include "module_base/global_variable.h"
-#include "module_base/math_integral.h"
-#include "module_base/math_polyint.h"
-#include "module_base/math_sphbes.h"
-#include "module_base/math_ylmreal.h"
-#include "module_base/memory.h"
-#include "module_base/module_device/device.h"
-#include "module_base/timer.h"
+#include "source_base/clebsch_gordan_coeff.h"
+#include "source_base/global_function.h"
+#include "source_base/global_variable.h"
+#include "source_base/math_integral.h"
+#include "source_base/math_polyint.h"
+#include "source_base/math_sphbes.h"
+#include "source_base/math_ylmreal.h"
+#include "source_base/memory.h"
+#include "source_base/module_device/device.h"
+#include "source_base/timer.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 #include "module_hamilt_pw/hamilt_pwdft/kernels/vnl_op.h"
 
@@ -271,7 +271,13 @@ void pseudopot_cell_vnl::init(const UnitCell& ucell,
             resmem_sh_op()(s_tab, this->tab.getSize());
             resmem_ch_op()(c_vkb, nkb * npwx);
         }
+        #ifdef __DSP
+        base_device::memory::resize_memory_op_mt<std::complex<double>, base_device::DEVICE_CPU>()
+        (this->z_vkb, this->vkb.size, "Nonlocal<PW>::ps");
+        memcpy(this->z_vkb,this->vkb.c,this->vkb.size*16);
+        #else
         this->z_vkb = this->vkb.c;
+        #endif
         this->d_tab = this->tab.ptr;
         // There's no need to delete double precision pointers while in a CPU environment.
     }

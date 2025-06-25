@@ -1,7 +1,7 @@
 #include "elecstate.h"
-#include "module_base/formatter.h"
-#include "module_base/global_variable.h"
-#include "module_base/parallel_common.h"
+#include "source_base/formatter.h"
+#include "source_base/global_variable.h"
+#include "source_base/parallel_common.h"
 #include "module_elecstate/module_pot/H_Hartree_pw.h"
 #include "module_elecstate/module_pot/efield.h"
 #include "module_elecstate/module_pot/gatefield.h"
@@ -149,56 +149,6 @@ void print_scf_iterinfo(const std::string& ks_solver,
     std::cout << buf;
 }
 
-/// @brief function for printing eigenvalues : ekb
-/// @param ik: index of kpoints
-/// @param printe: print energy every 'printe' electron iteration.
-/// @param iter: index of iterations
-void print_band(const ModuleBase::matrix& ekb,
-                const ModuleBase::matrix& wg,
-                const K_Vectors* klist,
-                const int& ik,
-                const int& printe,
-                const int& iter,
-                std::ofstream &ofs)
-{
-    const double largest_eig = 1.0e10;
-
-    // check the band energy.
-    bool wrong = false;
-    for (int ib = 0; ib < PARAM.globalv.nbands_l; ++ib)
-    {
-        if (std::abs(ekb(ik, ib)) > largest_eig)
-        {
-            GlobalV::ofs_warning << " ik=" << ik + 1 << " ib=" << ib + 1 << " " << ekb(ik, ib) << " Ry" << std::endl;
-            wrong = true;
-        }
-    }
-    if (wrong)
-    {
-        ModuleBase::WARNING_QUIT("print_eigenvalue", "Eigenvalues are too large!");
-    }
-
-    if (GlobalV::MY_RANK == 0)
-    {
-        if (printe > 0 && ((iter + 1) % printe == 0))
-        {
-            ofs << std::setprecision(6);
-            ofs << " Energy (eV) & Occupations for spin=" << klist->isk[ik] + 1
-                                 << " k-point=" << ik + 1 << std::endl;
-            ofs << std::setiosflags(std::ios::showpoint);
-            for (int ib = 0; ib < PARAM.globalv.nbands_l; ib++)
-            {
-                ofs << " " << std::setw(6) << ib + 1 << std::setw(15)
-                                     << ekb(ik, ib) * ModuleBase::Ry_to_eV;
-                // for the first electron iteration, we don't have the energy
-                // spectrum, so we can't get the occupations.
-                ofs << std::setw(15) << wg(ik, ib);
-                ofs << std::endl;
-            }
-        }
-    }
-    return;
-}
 
 /// @brief print total free energy and other energies
 /// @param ucell: unit cell
@@ -216,7 +166,6 @@ void print_etot(const Magnetism& magnet,
                 const double& scf_thr,
                 const double& scf_thr_kin,
                 const double& duration,
-                const int printe,
                 const double& pw_diag_thr,
                 const double& avg_iter,
                 const bool print)
@@ -228,7 +177,8 @@ void print_etot(const Magnetism& magnet,
 
     GlobalV::ofs_running << std::setprecision(12);
     GlobalV::ofs_running << std::setiosflags(std::ios::right);
-    GlobalV::ofs_running << " Electron density deviation is " << scf_thr << std::endl;
+
+    ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"Electron density deviation",scf_thr);
 
     if (PARAM.inp.basis_type == "pw")
     {
@@ -239,8 +189,8 @@ void print_etot(const Magnetism& magnet,
     std::vector<double> energies_Ry;
     std::vector<double> energies_eV;
 
-    if (printe > 0 && ((iter + 1) % printe == 0 || converged || iter == PARAM.inp.scf_nmax))
-    {
+	if( (iter % PARAM.inp.out_freq_elec == 0) || converged || iter == PARAM.inp.scf_nmax )
+	{
         int n_order = std::max(0, Occupy::gaussian_type);
         titles.push_back("E_KohnSham");
         energies_Ry.push_back(elec.f_en.etot);
@@ -295,7 +245,7 @@ void print_etot(const Magnetism& magnet,
             energies_Ry.push_back(elecstate::Gatefield::etotgatefield);
         }
 
-#ifdef __DEEPKS
+#ifdef __MLALGO
         if (PARAM.inp.deepks_scf)
         {
             titles.push_back("E_DeePKS");
@@ -350,7 +300,7 @@ void print_etot(const Magnetism& magnet,
     FmtTable table(/*titles=*/{"Energy", "Rydberg", "eV"},
                    /*nrows=*/titles.size(),
                    /*formats=*/{"%-14s", "%20.10f", "%20.10f"}, 
-                   /*indents=*/0,
+                   /*indents=*/1,
                    /*align=*/{/*value*/FmtTable::Align::LEFT, /*title*/FmtTable::Align::CENTER});
     // print out the titles
     table << titles << energies_Ry << energies_eV;

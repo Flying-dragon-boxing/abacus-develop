@@ -1,7 +1,7 @@
 #include "write_dos_pw.h"
 #include "cal_dos.h"
 #include "nscf_fermi_surf.h"
-#include "module_base/parallel_reduce.h"
+#include "source_base/parallel_reduce.h"
 #include "module_parameter/parameter.h"
 
 void ModuleIO::write_dos_pw(
@@ -37,16 +37,15 @@ void ModuleIO::write_dos_pw(
     {
         // DOS_ispin contains not smoothed dos
         std::stringstream ss;
-        ss << PARAM.globalv.global_out_dir << "DOS" << is + 1 << ".dat";
+        ss << PARAM.globalv.global_out_dir << "doss" << is + 1 << "_pw.txt";
 
         std::stringstream ss1;
-        ss1 << PARAM.globalv.global_out_dir << "DOS" << is + 1 << "_smear.dat";
+        ss1 << PARAM.globalv.global_out_dir << "doss" << is + 1 << "s_pw.txt";
 
         ModuleBase::GlobalFunc::OUT(ofs_running, "DOS file", ss.str());
 
 		ModuleIO::cal_dos(is,
 				ss.str(),
-				ss1.str(),
 				dos_edelta_ev,
 				emax,
 				emin,
@@ -76,5 +75,5 @@ void ModuleIO::write_dos_pw(
         }
     }
 
-    ofs_running << " DOS CALCULATIONS ENDS." << std::endl; 
+    ofs_running << " #DOS CALCULATIONS ENDS# " << std::endl;
 }

@@ -7,7 +7,7 @@
 #include "../readin_info.h"
 #include "module_parameter/parameter.h"
 #include "module_io/para_json.h"
-#include "version.h"
+#include "source_main/version.h"
 #undef private
 /************************************************
  *  unit test of json output module
@@ -239,7 +239,7 @@ TEST(AbacusJsonTest, GeneralInfo)
 }
 
 #ifdef __LCAO
-#include "module_basis/module_ao/ORB_read.h"
+#include "source_basis/module_ao/ORB_read.h"
 InfoNonlocal::InfoNonlocal()
 {
 }

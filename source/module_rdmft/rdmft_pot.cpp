@@ -5,8 +5,8 @@
 
 #include "rdmft.h"
 #include "module_rdmft/rdmft_tools.h"
-#include "module_psi/psi.h"
-#include "module_elecstate/module_dm/cal_dm_psi.h"
+#include "source_psi/psi.h"
+#include "source_estate/module_dm/cal_dm_psi.h"
 
 #ifdef __EXX
 #include "module_ri/RI_2D_Comm.h"
@@ -262,7 +262,7 @@ void RDMFT<TK, TR>::cal_V_XC(const UnitCell& ucell)
                 : RI_2D_Comm::split_m2D_ktoR<double>(ucell,*kv, DM_XC_pointer, *ParaV, nspin, this->exx_spacegroup_symmetry);
 
             // provide the Ds_XC to Vxc_fromRI(V_exx_XC)
-            if (this->exx_spacegroup_symmetry && GlobalC::exx_info.info_global.exx_symmetry_realspace)
+            if (this->exx_spacegroup_symmetry && GlobalC::exx_info.info_ri.exx_symmetry_realspace)
             {
                 Vxc_fromRI_d->cal_exx_elec(Ds_XC_d, ucell,*ParaV, &this->symrot_exx);
             }
@@ -291,7 +291,7 @@ void RDMFT<TK, TR>::cal_V_XC(const UnitCell& ucell)
                 : RI_2D_Comm::split_m2D_ktoR<std::complex<double>>(ucell,*kv, DM_XC_pointer, *ParaV, nspin, this->exx_spacegroup_symmetry);
 
             // // provide the Ds_XC to Vxc_fromRI(V_exx_XC)
-            if (this->exx_spacegroup_symmetry && GlobalC::exx_info.info_global.exx_symmetry_realspace)
+            if (this->exx_spacegroup_symmetry && GlobalC::exx_info.info_ri.exx_symmetry_realspace)
             {
                 Vxc_fromRI_c->cal_exx_elec(Ds_XC_c, ucell,*ParaV, &this->symrot_exx);
             }

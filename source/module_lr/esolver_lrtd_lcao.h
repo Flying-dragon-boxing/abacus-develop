@@ -1,20 +1,20 @@
 #pragma once
-#include "module_esolver/esolver_fp.h"
+#include "source_esolver/esolver_fp.h"
 #include "module_parameter/input_parameter.h"
-#include "module_cell/unitcell.h"
-#include "module_hamilt_general/hamilt.h"
-#include "module_elecstate/elecstate.h"
-#include "module_hamilt_general/hamilt.h"
-#include "module_elecstate/elecstate_lcao.h"
+#include "source_cell/unitcell.h"
+#include "source_hamilt/hamilt.h"
+#include "source_estate/elecstate.h"
+#include "source_hamilt/hamilt.h"
+#include "source_estate/elecstate_lcao.h"
 
 #include <vector>   //future tensor
 #include <memory>
 
-#include "module_esolver/esolver_ks_lcao.h" //for the move constructor
+#include "source_esolver/esolver_ks_lcao.h" //for the move constructor
 #include "module_hamilt_lcao/module_gint/gint_gamma.h"
 #include "module_hamilt_lcao/module_gint/gint_k.h"
 #include "module_hamilt_lcao/module_gint/grid_technique.h"
-#include "module_elecstate/module_dm/density_matrix.h"
+#include "source_estate/module_dm/density_matrix.h"
 #include "module_lr/potentials/pot_hxc_lrtd.h"
 #include "module_lr/hamilt_casida.h"
 #ifdef __EXX

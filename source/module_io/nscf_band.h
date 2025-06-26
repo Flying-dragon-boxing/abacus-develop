@@ -1,8 +1,8 @@
 #ifndef NSCF_BAND_H
 #define NSCF_BAND_H
-#include "module_base/matrix.h"
-#include "module_cell/klist.h"
-#include "module_cell/parallel_kpoints.h"
+#include "source_base/matrix.h"
+#include "source_cell/klist.h"
+#include "source_cell/parallel_kpoints.h"
 
 namespace ModuleIO
 {
@@ -18,7 +18,7 @@ namespace ModuleIO
  * @param kv klist
  */
 void nscf_band(const int& is,
-               const std::string& out_band_dir,
+               const std::string &eig_file, 
                const int& nband,
                const double& fermie,
                const int& precision,

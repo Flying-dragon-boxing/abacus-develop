@@ -4,7 +4,7 @@
 #include "mpi.h"
 #endif
 
-#include "module_hamilt_pw/hamilt_pwdft/global.h"
+#include "source_pw/hamilt_pwdft/global.h"
 #include "module_parameter/parameter.h"
 #include <cstring>
 #include <iostream>
@@ -690,7 +690,7 @@ void winput::Print(const std::string& fn)
     return;
 }
 
-#include "module_base/parallel_common.h"
+#include "source_base/parallel_common.h"
 #ifdef __MPI
 void winput::Bcast()
 {

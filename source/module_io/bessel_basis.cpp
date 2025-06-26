@@ -1,11 +1,11 @@
 #include "bessel_basis.h"
 
 #include "module_parameter/parameter.h"
-#include "module_base/math_integral.h"
-#include "module_base/math_sphbes.h"
-#include "module_base/parallel_common.h"
-#include "module_base/timer.h"
-#include "module_hamilt_pw/hamilt_pwdft/global.h"
+#include "source_base/math_integral.h"
+#include "source_base/math_sphbes.h"
+#include "source_base/parallel_common.h"
+#include "source_base/timer.h"
+#include "source_pw/hamilt_pwdft/global.h"
 #include <vector>
 
 Bessel_Basis::Bessel_Basis()
@@ -365,7 +365,8 @@ void Bessel_Basis::readin_C4(
 	if(!ifs)
 	{
 		GlobalV::ofs_warning << " File name : " << name << std::endl;
-		ModuleBase::WARNING_QUIT("Bessel_Basis::readin_C4","Can not find file.");
+        std::string fn = "Cannot find C4 file: " + name;
+		ModuleBase::WARNING_QUIT("Bessel_Basis::readin_C4",fn);
 	}
 
 	if (ModuleBase::GlobalFunc::SCAN_BEGIN(ifs, "<FILE>"))

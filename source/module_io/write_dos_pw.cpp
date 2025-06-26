@@ -1,7 +1,7 @@
 #include "write_dos_pw.h"
 #include "cal_dos.h"
 #include "nscf_fermi_surf.h"
-#include "module_base/parallel_reduce.h"
+#include "source_base/parallel_reduce.h"
 #include "module_parameter/parameter.h"
 
 void ModuleIO::write_dos_pw(
@@ -75,5 +75,5 @@ void ModuleIO::write_dos_pw(
         }
     }
 
-    ofs_running << " DOS CALCULATIONS ENDS." << std::endl; 
+    ofs_running << " #DOS CALCULATIONS ENDS# " << std::endl;
 }

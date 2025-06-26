@@ -1,18 +1,18 @@
 #ifndef W_ABACUS_DEVELOP_ABACUS_DEVELOP_SOURCE_MODULE_HAMILT_LCAO_HAMILT_LCAODFT_FORCE_H
 #define W_ABACUS_DEVELOP_ABACUS_DEVELOP_SOURCE_MODULE_HAMILT_LCAO_HAMILT_LCAODFT_FORCE_H
 
-#include "module_base/global_function.h"
-#include "module_base/global_variable.h"
-#include "module_base/matrix.h"
-#include "module_basis/module_nao/two_center_bundle.h"
-#include "module_elecstate/elecstate.h"
-#include "module_elecstate/module_dm/density_matrix.h"
-#include "module_elecstate/module_pot/potential_new.h"
+#include "source_base/global_function.h"
+#include "source_base/global_variable.h"
+#include "source_base/matrix.h"
+#include "source_basis/module_nao/two_center_bundle.h"
+#include "source_estate/elecstate.h"
+#include "source_estate/module_dm/density_matrix.h"
+#include "source_estate/module_pot/potential_new.h"
 #include "module_hamilt_lcao/hamilt_lcaodft/force_stress_arrays.h"
 #include "module_hamilt_lcao/module_deepks/LCAO_deepks.h"
 #include "module_hamilt_lcao/module_gint/gint_gamma.h"
 #include "module_hamilt_lcao/module_gint/gint_k.h"
-#include "module_psi/psi.h"
+#include "source_psi/psi.h"
 
 #ifndef TGINT_H
 #define TGINT_H

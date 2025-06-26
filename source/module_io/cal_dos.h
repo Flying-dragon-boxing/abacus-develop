@@ -2,8 +2,8 @@
 #define DOS_H
 
 #include<vector>
-#include "module_base/matrix.h"
-#include "module_elecstate/fp_energy.h"
+#include "source_base/matrix.h"
+#include "source_estate/fp_energy.h"
 
 namespace ModuleIO
 {

@@ -86,7 +86,6 @@
     - [mixing\_tau](#mixing_tau)
     - [mixing\_dftu](#mixing_dftu)
     - [gamma\_only](#gamma_only)
-    - [printe](#printe)
     - [scf\_nmax](#scf_nmax)
     - [scf\_thr](#scf_thr)
     - [scf\_ene\_thr](#scf_ene_thr)
@@ -118,7 +117,7 @@
     - [cal\_force](#cal_force)
     - [force\_thr](#force_thr)
     - [force\_thr\_ev](#force_thr_ev)
-    - [force\_thr\_ev2](#force_thr_ev2)
+    - [force\_zero\_out](#force_zero_out)
     - [relax\_bfgs\_w1](#relax_bfgs_w1)
     - [relax\_bfgs\_w2](#relax_bfgs_w2)
     - [relax\_bfgs\_rmax](#relax_bfgs_rmax)
@@ -134,6 +133,7 @@
   - [Output Variables](#variables-related-to-output-information)
     - [out\_freq\_elec](#out_freq_elec)
     - [out\_chg](#out_chg)
+    - [out\_xc\_r](#out_xc_r)
     - [out\_pot](#out_pot)
     - [out\_dm](#out_dmk)
     - [out\_dm1](#out_dmr)
@@ -187,6 +187,7 @@
     - [bessel\_nao\_sigma](#bessel_nao_sigma)
   - [DeePKS](#deepks)
     - [deepks\_out\_labels](#deepks_out_labels)
+    - [deepks\_out\_freq\_elec](#deepks_out_freq_elec)
     - [deepks\_scf](#deepks_scf)
     - [deepks\_equiv](#deepks_equiv)
     - [deepks\_model](#deepks_model)
@@ -262,26 +263,25 @@
     - [block\_up](#block_up)
     - [block\_height](#block_height)
   - [Exact Exchange (Common)](#exact-exchange-common)
-    - [exx\_hybrid\_alpha](#exx_hybrid_alpha)
-    - [exx\_hse\_omega](#exx_hse_omega)
+    - [exx\_fock\_alpha](#exx_fock_alpha)
+    - [exx\_erfc\_alpha](#exx_erfc_alpha)
+    - [exx\_erfc\_omega](#exx_erfc_omega)
     - [exx\_separate\_loop](#exx_separate_loop)
-  - [Exact Exchange (LCAO/LCAO in PW)](#exact-exchange-lcaolcao-in-pw)
     - [exx\_hybrid\_step](#exx_hybrid_step)
     - [exx\_mixing\_beta](#exx_mixing_beta)
-    - [exx\_lambda](#exx_lambda)
+  - [Exact Exchange (LCAO in PW)](#exact-exchange-lcao-in-pw)
+    - [exx\_erfc\_lambda](#exx_erfc_lambda)
+  - [Exact Exchange (LCAO)](#exact-exchange-lcao)
     - [exx\_pca\_threshold](#exx_pca_threshold)
     - [exx\_c\_threshold](#exx_c_threshold)
     - [exx\_v\_threshold](#exx_v_threshold)
     - [exx\_dm\_threshold](#exx_dm_threshold)
     - [exx\_c\_grad\_threshold](#exx_c_grad_threshold)
     - [exx\_v\_grad\_threshold](#exx_v_grad_threshold)
-    - [exx\_schwarz\_threshold](#exx_schwarz_threshold)
-    - [exx\_cauchy\_threshold](#exx_cauchy_threshold)
-    - [exx\_cauchy\_force\_threshold](#exx_cauchy_force_threshold)
-    - [exx\_cauchy\_stress\_threshold](#exx_cauchy_stress_threshold)
+    - [exx\_c\_grad\_r\_threshold](#exx_c_grad_r_threshold)
+    - [exx\_v\_grad\_r\_threshold](#exx_v_grad_r_threshold)
     - [exx\_ccp\_threshold](#exx_ccp_threshold)
     - [exx\_ccp\_rmesh\_times](#exx_ccp_rmesh_times)
-    - [exx\_distribute\_type](#exx_distribute_type)
     - [exx\_opt\_orb\_lmax](#exx_opt_orb_lmax)
     - [exx\_opt\_orb\_ecut](#exx_opt_orb_ecut)
     - [exx\_opt\_orb\_tolerence](#exx_opt_orb_tolerence)
@@ -1048,7 +1048,7 @@ calculations.
 
 - **Type**: String
 - **Description**: In our package, the XC functional can either be set explicitly using the `dft_functional` keyword in `INPUT` file. If `dft_functional` is not specified, ABACUS will use the xc functional indicated in the pseudopotential file.
-  On the other hand, if dft_functional is specified, it will overwrite the functional from pseudopotentials and performs calculation with whichever functional the user prefers. We further offer two ways of supplying exchange-correlation functional. The first is using 'short-hand' names such as 'LDA', 'PBE', 'SCAN'. A complete list of 'short-hand' expressions can be found in [the source code](../../../source/module_hamilt_general/module_xc/xc_functional.cpp). The other way is only available when ***compiling with LIBXC***, and it allows for supplying exchange-correlation functionals as combinations of LIBXC keywords for functional components, joined by a plus sign, for example, dft_functional='LDA_X_1D_EXPONENTIAL+LDA_C_1D_CSC'. The list of LIBXC keywords can be found on its [website](https://libxc.gitlab.io/functionals/). In this way, **we support all the LDA,GGA and mGGA functionals provided by LIBXC**.
+  On the other hand, if dft_functional is specified, it will overwrite the functional from pseudopotentials and performs calculation with whichever functional the user prefers. We further offer two ways of supplying exchange-correlation functional. The first is using 'short-hand' names such as 'LDA', 'PBE', 'SCAN'. A complete list of 'short-hand' expressions can be found in [the source code](../../../source/source_hamilt/module_xc/xc_functional.cpp). The other way is only available when ***compiling with LIBXC***, and it allows for supplying exchange-correlation functionals as combinations of LIBXC keywords for functional components, joined by a plus sign, for example, dft_functional='LDA_X_1D_EXPONENTIAL+LDA_C_1D_CSC'. The list of LIBXC keywords can be found on its [website](https://libxc.gitlab.io/functionals/). In this way, **we support all the LDA,GGA and mGGA functionals provided by LIBXC**.
 
   Furthermore, the old INPUT parameter exx_hybrid_type for hybrid functionals has been absorbed into dft_functional. Options are `hf` (pure Hartree-Fock), `pbe0`(PBE0), `hse` (Note: in order to use HSE functional, LIBXC is required). Note also that HSE has been tested while PBE0 has NOT been fully tested yet, and the maximum CPU cores for running exx in parallel is $N(N+1)/2$, with N being the number of atoms.
 
@@ -1251,12 +1251,6 @@ Note: In new angle mixing, you should set `mixing_beta_mag >> mixing_beta`. The 
   Note: If gamma_only is set to 1, the KPT file will be overwritten. So make sure to turn off gamma_only for multi-k calculations.
 
 - **Default**: 0
-
-### printe
-
-- **Type**: Integer
-- **Description**: Print out energy for each band for every printe step
-- **Default**: `scf_nmax`
 
 ### scf_nmax
 
@@ -1467,7 +1461,7 @@ These variables are used to control the geometry relaxation.
 ### relax_scale_force
 
 - **Type**: Real
-- **Availability**: only used when `relax_new` set to `True`
+- **Availability**: Only used when `relax_new` set to `True`
 - **Description**: The paramether controls the size of the first conjugate gradient step. A smaller value means the first step along a new CG direction is smaller. This might be helpful for large systems, where it is safer to take a smaller initial step to prevent the collapse of the whole configuration.
 - **Default**: 0.5
 
@@ -1488,8 +1482,8 @@ These variables are used to control the geometry relaxation.
 
 - **Type**: Boolean
 - **Description**:
-  - **True** calculate the force at the end of the electronic iteration
-  - **False** no force calculation at the end of the electronic iteration
+  - **True**: Calculate the force at the end of the electronic iteration
+  - **False**: No force calculation at the end of the electronic iteration
 - **Default**: False if `calculation` is set to `scf`, True if `calculation` is set to `cell-relax`, `relax`, or `md`.
 
 ### force_thr
@@ -1506,43 +1500,43 @@ These variables are used to control the geometry relaxation.
 - **Default**: 0.0257112
 - **Unit**: eV/Angstrom (0.03889 Ry/Bohr)
 
-### force_thr_ev2
+### force_zero_out
 
 - **Type**: Real
-- **Description**: The calculated force will be set to 0 when it is smaller than the parameter `force_thr_ev2`.
+- **Description**: The atomic forces that are smaller than `force_zero_out` will be treated as zero.
 - **Default**: 0.0
 - **Unit**: eV/Angstrom
 
 ### relax_bfgs_w1
 
 - **Type**: Real
-- **Description**: This variable controls the Wolfe condition for Broyden–Fletcher–Goldfarb–Shanno (BFGS) algorithm used in geometry relaxation. You can look into the paper Phys.Chem.Chem.Phys.,2000,2,2177 for more information.
+- **Description**: Controls the Wolfe condition for Broyden–Fletcher–Goldfarb–Shanno (BFGS) algorithm used in geometry relaxation. You can look into the paper Phys.Chem.Chem.Phys.,2000,2,2177 for more information.
 - **Default**: 0.01
 
 ### relax_bfgs_w2
 
 - **Type**: Real
-- **Description**: This variable controls the Wolfe condition for Broyden–Fletcher–Goldfarb–Shanno (BFGS) algorithm used in geometry relaxation. You can look into the paper Phys.Chem.Chem.Phys.,2000,2,2177 for more information.
+- **Description**: Controls the Wolfe condition for Broyden–Fletcher–Goldfarb–Shanno (BFGS) algorithm used in geometry relaxation. You can look into the paper Phys.Chem.Chem.Phys.,2000,2,2177 for more information.
 - **Default**: 0.5
 
 ### relax_bfgs_rmax
 
 - **Type**: Real
-- **Description**: This variable is for geometry optimization. It stands for the maximal movement of all the atoms. The sum of the movements from all atoms can be increased during the optimization steps. However, it can not be larger than `relax_bfgs_rmax`
+- **Description**: For geometry optimization. It stands for the maximal movement of all the atoms. The sum of the movements from all atoms can be increased during the optimization steps. However, it can not be larger than `relax_bfgs_rmax`
 - **Unit**: Bohr
 - **Default**: 0.8
 
 ### relax_bfgs_rmin
 
 - **Type**: Real
-- **Description**: This variable is for geometry optimization. It indicates the minimal movement of all the atoms. When the movement of all the atoms is smaller than relax_bfgs_rmin Bohr, and the force convergence is still not achieved, the calculation will break down.
+- **Description**: For geometry optimization. It indicates the minimal movement of all the atoms. When the movement of all the atoms is smaller than relax_bfgs_rmin Bohr, and the force convergence is still not achieved, the calculation will break down.
 - **Default**: 1e-5
 - **Unit**: Bohr
 
 ### relax_bfgs_init
 
 - **Type**: Real
-- **Description**: This variable is for geometry optimization. It stands for the sum of initial movements of all of the atoms.
+- **Description**: For geometry optimization. It stands for the sum of initial movements of all of the atoms.
 - **Default**: 0.5
 - **Unit**: Bohr
 
@@ -1550,8 +1544,8 @@ These variables are used to control the geometry relaxation.
 
 - **Type**: Boolean
 - **Description**:
-  - **True**: calculate the stress at the end of the electronic iteration
-  - **False**: no calculation of the stress at the end of the electronic iteration
+  - **True**: Calculate the stress at the end of the electronic iteration
+  - **False**: No calculation of the stress at the end of the electronic iteration
 - **Default**: True if `calculation` is `cell-relax`, False otherwise.
 
 ### stress_thr
@@ -1571,7 +1565,7 @@ These variables are used to control the geometry relaxation.
 ### fixed_axes
 
 - **Type**: String
-- **Availability**: only used when `calculation` set to `cell-relax`
+- **Availability**: Only used when `calculation` set to `cell-relax`
 - **Description**: Axes that are fixed during cell relaxation. Possible choices are:
   - None**: default; all of the axes can relax
   - volume**: relaxation with fixed volume
@@ -1651,6 +1645,25 @@ These variables are used to control the output of properties.
   In molecular dynamics simulations, the output frequency is controlled by [out_interval](#out_interval).
 - **Default**: 0 3
 - **Note**: In the 3.10-LTS version, the file names are SPIN1_CHG.cube and SPIN1_CHG_INI.cube, etc. 
+
+### out_xc_r
+
+- **Type**: Integer \[Integer\](optional)
+- **Description**: 
+  The first integer controls whether to output the exchange-correlation (in Bohr^-3) on real space grids using Libxc to folder `OUT.${suffix}`:
+  - 0: rho, amag, sigma, exc
+  - 1: vrho, vsigma
+  - 2: v2rho2, v2rhosigma, v2sigma2
+  - 3: v3rho3, v3rho2sigma, v3rhosigma2, v3sigma3
+  - 4: v4rho4, v4rho3sigma, v4rho2sigma2, v4rhosigma3, v4sigma4
+  The meaning of the files is presented in [Libxc](https://libxc.gitlab.io/manual/libxc-5.1.x/)
+
+  The second integer controls the precision of the charge density output, if not given, will use `3` as default.
+
+  ---
+  The circle order of the charge density on real space grids is: x is the outer loop, then y and finally z (z is moving fastest).
+
+- **Default**: -1 3
 
 ### out_pot
 
@@ -1752,7 +1765,7 @@ These variables are used to control the output of properties.
 ### out_band
 
 - **Type**: Boolean \[Integer\](optional)
-- **Description**: Whether to output the eigenvalues of Hamiltonian matrix (in eV), optionally output precision can be set by a second parameter, default is 8. The output file names are:
+- **Description**: Whether to output the eigenvalues of the Hamiltonian matrix (in eV) into the running log during electronic iterations and into a file at the end of calculations. The former can be used with the 'out_freq_elec' parameter while the latter option allows the output precision to be set via a second parameter, with a default value of 8. The output file names are:
     - nspin = 1 or 4: `eigs1.txt`;
     - nspin = 2: `eigs1.txt` and `eigs2.txt`;
     - For more information, refer to the [band.md](../elec_properties/band.md)
@@ -1844,7 +1857,7 @@ These variables are used to control the output of properties.
 
 - **Type**: Boolean
 - **Availability**: Numerical atomic orbital basis (not gamma-only algorithm)
-- **Description**: Generate files containing the kinetic energy matrix $T(R)$. The format will be the same as the Hamiltonian matrix $H(R)$ and overlap matrix $S(R)$ as mentioned in [out_mat_hs2](#out_mat_hs2). The name of the files will be `trs1.csr` and so on. Also controled by [out_interval](#out_interval) and [out_app_flag](#out_app_flag).
+- **Description**: Generate files containing the kinetic energy matrix $T(R)$. The format will be the same as the Hamiltonian matrix $H(R)$ and overlap matrix $S(R)$ as mentioned in [out_mat_hs2](#out_mat_hs2). The name of the files will be `trs1_nao.csr` and so on. Also controled by [out_interval](#out_interval) and [out_app_flag](#out_app_flag).
 - **Default**: False
 - **Unit**: Ry
 - **Note**: In the 3.10-LTS version, the file name is data-TR-sparse_SPIN0.csr. 
@@ -1853,7 +1866,7 @@ These variables are used to control the output of properties.
 
 - **Type**: Boolean
 - **Availability**: Numerical atomic orbital basis (not gamma-only algorithm)
-- **Description**: Whether to print files containing the derivatives of the Hamiltonian matrix. The format will be the same as the Hamiltonian matrix $H(R)$ and overlap matrix $S(R)$ as mentioned in [out_mat_hs2](#out_mat_hs2). The name of the files will be `dhrxs1.csr` and so on. Also controled by [out_interval](#out_interval) and [out_app_flag](#out_app_flag).
+- **Description**: Whether to print files containing the derivatives of the Hamiltonian matrix. The format will be the same as the Hamiltonian matrix $H(R)$ and overlap matrix $S(R)$ as mentioned in [out_mat_hs2](#out_mat_hs2). The name of the files will be `dhrxs1_nao.csr`, `dhrys1_nao.csr`, `dhrzs1_nao.csr` and so on. Also controled by [out_interval](#out_interval) and [out_app_flag](#out_app_flag).
 - **Default**: False
 - **Unit**: Ry/Bohr
 - **Note**: In the 3.10-LTS version, the file name is data-dHRx-sparse_SPIN0.csr and so on.
@@ -2017,14 +2030,14 @@ These variables are used to control the calculation of DOS. [Detailed introducti
 ### dos_edelta_ev
 
 - **Type**: Real
-- **Description**: the step size in writing Density of States (DOS)
+- **Description**: The step size in writing Density of States (DOS)
 - **Default**: 0.01
 - **Unit**: eV
 
 ### dos_sigma
 
 - **Type**: Real
-- **Description**: the width of the Gaussian factor when obtaining smeared Density of States (DOS)
+- **Description**: The width of the Gaussian factor when obtaining smeared Density of States (DOS)
 - **Default**: 0.07
 - **Unit**: eV
 
@@ -2038,7 +2051,7 @@ These variables are used to control the calculation of DOS. [Detailed introducti
 ### dos_emin_ev
 
 - **Type**: Real
-- **Description**: the minimal range for Density of States (DOS)
+- **Description**: The minimal range for Density of States (DOS)
   - If set, "dos_scale" will be ignored.
 - **Default**: Minimal eigenenergy of $\hat{H}$
 - **Unit**: eV
@@ -2046,7 +2059,7 @@ These variables are used to control the calculation of DOS. [Detailed introducti
 ### dos_emax_ev
 
 - **Type**: Real
-- **Description**: the maximal range for Density of States (DOS)
+- **Description**: The maximal range for Density of States (DOS)
   - If set, "dos_scale" will be ignored.
 - **Default**: Maximal eigenenergy of $\hat{H}$
 - **Unit**: eV
@@ -2091,7 +2104,7 @@ In plane-wave-based calculations, necessary information will be printed into `OU
 ### bessel_nao_tolerence
 
 - **Type**: Real
-- **Description**: tolerance when searching for the zeros of spherical Bessel functions.
+- **Description**: Tolerance when searching for the zeros of spherical Bessel functions.
 - **Default**: 1.0e-12
 
 ### bessel_nao_rcut
@@ -2103,7 +2116,7 @@ In plane-wave-based calculations, necessary information will be printed into `OU
 ### bessel_nao_smooth
 
 - **Type**: Boolean
-- **Description**: if True, NAOs will be smoothed near the cutoff radius by $1-\exp\left(-\frac{(r-r_{cut})^2}{2\sigma^2}\right)$. See `bessel_nao_rcut` for $r_{cut}$ and `bessel_nao_sigma` for $\sigma$.
+- **Description**: If True, NAOs will be smoothed near the cutoff radius by $1-\exp\left(-\frac{(r-r_{cut})^2}{2\sigma^2}\right)$. See `bessel_nao_rcut` for $r_{cut}$ and `bessel_nao_sigma` for $\sigma$.
 - **Default**: True
 
 ### bessel_nao_sigma
@@ -2122,11 +2135,11 @@ Warning: this function is not robust enough for the current version. Please try 
 ### deepks_out_labels
 
 - **Type**: Integer
-- **Availability**: numerical atomic orbital basis
+- **Availability**: Numerical atomic orbital basis
 - **Description**: Print labels and descriptors for DeePKS in OUT.${suffix}. The names of these files start with "deepks".
   - 0 : No output.
   - 1 : Output intermediate files needed during DeePKS training.
-  - 2 : Output target labels for label preperation. The label files are named as `deepks_<property>.npy`, where the units and formats are the same as label files `<property>.npy` required for training, except that the first dimension (`nframes`) is excluded. System structrue files are also given in `deepks_atom.npy` and `deepks_box.npy` in the unit of *Bohr*, which means `lattice_constant` should be set to 1 when training. 
+  - 2 : Output target labels for label preperation. The label files are named as `deepks_<property>.npy` or `deepks_<property>.csr`, where the units and formats are the same as label files `<property>.npy` or `<property>.csr` required for training, except that the first dimension (`nframes`) is excluded. System structrue files are also given in `deepks_atom.npy` and `deepks_box.npy` in the unit of *Bohr*, which means `lattice_constant` should be set to 1 when training. 
 - **Note**: When `deepks_out_labels` equals **1**, the path of a numerical descriptor (an `orb` file) is needed to be specified under the `NUMERICAL_DESCRIPTOR` tag in the `STRU` file. For example:
 
   ```text
@@ -2140,10 +2153,17 @@ Warning: this function is not robust enough for the current version. Please try 
   This is not needed when `deepks_out_labels` equals 2. 
 - **Default**: 0
 
+### deepks_out_freq_elec
+
+- **Type**: Integer
+- **Availability**: Numerical atomic orbital basis
+- **Description**: When `deepks_out_freq_elec` is greater than 0, print labels and descriptors for DeePKS in OUT.${suffix}/DeePKS_Labels_Elec per `deepks_out_freq_elec` electronic iterations, with suffix `_e*` to distinguish different steps. Often used with `deepks_out_labels` equals 1.
+- **Default**: 0
+
 ### deepks_scf
 
 - **Type**: Boolean
-- **Availability**: numerical atomic orbital basis
+- **Availability**: Numerical atomic orbital basis
 - **Description**: perform self-consistent field iteration in DeePKS method
 - **Note**: A trained, traced model file is needed.
 - **Default**: False
@@ -2151,7 +2171,7 @@ Warning: this function is not robust enough for the current version. Please try 
 ### deepks_equiv
 
 - **Type**: Boolean
-- **Availability**: numerical atomic orbital basis
+- **Availability**: Numerical atomic orbital basis
 - **Description**: whether to use equivariant version of DeePKS
 - **Note**: the equivariant version of DeePKS-kit is still under development, so this feature is currently only intended for internal usage.
 - **Default**: False
@@ -2159,7 +2179,7 @@ Warning: this function is not robust enough for the current version. Please try 
 ### deepks_model
 
 - **Type**: String
-- **Availability**: numerical atomic orbital basis and `deepks_scf` is true
+- **Availability**: Numerical atomic orbital basis and `deepks_scf` is true
 - **Description**: the path of the trained, traced neural network model file generated by [deepks-kit](https://github.com/deepmodeling/deepks-kit)
 - **Default**: None
 
@@ -2212,7 +2232,7 @@ Warning: this function is not robust enough for the current version. Please try 
 ### deepks_bandgap
 
 - **Type**: Int
-- **Availability**: numerical atomic orbital basis and `deepks_scf` is true
+- **Availability**: Numerical atomic orbital basis and `deepks_scf` is true
 - **Description**: include bandgap label for DeePKS training
   - 0: Don't include bandgap label
   - 1: Include target bandgap label (see [deepks\_band\_range](#deepks_band_range) for more details)
@@ -2223,7 +2243,7 @@ Warning: this function is not robust enough for the current version. Please try 
 ### deepks_band_range
 
 - **Type**: Int*2
-- **Availability**: numerical atomic orbital basis, `deepks_scf` is true, and `deepks_bandgap` is 1 or 2
+- **Availability**: Numerical atomic orbital basis, `deepks_scf` is true, and `deepks_bandgap` is 1 or 2
 - **Description**: The first value should not be larger than the second one and the meaning differs in different cases below
   - `deepks_bandgap` is 1: Bandgap label is the energy between `LUMO + deepks_band_range[0]` and `LUMO + deepks_band_range[1]`. If not set, it will calculate energy between HOMO and LUMO states.
   - `deepks_bandgap` is 2: Bandgap labels are energies between HOMO and all states in range [`LUMO + deepks_band_range[0]`, `LUMO + deepks_band_range[1]`] (Thus there are `deepks_band_range[1] - deepks_band_range[0] + 1` bandgaps in total). If HOMO is included in the setting range, it will be ignored since it will always be zero and has no valuable messages (`deepks_band_range[1] - deepks_band_range[0]` bandgaps in this case). *NOTICE: The set range can be greater than, less than, or include the value of HOMO. In the bandgap label, we always calculate the energy of the state in the set range minus the energy of HOMO state, so the bandgap can be negative if the state is lower than HOMO.*
@@ -2232,9 +2252,12 @@ Warning: this function is not robust enough for the current version. Please try 
 ### deepks_v_delta
 
 - **Type**: int
-- **Availability**: numerical atomic orbital basis
-- **Description**: Include V_delta label for DeePKS training. When `deepks_out_labels` is true and `deepks_v_delta` > 0, ABACUS will output h_base.npy, v_delta.npy and h_tot.npy(h_tot=h_base+v_delta). 
-  Meanwhile, when `deepks_v_delta` equals 1, ABACUS will also output v_delta_precalc.npy, which is used to calculate V_delta during DeePKS training. However, when the number of atoms grows, the size of v_delta_precalc.npy will be very large. In this case, it's recommended to set `deepks_v_delta` as 2, and ABACUS will output phialpha.npy and grad_evdm.npy but not v_delta_precalc.npy. These two files are small and can be used to calculate v_delta_precalc in the procedure of training DeePKS.
+- **Availability**: Numerical atomic orbital basis
+- **Description**: Include V_delta/V_delta_R (Hamiltonian in k/real space) label for DeePKS training. When `deepks_out_labels` is true and `deepks_v_delta` > 0 (k space), ABACUS will output `deepks_hbase.npy`, `deepks_vdelta.npy` and `deepks_htot.npy`(htot=hbase+vdelta). When `deepks_out_labels` is true and `deepks_v_delta` < 0 (real space), ABACUS will output `deepks_hrtot.csr`, `deepks_hrdelta.csr`. Some more files output for different settings.
+  - `deepks_v_delta` = 1: `deepks_vdpre.npy`, which is used to calculate V_delta during DeePKS training.
+  - `deepks_v_delta` = 2: `deepks_phialpha.npy` and `deepks_gevdm.npy`, which can be used to calculate `deepks_vdpre.npy`. A recommanded method for memory saving.
+  - `deepks_v_delta` = -1: `deepks_vdrpre.npy`, which is used to calculate V_delta_R during DeePKS training.
+  - `deepks_v_delta` = -2: `deepks_phialpha_r.npy` and `deepks_gevdm.npy`, which can be used to calculate `deepks_vdrpre.npy`. A recommanded method for memory saving.
 - **Default**: 0
 
 ### deepks_out_unittest
@@ -2275,7 +2298,7 @@ Warning: this function is not robust enough for the current version. Please try 
   - **cg1**: Polak-Ribiere. Standard CG algorithm.
   - **cg2**: Hager-Zhang (generally faster than cg1).
   - **tn**: Truncated Newton algorithm.
-- **Default**:tn
+- **Default**: tn
 
 ### of_conv
 
@@ -2638,7 +2661,7 @@ These variables are relevant to electric field and dipole correction
 ### efield_flag
 
 - **Type**: Boolean
-- **Description**: added the electric field.
+- **Description**: Added the electric field.
   - True: A saw-like potential simulating an electric field is added to the bare ionic potential.
   - False: Not added the electric field.
 - **Default**: False
@@ -2646,7 +2669,7 @@ These variables are relevant to electric field and dipole correction
 ### dip_cor_flag
 
 - **Type**: Boolean
-- **Availability**: with dip_cor_flag = True and efield_flag = True.
+- **Availability**: With dip_cor_flag = True and efield_flag = True.
 - **Description**: Added a dipole correction to the bare ionic potential.
   - True：A dipole correction is also added to the bare ionic potential.
   - False: A dipole correction is not added to the bare ionic potential.
@@ -2707,7 +2730,7 @@ These variables are relevant to gate field (compensating charge) [Detailed intro
 ### zgate
 
 - **Type**: Real
-- **Description**: position of the charged plate in the unit cell
+- **Description**: Position of the charged plate in the unit cell
 - **Unit**: Unit cell size
 - **Default**: 0.5
 - **Constraints**: 0 <= **zgate** < 1
@@ -2723,7 +2746,7 @@ These variables are relevant to gate field (compensating charge) [Detailed intro
 ### block_down
 
 - **Type**: Real
-- **Description**: lower beginning of the potential barrier
+- **Description**: Lower beginning of the potential barrier
 - **Unit**: Unit cell size
 - **Default**: 0.45
 - **Constraints**: 0 <= **block_down** < **block_up** < 1
@@ -2731,7 +2754,7 @@ These variables are relevant to gate field (compensating charge) [Detailed intro
 ### block_up
 
 - **Type**: Real
-- **Description**: upper beginning of the potential barrier
+- **Description**: Upper beginning of the potential barrier
 - **Unit**: Unit cell size
 - **Default**: 0.55
 - **Constraints**: 0 <= **block_down** < **block_up** < 1
@@ -2739,7 +2762,7 @@ These variables are relevant to gate field (compensating charge) [Detailed intro
 ### block_height
 
 - **Type**: Real
-- **Description**: height of the potential barrier
+- **Description**: Height of the potential barrier
 - **Unit**: Rydberg
 - **Default**: 0.1
 
@@ -2754,18 +2777,34 @@ The following parameters apply to *[basis_type](#basis_type)==lcao/lcao_in_pw/pw
 
 **Availablity**: *[dft_functional](#dft_functional)==hse/hf/pbe0/scan0/opt_orb* or *[rpa](#rpa)==True*. 
 
-### exx_hybrid_alpha
+### exx_fock_alpha
 
-- **Type**: Real
-- **Description**: fraction of Fock exchange in hybrid functionals, so that $E_{X}=\alpha E_{X}+(1-\alpha)E_{X,\text{LDA/GGA}}$
+- **Type**: Real \[Real...\](optional)
+- **Description**: Fraction of Fock exchange 1/r in hybrid functionals, so that $E_{X} = \alpha E_{X} + (1-\alpha)E_{X,\text{LDA/GGA}}$
 - **Default**:
   - 1: if *[dft_functional](#dft_functional)==hf*
-  - 0.25: else
+  - 0.25: if *[dft_functional](#dft_functional)==pbe0*
+  - 0.2: if *[dft_functional](#dft_functional)==b3lyp*
+  - 0.25: if *[dft_functional](#dft_functional)==scan0*
+  - 1: if *[dft_functional](#dft_functional)==muller*
+  - 1: if *[dft_functional](#dft_functional)==power*
+  - 1: if *[dft_functional](#dft_functional)==wp22*
+  - 0: else
 
-### exx_hse_omega
+### exx_erfc_alpha
 
-- **Type**: Real
-- **Description**: range-separation parameter in HSE functional, such that $1/r=\text{erfc}(\omega r)/r+\text{erf}(\omega r)/r$
+- **Type**: Real \[Real...\](optional)
+- **Description**: Fraction of exchange erfc(wr)/r in hybrid functionals, so that $E_{X} = \alpha E_{X}^{\text{SR}} + (1-\alpha)E_{X,\text{LDA/GGA}}^{\text{SR}} + E_{X,\text{LDA/GGA}}^{\text{LR}}$
+- **Default**:
+  - 0.25: if *[dft_functional](#dft_functional)==hse*
+  - 1: if *[dft_functional](#dft_functional)==cwp22*
+  - -1: if *[dft_functional](#dft_functional)==wp22*
+  - 0: else
+
+### exx_erfc_omega
+
+- **Type**: Real \[Real...\](optional)
+- **Description**: Range-separation parameter in exchange, such that $1/r=\text{erfc}(\omega r)/r+\text{erf}(\omega r)/r$
 - **Default**: 0.11
 
 ### exx_separate_loop
@@ -2776,90 +2815,82 @@ The following parameters apply to *[basis_type](#basis_type)==lcao/lcao_in_pw/pw
   - True: A two-step method is employed, i.e. in the inner iterations, density matrix is updated, while in the outer iterations, $H_{exx}$ is calculated based on density matrix that converges in the inner iteration.
 - **Default**: True
 
-## Exact Exchange (LCAO/LCAO in PW)
-
-These variables are relevant when using hybrid functionals with *[basis_type](#basis_type)==lcao/lcao_in_pw*.
-
 ### exx_hybrid_step
 
 - **Type**: Integer
 - **Availability**: *[exx_separate_loop](#exx_separate_loop)==1*
-- **Description**: the maximal iteration number of the outer-loop, where the Fock exchange is calculated
+- **Description**: The maximal iteration number of the outer-loop, where the Fock exchange is calculated
 - **Default**: 100
 
 ### exx_mixing_beta
 
 - **Type**: Real
 - **Availability**: *[exx_separate_loop](#exx_separate_loop)==1*
-- **Description**: mixing_beta for densty matrix in each iteration of the outer-loop
+- **Description**: Mixing parameter for densty matrix in each iteration of the outer-loop
 - **Default**: 1.0
 
-### exx_lambda
+## Exact Exchange (LCAO in PW)
 
-- **Type**: Real
+These variables are relevant when using hybrid functionals with *[basis_type](#basis_type)==lcao/lcao_in_pw*.
+
+### exx_fock_lambda
+
+- **Type**: Real \[Real...\](optional)
 - **Availability**: *[basis_type](#basis_type)==lcao_in_pw*
 - **Description**: It is used to compensate for divergence points at G=0 in the evaluation of Fock exchange using *lcao_in_pw* method.
 - **Default**: 0.3
 
+## Exact Exchange (LCAO)
+
+These variables are relevant when using hybrid functionals with *[basis_type](#basis_type)==lcao/lcao_in_pw*.
+
 ### exx_pca_threshold
 
 - **Type**: Real
-- **Description**: To accelerate the evaluation of four-center integrals ($ik|jl$), the product of atomic orbitals are expanded in the basis of auxiliary basis functions (ABF): $\Phi_{i}\Phi_{j}\sim C^{k}_{ij}P_{k}$. The size of the ABF (i.e. number of $P_{k}$) is reduced using principal component analysis. When a large PCA threshold is used, the number of ABF will be reduced, hence the calculation becomes faster. However, this comes at the cost of computational accuracy. A relatively safe choice of the value is 1e-4.
+- **Description**: To accelerate the evaluation of four-center integrals ($ik|jl$), the product of atomic orbitals are expanded in the basis of auxiliary basis functions (ABF): $\Phi_{i}\Phi_{k}\sim \sum_{a} C^{a}_{ik}P_{a}$. The size of the ABF (i.e. number of $P_{a}$) is reduced using principal component analysis. When a large PCA threshold is used, the number of ABF will be reduced, hence the calculation becomes faster. However, this comes at the cost of computational accuracy. A relatively safe choice of the value is 1e-4.
 - **Default**: 1E-4
 
 ### exx_c_threshold
 
 - **Type**: Real
-- **Description**: See also the entry [exx_pca_threshold](#exx_pca_threshold). Smaller components (less than exx_c_threshold) of the $C^{k}_{ij}$ matrix are neglected to accelerate calculation. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 1e-4.
+- **Description**: See also the entry [exx_pca_threshold](#exx_pca_threshold). Smaller components (less than exx_c_threshold) of the $C^{a}_{ik}$ matrix are neglected to accelerate calculation. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 1e-4.
 - **Default**: 1E-4
 
 ### exx_v_threshold
 
 - **Type**: Real
-- **Description**: See also the entry [exx_pca_threshold](#exx_pca_threshold). With the approximation $\Phi_{i}\Phi_{j}\sim C^{k}_{ij}P_{k}$, the four-center integral in Fock exchange is expressed as $(ik|jl)=\Sigma_{a,b}C^{a}_{ij}V_{ab}C^{b}_{kl}$, where $V_{ab}=(P_{a}|P_{b})$ is a double-center integral. Smaller values of the V matrix can be truncated to accelerate calculation. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 0, i.e. no truncation.
+- **Description**: See also the entry [exx_pca_threshold](#exx_pca_threshold). With the approximation $\Phi_{i}\Phi_{k}\sim \sum_{a} C^{a}_{ik}P_{a}$, the four-center integral in Fock exchange is expressed as $(ik|jl)=\sum_{a,b}C^{a}_{ik}V_{ab}C^{b}_{jl}$, where $V_{ab}=(P_{a}|P_{b})$ is a double-center integral. Smaller values of the V matrix can be truncated to accelerate calculation. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 0, i.e. no truncation.
 - **Default**: 1E-1
 
 ### exx_dm_threshold
 
 - **Type**: Real
-- **Description**: The Fock exchange can be expressed as $\Sigma_{k,l}(ik|jl)D_{kl}$ where D is the density matrix. Smaller values of the density matrix can be truncated to accelerate calculation. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 1e-4.
+- **Description**: The Fock exchange can be expressed as $\sum_{k,l}(ik|jl)D_{kl}$ where D is the density matrix. Smaller values of the density matrix can be truncated to accelerate calculation. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 1e-4.
 - **Default**: 1E-4
 
 ### exx_c_grad_threshold
 
 - **Type**: Real
-- **Description**: See also the entry [exx_pca_threshold](#exx_pca_threshold). $\nabla C^{k}_{ij}$ is used in force and stress. Smaller components (less than exx_c_grad_threshold) of the $\nabla C^{k}_{ij}$ matrix are neglected to accelerate calculation. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 1e-4.
+- **Description**: See also the entry [exx_pca_threshold](#exx_pca_threshold). $\nabla C^{a}_{ik}$ is used in force. Smaller components (less than exx_c_grad_threshold) of the $\nabla C^{a}_{ik}$ matrix are neglected to accelerate calculation. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 1e-4.
 - **Default**: 1E-4
 
 ### exx_v_grad_threshold
 
 - **Type**: Real
-- **Description**: See also the entry [exx_pca_threshold](#exx_pca_threshold). With the approximation $\Phi_{i}\Phi_{j}\sim C^{k}_{ij}P_{k}$, the four-center integral in Fock exchange is expressed as $(ik|jl)=\Sigma_{a,b}C^{a}_{ij}V_{ab}C^{b}_{kl}$, where $V_{ab}=(P_{a}|P_{b})$ is a double-center integral. $\nabla V_{ab}$ is used in force and stress. Smaller values of the V matrix can be truncated to accelerate calculation. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 0, i.e. no truncation.
+- **Description**: See also the entry [exx_pca_threshold](#exx_pca_threshold). With the approximation $\Phi_{i}\Phi_{k}\sim C^{a}_{ik}P_{a}$, the four-center integral in Fock exchange is expressed as $(ik|jl)=\sum_{a,b}C^{a}_{ik}V_{ab}C^{b}_{jl}$, where $V_{ab}=(P_{a}|P_{b})$ is a double-center integral. $\nabla V_{ab}$ is used in force. Smaller values of the V matrix can be truncated to accelerate calculation. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 0, i.e. no truncation.
 - **Default**: 1E-1
 
-### exx_schwarz_threshold
+### exx_c_grad_r_threshold
 
 - **Type**: Real
-- **Description**: In practice the four-center integrals are sparse, and using Cauchy-Schwartz inequality, we can find an upper bound of each integral before carrying out explicit evaluations. Those that are smaller than exx_schwarz_threshold will be truncated. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 1e-5.  (Currently not used)
-- **Default**: 0
+- **Description**: See also the entry [exx_pca_threshold](#exx_pca_threshold). $\nabla C^{a}_{ik} * R_{ik}$ is used in stress. Smaller components (less than exx_c_grad_r_threshold) of the $\nabla C^{a}_{ik} * R_{ik}$ matrix are neglected to accelerate calculation. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 1e-4.
+- **Default**: 1E-4
 
-### exx_cauchy_threshold
-
-- **Type**: Real
-- **Description**: In practice the Fock exchange matrix is sparse, and using Cauchy-Schwartz inequality, we can find an upper bound of each matrix element before carrying out explicit evaluations. Those that are smaller than exx_cauchy_threshold will be truncated. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 1e-7.
-- **Default**: 1E-7
-
-### exx_cauchy_force_threshold
+### exx_v_grad_r_threshold
 
 - **Type**: Real
-- **Description**: In practice the Fock exchange matrix in force is sparse, and using Cauchy-Schwartz inequality, we can find an upper bound of each matrix element before carrying out explicit evaluations. Those that are smaller than exx_cauchy_force_threshold will be truncated. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 1e-7.
-- **Default**: 1E-7
-
-### exx_cauchy_stress_threshold
-
-- **Type**: Real
-- **Description**: In practice the Fock exchange matrix in stress is sparse, and using Cauchy-Schwartz inequality, we can find an upper bound of each matrix element before carrying out explicit evaluations. Those that are smaller than exx_cauchy_stress_threshold will be truncated. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 1e-7.
-- **Default**: 1E-7
+- **Description**: See also the entry [exx_pca_threshold](#exx_pca_threshold). With the approximation $\Phi_{i}\Phi_{k}\sim C^{a}_{ik}P_{a}$, the four-center integral in Fock exchange is expressed as $(ik|jl)=\sum_{a,b}C^{a}_{ik}V_{ab}C^{b}_{jl}$, where $V_{ab}=(P_{a}|P_{b})$ is a double-center integral. $\nabla V_{ab} *R_{ab}$ is used in force and stress. Smaller values of the V matrix can be truncated to accelerate calculation. The larger the threshold is, the faster the calculation and the lower the accuracy. A relatively safe choice of the value is 0, i.e. no truncation.
+- **Default**: 1E-1
 
 ### exx_ccp_threshold
 
@@ -2875,15 +2906,6 @@ These variables are relevant when using hybrid functionals with *[basis_type](#b
   - 5: if *[dft_functional](#dft_functional)==hf/pbe0/scan0/muller/power/wp22*
   - 1.5: if *[dft_functional](#dft_functional)==hse/cwp22*
   - 1: else
-
-### exx_distribute_type
-
-- **Type**: String
-- **Description**: When running in parallel, the evaluation of Fock exchange is done by distributing atom pairs on different processes, then gather the results. exx_distribute_type governs the mechanism of distribution. Available options are `htime`, `order`, `kmean1` and `kmeans2`.
-  - `order`: Atom pairs are simply distributed by their orders.
-  - `htime`: The balance in time is achieved on each processor, hence if the memory is sufficient, this is the recommended method.
-  - `kmeans1` ,   `kmeans2`: Two methods where the k-means clustering method is used to reduce memory requirement. They might be necessary for very large systems. (Currently not used)
-- **Default**: `htime`
 
 ### exx_opt_orb_lmax
 
@@ -3255,7 +3277,7 @@ These variables are used to control molecular dynamics calculations. For more in
 ### md_tolerance
 
 - **Type**: Real
-- **Description**: Thr temperature tolerance for velocity rescaling. Velocities are rescaled if the current and target temperature differ more than `md_tolerance`.
+- **Description**: The temperature tolerance for velocity rescaling. Velocities are rescaled if the current and target temperature differ more than `md_tolerance`.
 - **Default**: 100.0
 - **Unit**: K
 
@@ -3452,7 +3474,7 @@ These variables are used to control vdW-corrected related parameters.
 
 - **Type**: String
 - **Availability**: `vdw_method` is set to `d2`
-- **Description**: Specifies the name of the file containing $C_6$ parameters for each element when using the D2 method. If not set, ABACUS uses the default $C_6$ parameters (Jnm6/mol) stored in the [program](https://github.com/deepmodeling/abacus-develop/blob/develop/source/module_hamilt_general/module_vdw/vdwd2_parameters.cpp). To manually set the $C_6$ parameters, provide a file containing the parameters. An example is given by:
+- **Description**: Specifies the name of the file containing $C_6$ parameters for each element when using the D2 method. If not set, ABACUS uses the default $C_6$ parameters (Jnm6/mol) stored in the [program](https://github.com/deepmodeling/abacus-develop/blob/develop/source/source_hamilt/module_vdw/vdwd2_parameters.cpp). To manually set the $C_6$ parameters, provide a file containing the parameters. An example is given by:
 
   ```text
   H  0.1
@@ -3475,7 +3497,7 @@ These variables are used to control vdW-corrected related parameters.
 
 - **Type**: String
 - **Availability**: `vdw_method` is set to `d2`
-- **Description**: Specifies the name of the file containing $R_0$ parameters for each element when using the D2 method. If not set, ABACUS uses the default $R_0$ parameters (Angstrom) stored in the [program](https://github.com/deepmodeling/abacus-develop/blob/develop/source/module_hamilt_general/module_vdw/vdwd2_parameters.cpp). To manually set the $R_0$ parameters, provide a file containing the parameters. An example is given by:
+- **Description**: Specifies the name of the file containing $R_0$ parameters for each element when using the D2 method. If not set, ABACUS uses the default $R_0$ parameters (Angstrom) stored in the [program](https://github.com/deepmodeling/abacus-develop/blob/develop/source/source_hamilt/module_vdw/vdwd2_parameters.cpp). To manually set the $R_0$ parameters, provide a file containing the parameters. An example is given by:
 
   ```text
   Li 1.0
@@ -3516,7 +3538,7 @@ These variables are used to control vdW-corrected related parameters.
 
 - **Type**: String
 - **Availability**: `vdw_cutoff_type` is set to `radius`
-- **Description**: specify the unit of `vdw_cutoff_radius`. Available options are:
+- **Description**: Specify the unit of `vdw_cutoff_radius`. Available options are:
   - `A`(Angstrom)
   - `Bohr`
 - **Default**: Bohr
@@ -3553,7 +3575,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### berry_phase
 
 - **Type**: Boolean
-- **Description**: controls the calculation of Berry phase
+- **Description**: Controls the calculation of Berry phase
   - true: Calculate Berry phase.
   - false: Do not calculate Berry phase.
 - **Default**: false
@@ -3561,7 +3583,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### gdir
 
 - **Type**: Integer
-- **Description**: the direction of the polarization in the lattice vector for Berry phase calculation
+- **Description**: The direction of the polarization in the lattice vector for Berry phase calculation
   - 1: Calculate the polarization in the direction of the lattice vector a_1 defined in the STRU file.
   - 2: Calculate the polarization in the direction of the lattice vector a_2 defined in the STRU file.
   - 3: Calculate the polarization in the direction of the lattice vector a_3 defined in the STRU file.
@@ -3578,7 +3600,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### nnkpfile
 
 - **Type**: String
-- **Description**: the file name generated when running "wannier90 -pp ..." command
+- **Description**: The file name generated when running "wannier90 -pp ..." command
 - **Default**: seedname.nnkp
 
 ### wannier_method
@@ -3592,7 +3614,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### wannier_spin
 
 - **Type**: String
-- **Description**: the spin direction for the Wannier function calculation when nspin is set to 2
+- **Description**: The spin direction for the Wannier function calculation when nspin is set to 2
   - `up`: Calculate spin up for the Wannier function.
   - `down`: Calculate spin down for the Wannier function.
 - **Default**: `up`
@@ -3600,7 +3622,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### out_wannier_mmn
 
 - **Type**: Bool
-- **Description**: write the "*.mmn" file or not.
+- **Description**: Write the "*.mmn" file or not.
   - 0: don't write the "*.mmn" file.
   - 1: write the "*.mmn" file.
 - **Default**: 1
@@ -3608,7 +3630,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### out_wannier_amn
 
 - **Type**: Bool
-- **Description**: write the "*.amn" file or not.
+- **Description**: Write the "*.amn" file or not.
   - 0: don't write the "*.amn" file.
   - 1: write the "*.amn" file.
 - **Default**: 1
@@ -3616,7 +3638,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### out_wannier_eig
 
 - **Type**: Bool
-- **Description**: write the "*.eig" file or not.
+- **Description**: Write the "*.eig" file or not.
   - 0: don't write the "*.eig" file.
   - 1: write the "*.eig" file.
 - **Default**: 1
@@ -3624,7 +3646,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### out_wannier_unk
 
 - **Type**: Bool
-- **Description**: write the "UNK.*" file or not.
+- **Description**: Write the "UNK.*" file or not.
   - 0: don't write the "UNK.*" file.
   - 1: write the "UNK.*" file.
 - **Default**: 0
@@ -3632,7 +3654,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### out_wannier_wvfn_formatted
 
 - **Type**: Bool
-- **Description**: write the "UNK.*" file in ASCII format or binary format.
+- **Description**: Write the "UNK.*" file in ASCII format or binary format.
   - 0: write the "UNK.*" file in binary format.
   - 1: write the "UNK.*" file in ASCII format (text file format).
 - **Default**: 1
@@ -3644,7 +3666,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### td_edm
 
 - **Type**: Integer
-- **Description**: the method to calculate the energy density matrix
+- **Description**: Method to calculate the energy density matrix
   - 0: new method (use the original formula).
   - 1: old method (use the formula for ground state).
 - **Default**: 0
@@ -3661,7 +3683,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Integer
 - **Description**:
-  method of propagator
+  Methods of propagator
   - 0: Crank-Nicolson, based on matrix inversion.
   - 1: 4th Taylor expansions of exponential.
   - 2: enforced time-reversal symmetry (ETRS).
@@ -3690,7 +3712,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Integer
 - **Description**:
-  type of electric field in space domain
+  Type of electric field in space domain
   - 0: length gauge.
   - 1: velocity gauge.
 - **Default**: 0
@@ -3699,7 +3721,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Integer
 - **Description**:
-  type of electric field in time domain
+  Type of electric field in time domain
   - 0: Gaussian type function.
   - 1: Trapezoid function.
   - 2: Trigonometric function.
@@ -3710,22 +3732,20 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### td_tstart
 
 - **Type**: Integer
-- **Description**:
-  number of steps where electric field starts
+- **Description**: Number of steps where electric field starts
 - **Default**: 1
 
 ### td_tend
 
 - **Type**: Integer
-- **Description**:
-  number of steps where electric field ends
+- **Description**: Number of steps where electric field ends
 - **Default**: 100
 
 ### td_lcut1
 
 - **Type**: Real
 - **Description**:
-  `td_lcut1` is the lower bound of the interval in the length gauge RT-TDDFT, where $x$ is the fractional coordinate:
+  The lower bound of the interval in the length gauge RT-TDDFT, where $x$ is the fractional coordinate:
 
   $$
     E(x)=\begin{cases}E_0, & \mathtt{cut1}\leqslant x \leqslant \mathtt{cut2} \\-E_0\left(\dfrac{1}{\mathtt{cut1}+1-\mathtt{cut2}}-1\right), & 0 < x < \mathtt{cut1~~or~~cut2} < x < 1 \end{cases}
@@ -3737,7 +3757,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  `td_lcut2` is the upper bound of the interval in the length gauge RT-TDDFT, where $x$ is the fractional coordinate:
+  The upper bound of the interval in the length gauge RT-TDDFT, where $x$ is the fractional coordinate:
 
   $$
     E(x)=\begin{cases}E_0, & \mathtt{cut1}\leqslant x \leqslant \mathtt{cut2} \\-E_0\left(\dfrac{1}{\mathtt{cut1}+1-\mathtt{cut2}}-1\right), & 0 < x < \mathtt{cut1~~or~~cut2} < x < 1 \end{cases}
@@ -3749,7 +3769,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  frequency (freq) of Gauss type electric field  (fs^-1)\
+  Frequency (freq) of Gauss type electric field  (fs^-1)\
   amp\*cos(2pi\*freq(t-t0)+phase)exp(-(t-t0)^2/2sigma^2)
 - **Default**: 22.13
 
@@ -3757,7 +3777,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  phase of Gauss type electric field\
+  Phase of Gauss type electric field\
   amp\*(2pi\*freq(t-t0)+phase)exp(-(t-t0)^2/2sigma^2)
 - **Default**: 0.0
 
@@ -3765,7 +3785,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  sigma of Gauss type electric field  (fs)\
+  Sigma of Gauss type electric field  (fs)\
   amp\*cos(2pi\*freq(t-t0)+phase)exp(-(t-t0)^2/2sigma^2)
 - **Default**: 30.0
 
@@ -3773,7 +3793,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  step number of time center (t0) of Gauss type electric field\
+  Step number of time center (t0) of Gauss type electric field\
   amp\*cos(2pi\*freq(t-t0)+phase)exp(-(t-t0)^2/2sigma^2)
 - **Default**: 100
 
@@ -3781,7 +3801,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  amplitude (amp) of Gauss type electric field  (V/Angstrom)\
+  Amplitude (amp) of Gauss type electric field  (V/Angstrom)\
   amp\*cos(2pi\*freq(t-t0)+phase)exp(-(t-t0)^2/2sigma^2)
 - **Default**: 0.25
 
@@ -3789,7 +3809,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  frequency (freq) of Trapezoid type electric field  (fs^-1)\
+  Frequency (freq) of Trapezoid type electric field  (fs^-1)\
   E = amp\*cos(2pi\*freq\*t+phase) t/t1 , t<t1\
   E = amp\*cos(2pi\*freq\*t+phase) , t1<t<t2\
   E = amp\*cos(2pi\*freq\*t+phase) (1-(t-t2)/(t3-t2)) , t2<t<t3\
@@ -3800,7 +3820,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  phase of Trapezoid type electric field\
+  Phase of Trapezoid type electric field\
   E = amp\*cos(2pi\*freq\*t+phase) t/t1 , t<t1\
   E = amp\*cos(2pi\*freq\*t+phase) , t1<t<t2\
   E = amp\*cos(2pi\*freq\*t+phase) (1-(t-t2)/(t3-t2)) , t2<t<t3\
@@ -3811,7 +3831,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  step number of time interval 1 (t1) of Trapezoid type electric field\
+  Step number of time interval 1 (t1) of Trapezoid type electric field\
   E = amp\*cos(2pi\*freq\*t+phase) t/t1 , t<t1\
   E = amp\*cos(2pi\*freq\*t+phase) , t1<t<t2\
   E = amp\*cos(2pi\*freq\*t+phase) (1-(t-t2)/(t3-t2)) , t2<t<t3\
@@ -3822,7 +3842,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  step number of time interval 2 (t2) of Trapezoid type electric field\
+  Step number of time interval 2 (t2) of Trapezoid type electric field\
   E = amp\*cos(2pi\*freq\*t+phase) t/t1 , t<t1\
   E = amp\*cos(2pi\*freq\*t+phase) , t1<t<t2\
   E = amp\*cos(2pi\*freq\*t+phase) (1-(t-t2)/(t3-t2)) , t2<t<t3\
@@ -3833,7 +3853,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  step number of time interval 3 (t3) of Trapezoid type electric field\
+  Step number of time interval 3 (t3) of Trapezoid type electric field\
   E = amp\*cos(2pi\*freq\*t+phase) t/t1 , t<t1\
   E = amp\*cos(2pi\*freq\*t+phase) , t1<t<t2\
   E = amp\*cos(2pi\*freq\*t+phase) (1-(t-t2)/(t3-t2)) , t2<t<t3\
@@ -3844,7 +3864,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  amplitude (amp) of Trapezoid type electric field  (V/Angstrom)\
+  Amplitude (amp) of Trapezoid type electric field  (V/Angstrom)\
   E = amp\*cos(2pi\*freq\*t+phase) t/t1 , t<t1\
   E = amp\*cos(2pi\*freq\*t+phase) , t1<t<t2\
   E = amp\*cos(2pi\*freq\*t+phase) (1-(t-t2)/(t3-t2)) , t2<t<t3\
@@ -3855,7 +3875,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  frequency 1 (freq1) of Trigonometric type electric field  (fs^-1)\
+  Frequency 1 (freq1) of Trigonometric type electric field  (fs^-1)\
   amp\*cos(2\*pi\*freq1\*t+phase1)\*sin(2\*pi\*freq2\*t+phase2)^2
 - **Default**: 1.164656
 
@@ -3863,7 +3883,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  frequency 2 (freq2) of Trigonometric type electric field  (fs^-1)\
+  Frequency 2 (freq2) of Trigonometric type electric field  (fs^-1)\
   amp\*cos(2\*pi\*freq1\*t+phase1)\*sin(2\*pi\*freq2\*t+phase2)^2
 - **Default**: 0.029116
 
@@ -3871,7 +3891,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**:Real
 - **Description**:
-  phase 1 (phase1) of Trigonometric type electric field\
+  Phase 1 (phase1) of Trigonometric type electric field\
   amp\*cos(2\*pi\*freq1\*t+phase1)\*sin(2\*pi\*freq2\*t+phase2)^2
 - **Default**: 0.0
 
@@ -3879,7 +3899,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  phase 2 (phase2) of Trigonometric type electric field\
+  Phase 2 (phase2) of Trigonometric type electric field\
   amp\*cos(2\*pi\*freq1\*t+phase1)\*sin(2\*pi\*freq2\*t+phase2)^2
 - **Default**: 0.0
 
@@ -3887,7 +3907,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  amplitude (amp) of Trigonometric type electric field (V/Angstrom)\
+  Amplitude (amp) of Trigonometric type electric field (V/Angstrom)\
   amp\*cos(2\*pi\*freq1\*t+phase1)\*sin(2\*pi\*freq2\*t+phase2)^2
 - **Default**: 2.74
 
@@ -3895,7 +3915,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  step number of switch time (t0) of Heaviside type electric field\
+  Step number of switch time (t0) of Heaviside type electric field\
   E = amp , t<t0\
   E = 0.0 , t>t0
 - **Default**: 100
@@ -3904,7 +3924,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: Real
 - **Description**:
-  amplitude (amp) of Heaviside type electric field  (V/Angstrom)\
+  Amplitude (amp) of Heaviside type electric field  (V/Angstrom)\
   E = amp , t<t0\
   E = 0.0 , t>t0
 - **Default**: 2.74
@@ -3920,7 +3940,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### out_current
 
 - **Type**: Boolean
-- **Description**:output current in real time TDDFT simulations with the velocity gauge
+- **Description**: Output current in real time TDDFT simulations with the velocity gauge
   - True: output current.
   - False: do not output current.
 - **Default**: False
@@ -3928,25 +3948,25 @@ These variables are used to control berry phase and wannier90 interface paramete
 ### out_current_k
 
 - **Type**: Boolean
-- **Description**:output tddft current for all k points.
-  - True: output tddft current for all k points.
-  - False: output current in total.
+- **Description**: Output rt-TDDFT current for all k points
+  - True: output tddft current for all k points
+  - False: output current in total
 - **Default**: False
 
 ### out_efield
 
 - **Type**: Boolean
-- **Description**: output TDDFT Efield or not(V/Angstrom)
-  - True: output efield.
-  - False: do not output efield.
+- **Description**: Output TDDFT Efield or not (V/Angstrom)
+  - True: output efield
+  - False: do not output efield
 - **Default**: False
 
 ### out_vecpot
 
 - **Type**: Boolean
-- **Description**: output TDDFT Vector potential or not(a.u.)
+- **Description**: Output TDDFT Vector potential or not (a.u.)
   - True: output Vector potential in file "OUT.suffix/At.dat"
-  - False: do not output Vector potential.
+  - False: do not output Vector potential
 - **Default**: False
 
 ### init_vecpot_file
@@ -4162,14 +4182,14 @@ These variables are used to control the usage of implicit solvation model. This 
 ### imp_sol
 
 - **Type**: Boolean
-- **Description**: calculate implicit solvation correction
+- **Description**: Calculate implicit solvation correction
 - **Default**: False
 
 ### eb_k
 
 - **Type**: Real
 - **Availability**: `imp_sol` is true.
-- **Description**: the relative permittivity of the bulk solvent, 80 for water
+- **Description**: The relative permittivity of the bulk solvent, 80 for water
 - **Default**: 80
 
 ### tau
@@ -4182,13 +4202,13 @@ These variables are used to control the usage of implicit solvation model. This 
 ### sigma_k
 
 - **Type**: Real
-- **Description**: the width of the diffuse cavity that is implicitly determined by the electronic structure of the solute
+- **Description**: The width of the diffuse cavity that is implicitly determined by the electronic structure of the solute
 - **Default**: 0.6
 
 ### nc_k
 
 - **Type**: Real
-- **Description**: the value of the electron density at which the dielectric cavity forms
+- **Description**: The value of the electron density at which the dielectric cavity forms
 - **Default**: 0.00037
 - **Unit**: $Bohr^{-3}$
 
@@ -4201,13 +4221,13 @@ These variables are used to control the usage of QO analysis. QO further compres
 ### qo_switch (Under Development Feature)
 
 - **Type**: Boolean
-- **Description**: whether to let ABACUS output QO analysis required files
+- **Description**: Whether to let ABACUS output QO analysis required files
 - **Default**: 0
 
 ### qo_basis (Under Development Feature)
 
 - **Type**: String
-- **Description**: specify the type of atomic basis
+- **Description**: Specify the type of atomic basis
   - `pswfc`: use the pseudowavefunction in pseudopotential files as atomic basis. To use this option, please make sure in pseudopotential file there is pswfc in it.
   - `hydrogen`: generate hydrogen-like atomic basis (or with Slater screening).
   - `szv`: use the first set of zeta for each angular momentum from numerical atomic orbitals as atomic basis.
@@ -4219,7 +4239,7 @@ These variables are used to control the usage of QO analysis. QO further compres
 ### qo_strategy (Under Development Feature)
 
 - **Type**: String \[String...\](optional)
-- **Description**: specify the strategy to generate radial orbitals for each atom type. If one parameter is given, will apply to all atom types. If more than one parameters are given but fewer than number of atom type, those unspecified atom type will use default value.
+- **Description**: Specify the strategy to generate radial orbitals for each atom type. If one parameter is given, will apply to all atom types. If more than one parameters are given but fewer than number of atom type, those unspecified atom type will use default value.
 
   For `qo_basis hydrogen`
   - `minimal-nodeless`: according to principle quantum number of the highest occupied state, generate only nodeless orbitals, for example Cu, only generate 1s, 2p, 3d and 4f orbitals (for Cu, 4s is occupied, thus $n_{max} = 4$)
@@ -4252,7 +4272,7 @@ These variables are used to control the usage of QO analysis. QO further compres
 ### qo_thr (Under Development Feature)
 
 - **Type**: Real
-- **Description**: the convergence threshold determining the cutoff of generated orbital. Lower threshold will yield orbital with larger cutoff radius.
+- **Description**: The convergence threshold determining the cutoff of generated orbital. Lower threshold will yield orbital with larger cutoff radius.
 - **Default**: 1.0e-6
 
 ## PEXSI
@@ -4262,133 +4282,133 @@ These variables are used to control the usage of PEXSI (Pole Expansion and Selec
 ### pexsi_npole
 
 - **Type**: Integer
-- **Description**: the number of poles used in the pole expansion method, should be a even number.
+- **Description**: The number of poles used in the pole expansion method, should be a even number.
 - **Default**: 40
 
 ### pexsi_inertia
 
 - **Type**: Boolean
-- **Description**: whether inertia counting is used at the very beginning.
+- **Description**: Whether inertia counting is used at the very beginning.
 - **Default**: True
 
 ### pexsi_nmax
 
 - **Type**: Integer
-- **Description**: maximum number of PEXSI iterations after each inertia counting procedure.
+- **Description**: Maximum number of PEXSI iterations after each inertia counting procedure.
 - **Default**: 80
 
 ### pexsi_comm
 
 - **Type**: Boolean
-- **Description**: whether to construct PSelInv communication pattern.
+- **Description**: Whether to construct PSelInv communication pattern.
 - **Default**: True
 
 ### pexsi_storage
 
 - **Type**: Boolean
-- **Description**: whether to use symmetric storage space used by the Selected Inversion algorithm for symmetric matrices.
+- **Description**: Whether to use symmetric storage space used by the Selected Inversion algorithm for symmetric matrices.
 - **Default**: True
 
 ### pexsi_ordering
 
 - **Type**: Integer
-- **Description**: ordering strategy for factorization and selected inversion. 0: Parallel ordering using ParMETIS, 1: Sequential ordering using METIS, 2: Multiple minimum degree ordering
+- **Description**: Ordering strategy for factorization and selected inversion. 0: Parallel ordering using ParMETIS, 1: Sequential ordering using METIS, 2: Multiple minimum degree ordering
 - **Default**: 0
 
 ### pexsi_row_ordering
 
 - **Type**: Integer
-- **Description**: row permutation strategy for factorization and selected inversion, 0: No row permutation, 1: Make the diagonal entry of the matrix larger than the off-diagonal entries.
+- **Description**: Row permutation strategy for factorization and selected inversion, 0: No row permutation, 1: Make the diagonal entry of the matrix larger than the off-diagonal entries.
 - **Default**: 1
 
 ### pexsi_nproc
 
 - **Type**: Integer
-- **Description**: number of processors for PARMETIS. Only used if pexsi_ordering == 0.
+- **Description**: Number of processors for PARMETIS. Only used if pexsi_ordering == 0.
 - **Default**: 1
 
 ### pexsi_symm
 
 - **Type**: Boolean
-- **Description**: whether the matrix is symmetric.
+- **Description**: Whether the matrix is symmetric.
 - **Default**: True
 
 ### pexsi_trans
 
 - **Type**: Boolean
-- **Description**: whether to factorize the transpose of the matrix.
+- **Description**: Whether to factorize the transpose of the matrix.
 - **Default**: False
 
 ### pexsi_method
 
 - **Type**: Integer
-- **Description**: the pole expansion method to be used. 1 for Cauchy Contour Integral method, 2 for Moussa optimized method.
+- **Description**: The pole expansion method to be used. 1 for Cauchy Contour Integral method, 2 for Moussa optimized method.
 - **Default**: 1
 
 ### pexsi_nproc_pole
 
 - **Type**: Integer
-- **Description**: the point parallelizaion of PEXSI. Recommend two points parallelization.
+- **Description**: The point parallelizaion of PEXSI. Recommend two points parallelization.
 - **Default**: 1
 
 ### pexsi_temp
 
 - **Type**: Real
-- **Description**: temperature in Fermi-Dirac distribution, in Ry, should have the same effect as the smearing sigma when smearing method is set to Fermi-Dirac.
+- **Description**: Temperature in Fermi-Dirac distribution, in Ry, should have the same effect as the smearing sigma when smearing method is set to Fermi-Dirac.
 - **Default**: 0.015
 
 ### pexsi_gap
 
 - **Type**: Real
-- **Description**: spectral gap, this can be set to be 0 in most cases.
+- **Description**: Spectral gap, this can be set to be 0 in most cases.
 - **Default**: 0
 
 ### pexsi_delta_e
 
 - **Type**: Real
-- **Description**: an upper bound for the spectral radius of $S^{-1} H$.
+- **Description**: Upper bound for the spectral radius of $S^{-1} H$.
 - **Default**: 20
 
 ### pexsi_mu_lower
 
 - **Type**: Real
-- **Description**: initial guess of lower bound for mu.
+- **Description**: Initial guess of lower bound for mu.
 - **Default**: -10
 
 ### pexsi_mu_upper
 
 - **Type**: Real
-- **Description**: initial guess of upper bound for mu.
+- **Description**: Initial guess of upper bound for mu.
 - **Default**: 10
 
 ### pexsi_mu
 
 - **Type**: Real
-- **Description**: initial guess for mu (for the solver).
+- **Description**: Initial guess for mu (for the solver).
 - **Default**: 0
 
 ### pexsi_mu_thr
 
 - **Type**: Real
-- **Description**: stopping criterion in terms of the chemical potential for the inertia counting procedure.
+- **Description**: Stopping criterion in terms of the chemical potential for the inertia counting procedure.
 - **Default**: 0.05
 
 ### pexsi_mu_expand
 
 - **Type**: Real
-- **Description**: if the chemical potential is not in the initial interval, the interval is expanded by this value.
+- **Description**: If the chemical potential is not in the initial interval, the interval is expanded by this value.
 - **Default**: 0.3
 
 ### pexsi_mu_guard
 
 - **Type**: Real
-- **Description**: safe guard criterion in terms of the chemical potential to reinvoke the inertia counting procedure.
+- **Description**: Safe guard criterion in terms of the chemical potential to reinvoke the inertia counting procedure.
 - **Default**: 0.2
 
 ### pexsi_elec_thr
 
 - **Type**: Real
-- **Description**: stopping criterion of the PEXSI iteration in terms of the number of electrons compared to numElectronExact.
+- **Description**: Stopping criterion of the PEXSI iteration in terms of the number of electrons compared to numElectronExact.
 - **Default**: 0.001
 
 ### pexsi_zero_thr
@@ -4452,7 +4472,7 @@ Currently supported: `RPA`, `LDA`, `PBE`, `HSE`, `HF`.
 ### lr_nstates (Under Development Feature)
 
 - **Type**: Integer
-- **Description**:  The number of 2-particle states to be solved
+- **Description**: The number of 2-particle states to be solved
 - **Default**: 0
 
 ### lr_unrestricted (Under Development Feature)
@@ -4499,7 +4519,7 @@ The output files are `OUT.${suffix}/Excitation_Energy.dat` and `OUT.${suffix}/Ex
 
 ## Reduced Density Matrix Functional Theory (Under Development Feature)
 
-ab-initio methods and the xc-functional parameters used in RDMFT.
+Ab-initio methods and the xc-functional parameters used in RDMFT.
 The physical quantities that RDMFT temporarily expects to output are the kinetic energy, total energy, and 1-RDM of the system in the ground state, etc.
 
 ### rdmft (Under Development Feature)

@@ -45,13 +45,14 @@ OPTS = ${INCLUDES} -Ofast -std=c++14 -march=native -xHost -m64 -qopenmp -Werror 
 
 include Makefile.Objects
 
-VPATH=../../module_base\
+VPATH=../../../source_main\
+:../../source_base\
 :../../module_io\
-:../../module_hamilt_pw/hamilt_pwdft\
-:../../module_basis/module_ao\
+:../../source_pw/hamilt_pwdft\
+:../../source_basis/module_ao\
 :../../module_neighbor\
-:../../module_cell\
-:../../module_elecstate\
+:../../source_cell\
+:../../source_estate\
 :../../\
 :../\
 :./\

@@ -1,15 +1,15 @@
 #ifndef DFTU_H
 #define DFTU_H
 
-#include "module_cell/klist.h"
-#include "module_cell/unitcell.h"
-#include "module_basis/module_ao/parallel_orbitals.h"
+#include "source_cell/klist.h"
+#include "source_cell/unitcell.h"
+#include "source_basis/module_ao/parallel_orbitals.h"
 #ifdef __LCAO
-#include "module_elecstate/module_charge/charge_mixing.h"
-#include "module_hamilt_general/hamilt.h"
-#include "module_elecstate/elecstate.h"
+#include "source_estate/module_charge/charge_mixing.h"
+#include "source_hamilt/hamilt.h"
+#include "source_estate/elecstate.h"
 #include "module_hamilt_lcao/module_hcontainer/hcontainer.h"
-#include "module_elecstate/module_dm/density_matrix.h"
+#include "source_estate/module_dm/density_matrix.h"
 #include "module_hamilt_lcao/hamilt_lcaodft/force_stress_arrays.h" // mohan add 2024-06-15
 #endif
 

@@ -161,7 +161,6 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
                                    const bool is_first_node) const
 {
     if (first_iter) return;
-    // std::cout << "act" << std::endl;
 
     if (is_first_node)
     {
@@ -240,16 +239,6 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
                 
                 // direct multiplication in real space, \psi_nk(r) * \psi_mq(r)
                 cal_density_recip(psi_nk_real, psi_mq_real, ucell->omega);
-                // #ifdef _OPENMP
-                // #pragma omp parallel for schedule(static)
-                // #endif
-                // for (int ir = 0; ir < wfcpw->nrxx; ir++)
-                // {
-                //     // assert(is_finite(psi_nk_real[ir]));
-                //     // assert(is_finite(psi_mq_real[ir]));
-                //     Real ucell_omega = ucell->omega;
-                //     density_real[ir] = psi_nk_real[ir] * std::conj(psi_mq_real[ir]) / ucell_omega; // Phase e^(i(q-k)r)
-                // }
                 
                 // bring the density to recip space
                 // rhopw->real2recip(density_real, density_recip);
@@ -267,16 +256,6 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
                 }
                 else
                 {
-                    // // get the h|psi_ik>(r), save in density_real
-                    // #ifdef _OPENMP
-                    // #pragma omp parallel for schedule(static)
-                    // #endif
-                    // for (int ir = 0; ir < wfcpw->nrxx; ir++)
-                    // {
-                    //     // assert(is_finite(psi_mq_real[ir]));
-                    //     // assert(is_finite(density_real[ir]));
-                    //     density_real[ir] *= psi_mq_real[ir];
-                    // }
                     vec_mul_vec_complex_op<T, Device>()(density_real, psi_mq_real, density_real, wfcpw->nrxx);
                 }
 
@@ -463,19 +442,6 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         // reduction of psi_h_psi_ace, due to distributed memory
         Parallel_Reduce::reduce_pool(psi_h_psi_ace, nbands * nbands);
 
-        // L_ace = cholesky(-psi_h_psi_ace)
-
-        // #ifdef _OPENMP
-        // #pragma omp parallel for schedule(static)
-        // #endif
-        // for (int i = 0; i < nbands; i++)
-        // {
-        //     for (int j = 0; j < nbands; j++)
-        //     {
-        //         L_ace[i * nbands + j] = -psi_h_psi_ace[i * nbands + j];
-        //     }
-        // }
-
         T intermediate_minus_one = -1.0;
         axpy_complex_op()(nbands * nbands,
                           &intermediate_minus_one,
@@ -494,21 +460,6 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         for (int i = 0; i < nbands; ++i) {
             setmem_complex_op()(L_ace + i * nbands, 0, i);
         }
-
-        // #ifdef _OPENMP
-        // #pragma omp parallel for schedule(static) collapse(2)
-        // #endif
-        // for (int i = 0; i < nbands; i++)
-        // {
-        //     for (int j = 0; j < nbands; j++)
-        //     {
-        //         if (j < i)
-        //         {
-        //             // L_ace[j * nkb + i] = std::conj(L_ace[i * nkb + j]);
-        //             L_ace[i * nbands + j] = 0.0;
-        //         }
-        //     }
-        // }
 
         // L_ace inv in place
         // T == std::complex<float> or std::complex<double>
@@ -918,18 +869,6 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
 
     using setmem_complex_op = base_device::memory::set_memory_op<T, Device>;
     using delmem_complex_op = base_device::memory::delete_memory_op<T, Device>;
-    // T* psi_nk_real = new T[wfcpw->nrxx];
-    // T* psi_mq_real = new T[wfcpw->nrxx];
-    // T* h_psi_recip = new T[wfcpw->npwk_max];
-    // T* h_psi_real = new T[wfcpw->nrxx];
-    // T* density_real = new T[wfcpw->nrxx];
-    // T* density_recip = new T[rhopw_dev->npw];
-    // resmem_complex_op()(psi_nk_real, wfcpw->nrxx);
-    // resmem_complex_op()(psi_mq_real, wfcpw->nrxx);
-    // resmem_complex_op()(h_psi_recip, wfcpw->npwk_max);
-    // resmem_complex_op()(h_psi_real, rhopw_dev->nrxx);
-    // resmem_complex_op()(density_real, rhopw_dev->nrxx);
-    // resmem_complex_op()(density_recip, rhopw_dev->npw);
     setmem_complex_op()(psi_nk_real, 0, wfcpw->nrxx);
     setmem_complex_op()(psi_mq_real, 0, wfcpw->nrxx);
     setmem_complex_op()(h_psi_recip, 0, wfcpw->npwk_max);

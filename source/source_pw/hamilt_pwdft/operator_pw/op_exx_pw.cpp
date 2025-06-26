@@ -36,19 +36,13 @@ namespace hamilt
 template <typename T, typename Device>
 struct trtri_op
 {
-    void operator()(char *uplo, char *diag, int *n, T *a, int *lda, int *info)
-    {
-        std::cout << "trtri_op not implemented" << std::endl;
-    }
+    void operator()(char *uplo, char *diag, int *n, T *a, int *lda, int *info);
 };
 
 template <typename T, typename Device>
 struct potrf_op
 {
-    void operator()(char *uplo, int *n, T *a, int *lda, int *info)
-    {
-        std::cout << "potrf_op not implemented" << std::endl;
-    }
+    void operator()(char *uplo, int *n, T *a, int *lda, int *info);
 };
 
 template <typename T, typename Device>

@@ -1,16 +1,22 @@
+#include "module_hamilt_general/operator.h"
+#include "module_hamilt_lcao/hamilt_lcaodft/FORCE.h"
+#include "module_hamilt_pw/hamilt_pwdft/kernels/cal_density_real_op.h"
+#include "module_hamilt_pw/hamilt_pwdft/kernels/exx_cal_energy_op.h"
+#include "module_hamilt_pw/hamilt_pwdft/kernels/mul_potential_op.h"
+#include "module_hamilt_pw/hamilt_pwdft/kernels/vec_mul_vec_complex_op.h"
+#include "module_psi/psi.h"
 #include "source_base/constants.h"
 #include "source_base/global_variable.h"
 #include "source_base/parallel_reduce.h"
 #include "source_base/timer.h"
-#include "source_cell/klist.h"
-#include "module_hamilt_general/operator.h"
-#include "module_psi/psi.h"
 #include "source_base/tool_quit.h"
+#include "source_cell/klist.h"
 
 #include <cmath>
 #include <complex>
 #include <cstdlib>
 #include <memory>
+#include <thrust/execution_policy.h>
 #include <utility>
 
 extern "C"
@@ -87,10 +93,21 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
 
     tpiba = ucell->tpiba;
     Real tpiba2 = tpiba * tpiba;
+
+    rhopw_dev = new ModulePW::PW_Basis(wfcpw->get_device(), rhopw->get_precision());
+    rhopw_dev->fft_bundle.setfft(wfcpw->get_device(), rhopw->get_precision());
+    rhopw_dev->initmpi(rhopw->poolnproc, rhopw->poolrank, rhopw->pool_world);
+    // here we can actually use different ecut to init the grids
+    rhopw_dev->initgrids(rhopw->lat0, rhopw->latvec, rhopw->gridecut_lat * rhopw->tpiba2);
+    rhopw_dev->initgrids(rhopw->lat0, rhopw->latvec, rhopw->nx, rhopw->ny, rhopw->nz);
+    rhopw_dev->initparameters(rhopw->gamma_only, rhopw->ggecut * rhopw->tpiba2, rhopw->distribution_type, rhopw->xprime);
+    rhopw_dev->setuptransform();
+    rhopw_dev->collect_local_pw();
+
     // calculate the exx_divergence
     exx_divergence();
 
-}
+}   // end of constructor
 
 template <typename T, typename Device>
 OperatorEXXPW<T, Device>::~OperatorEXXPW()
@@ -113,7 +130,7 @@ OperatorEXXPW<T, Device>::~OperatorEXXPW()
         delmem_complex_op()(Xi_ace);
     }
     Xi_ace_k.clear();
-
+    delete rhopw_dev;
 }
 
 template <typename T>
@@ -144,6 +161,7 @@ void OperatorEXXPW<T, Device>::act(const int nbands,
                                    const bool is_first_node) const
 {
     if (first_iter) return;
+    // std::cout << "act" << std::endl;
 
     if (is_first_node)
     {
@@ -186,9 +204,9 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
     ModuleBase::timer::tick("OperatorEXXPW", "act_op");
 
     setmem_complex_op()(h_psi_recip, 0, wfcpw->npwk_max);
-    setmem_complex_op()(h_psi_real, 0, rhopw->nrxx);
-    setmem_complex_op()(density_real, 0, rhopw->nrxx);
-    setmem_complex_op()(density_recip, 0, rhopw->npw);
+    setmem_complex_op()(h_psi_real, 0, rhopw_dev->nrxx);
+    setmem_complex_op()(density_real, 0, rhopw_dev->nrxx);
+    setmem_complex_op()(density_recip, 0, rhopw_dev->npw);
     // setmem_complex_op()(psi_all_real, 0, wfcpw->nrxx * GlobalV::NBANDS);
     // std::map<std::pair<int, int>, bool> has_real;
     setmem_complex_op()(psi_nk_real, 0, wfcpw->nrxx);
@@ -217,74 +235,72 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
                     continue;
                 }
 
-                // if (has_real.find({iq, m_iband}) == has_real.end())
-                // {
-                    const T* psi_mq = get_pw(m_iband, iq);
-                    wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq);
-                //     syncmem_complex_op()(this->ctx, this->ctx, psi_all_real + m_iband * wfcpw->nrxx, psi_mq_real, wfcpw->nrxx);
-                //     has_real[{iq, m_iband}] = true;
-                // }
-                // else
-                // {
-                //     // const T* psi_mq = get_pw(m_iband, iq);
-                //     // wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq);
-                //     syncmem_complex_op()(this->ctx, this->ctx, psi_mq_real, psi_all_real + m_iband * wfcpw->nrxx, wfcpw->nrxx);
-                // }
+                const T* psi_mq = get_pw(m_iband, iq);
+                wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq);
                 
                 // direct multiplication in real space, \psi_nk(r) * \psi_mq(r)
-                #ifdef _OPENMP
-                #pragma omp parallel for schedule(static)
-                #endif
-                for (int ir = 0; ir < wfcpw->nrxx; ir++)
-                {
-                    // assert(is_finite(psi_nk_real[ir]));
-                    // assert(is_finite(psi_mq_real[ir]));
-                    Real ucell_omega = ucell->omega;
-                    density_real[ir] = psi_nk_real[ir] * std::conj(psi_mq_real[ir]) / ucell_omega; // Phase e^(i(q-k)r)
-                }
-                // to be changed into kernel function
+                cal_density_recip(psi_nk_real, psi_mq_real, ucell->omega);
+                // #ifdef _OPENMP
+                // #pragma omp parallel for schedule(static)
+                // #endif
+                // for (int ir = 0; ir < wfcpw->nrxx; ir++)
+                // {
+                //     // assert(is_finite(psi_nk_real[ir]));
+                //     // assert(is_finite(psi_mq_real[ir]));
+                //     Real ucell_omega = ucell->omega;
+                //     density_real[ir] = psi_nk_real[ir] * std::conj(psi_mq_real[ir]) / ucell_omega; // Phase e^(i(q-k)r)
+                // }
                 
                 // bring the density to recip space
-                rhopw->real2recip(density_real, density_recip);
+                // rhopw->real2recip(density_real, density_recip);
 
                 // multiply the density with the potential in recip space
                 multiply_potential(density_recip, this->ik, iq);
 
                 // bring the potential back to real space
-                rhopw->recip2real(density_recip, density_real);
+                // rhopw_dev->recip2real(density_recip, density_real);
+                rho_recip2real(density_recip, density_real);
 
-                // get the h|psi_ik>(r), save in density_real
-                #ifdef _OPENMP
-                #pragma omp parallel for schedule(static)
-                #endif
-                for (int ir = 0; ir < wfcpw->nrxx; ir++)
+                if (false)
                 {
-                    // assert(is_finite(psi_mq_real[ir]));
-                    // assert(is_finite(density_real[ir]));
-                    density_real[ir] *= psi_mq_real[ir];
+                    // do nothing
+                }
+                else
+                {
+                    // // get the h|psi_ik>(r), save in density_real
+                    // #ifdef _OPENMP
+                    // #pragma omp parallel for schedule(static)
+                    // #endif
+                    // for (int ir = 0; ir < wfcpw->nrxx; ir++)
+                    // {
+                    //     // assert(is_finite(psi_mq_real[ir]));
+                    //     // assert(is_finite(density_real[ir]));
+                    //     density_real[ir] *= psi_mq_real[ir];
+                    // }
+                    vec_mul_vec_complex_op<T, Device>()(density_real, psi_mq_real, density_real, wfcpw->nrxx);
                 }
 
                 T wk_iq = kv->wk[iq];
                 T wk_ik = kv->wk[this->ik];
 
-                #ifdef _OPENMP
-                #pragma omp parallel for schedule(static)
-                #endif
-                for (int ir = 0; ir < wfcpw->nrxx; ir++)
-                {
-                    h_psi_real[ir] += density_real[ir] * wg_mqb / wk_iq / nqs;
-                }
+                T tmp_scalar = wg_mqb / wk_iq / nqs;
+                axpy_complex_op()(wfcpw->nrxx,
+                                  &tmp_scalar,
+                                  density_real,
+                                  1,
+                                  h_psi_real,
+                                  1);
 
             } // end of m_iband
-            setmem_complex_op()(density_real, 0, rhopw->nrxx);
-            setmem_complex_op()(density_recip, 0, rhopw->npw);
+            setmem_complex_op()(density_real, 0, rhopw_dev->nrxx);
+            setmem_complex_op()(density_recip, 0, rhopw_dev->npw);
             setmem_complex_op()(psi_mq_real, 0, wfcpw->nrxx);
 
         } // end of iq
         T* h_psi_nk = tmhpsi + n_iband * nbasis;
         Real hybrid_alpha = GlobalC::exx_info.info_global.hybrid_alpha;
         wfcpw->real_to_recip(ctx, h_psi_real, h_psi_nk, this->ik, true, hybrid_alpha);
-        setmem_complex_op()(h_psi_real, 0, rhopw->nrxx);
+        setmem_complex_op()(h_psi_real, 0, rhopw_dev->nrxx);
         
     }
 
@@ -302,7 +318,6 @@ void OperatorEXXPW<T, Device>::act_op_ace(const int nbands,
                                           const bool is_first_node) const
 {
     ModuleBase::timer::tick("OperatorEXXPW", "act_op_ace");
-
 //    std::cout << "act_op_ace" << std::endl;
     // hpsi += -Xi^\dagger * Xi * psi
     T* Xi_ace = Xi_ace_k[this->ik];
@@ -405,6 +420,8 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         resmem_complex_op()(psi_h_psi_ace, nbands * nbands);
     }
 
+    if (first_iter) return;
+
     for (int ik = 0; ik < nk; ik++)
     {
         int npwk = wfcpw->npwk[ik];
@@ -447,16 +464,26 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         Parallel_Reduce::reduce_pool(psi_h_psi_ace, nbands * nbands);
 
         // L_ace = cholesky(-psi_h_psi_ace)
-        #ifdef _OPENMP
-        #pragma omp parallel for schedule(static)
-        #endif
-        for (int i = 0; i < nbands; i++)
-        {
-            for (int j = 0; j < nbands; j++)
-            {
-                L_ace[i * nbands + j] = -psi_h_psi_ace[i * nbands + j];
-            }
-        }
+
+        // #ifdef _OPENMP
+        // #pragma omp parallel for schedule(static)
+        // #endif
+        // for (int i = 0; i < nbands; i++)
+        // {
+        //     for (int j = 0; j < nbands; j++)
+        //     {
+        //         L_ace[i * nbands + j] = -psi_h_psi_ace[i * nbands + j];
+        //     }
+        // }
+
+        T intermediate_minus_one = -1.0;
+        axpy_complex_op()(nbands * nbands,
+                          &intermediate_minus_one,
+                          psi_h_psi_ace,
+                          1,
+                          L_ace,
+                          1);
+
 
         int info = 0;
         char up = 'U', lo = 'L';
@@ -464,20 +491,24 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         potrf_op<T, Device>()(&lo, &nbands, L_ace, &nbands, &info);
 
         // expand for-loop
-        #ifdef _OPENMP
-        #pragma omp parallel for schedule(static) collapse(2)
-        #endif
-        for (int i = 0; i < nbands; i++)
-        {
-            for (int j = 0; j < nbands; j++)
-            {
-                if (j < i)
-                {
-                    // L_ace[j * nkb + i] = std::conj(L_ace[i * nkb + j]);
-                    L_ace[i * nbands + j] = 0.0;
-                }
-            }
+        for (int i = 0; i < nbands; ++i) {
+            setmem_complex_op()(L_ace + i * nbands, 0, i);
         }
+
+        // #ifdef _OPENMP
+        // #pragma omp parallel for schedule(static) collapse(2)
+        // #endif
+        // for (int i = 0; i < nbands; i++)
+        // {
+        //     for (int j = 0; j < nbands; j++)
+        //     {
+        //         if (j < i)
+        //         {
+        //             // L_ace[j * nkb + i] = std::conj(L_ace[i * nkb + j]);
+        //             L_ace[i * nbands + j] = 0.0;
+        //         }
+        //     }
+        // }
 
         // L_ace inv in place
         // T == std::complex<float> or std::complex<double>
@@ -561,20 +592,12 @@ template <typename T, typename Device>
 void OperatorEXXPW<T, Device>::multiply_potential(T *density_recip, int ik, int iq) const
 {
     ModuleBase::timer::tick("OperatorEXXPW", "multiply_potential");
-    int npw = rhopw->npw;
+    int npw = rhopw_dev->npw;
     int nks = wfcpw->nks;
     int nk_fac = PARAM.inp.nspin == 2 ? 2 : 1;
     int nk = nks / nk_fac;
 
-    #ifdef _OPENMP
-    #pragma omp parallel for schedule(static)
-    #endif
-    for (int ig = 0; ig < npw; ig++)
-    {
-        int ig_kq = ik * nks * npw + iq * npw + ig;
-        density_recip[ig] *= pot[ig_kq];
-
-    }
+    mul_potential_op<T, Device>()(pot, density_recip, npw, nks, ik, iq);
 
     ModuleBase::timer::tick("OperatorEXXPW", "multiply_potential");
 }
@@ -596,14 +619,15 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const OperatorEXXPW<T_in, Device_in> *op
     this->isk = op->isk;
     this->wfcpw = op->wfcpw;
     this->rhopw = op->rhopw;
+    this->rhopw_dev = op->rhopw_dev;
     this->psi = op->psi;
     this->ctx = op->ctx;
     this->cpu_ctx = op->cpu_ctx;
     resmem_complex_op()(this->ctx, psi_nk_real, wfcpw->nrxx);
     resmem_complex_op()(this->ctx, psi_mq_real, wfcpw->nrxx);
-    resmem_complex_op()(this->ctx, density_real, rhopw->nrxx);
-    resmem_complex_op()(this->ctx, h_psi_real, rhopw->nrxx);
-    resmem_complex_op()(this->ctx, density_recip, rhopw->npw);
+    resmem_complex_op()(this->ctx, density_real, rhopw_dev->nrxx);
+    resmem_complex_op()(this->ctx, h_psi_real, rhopw_dev->nrxx);
+    resmem_complex_op()(this->ctx, density_recip, rhopw_dev->npw);
     resmem_complex_op()(this->ctx, h_psi_recip, wfcpw->npwk_max);
 //    this->pws.resize(wfcpw->nks);
 
@@ -617,8 +641,11 @@ void OperatorEXXPW<T, Device>::get_potential() const
     Real nqs_half2 = 0.5 * kv->nmp[1];
     Real nqs_half3 = 0.5 * kv->nmp[2];
 
-    int nks = wfcpw->nks, npw = rhopw->npw;
+    Real* pot_cpu = nullptr;
+    int nks = wfcpw->nks, npw = rhopw_dev->npw;
     double tpiba2 = tpiba * tpiba;
+    pot_cpu = new Real[npw * wfcpw->nks * wfcpw->nks];
+
     // calculate the pot
     for (int ik = 0; ik < nks; ik++)
     {
@@ -634,7 +661,7 @@ void OperatorEXXPW<T, Device>::get_potential() const
             #endif
             for (int ig = 0; ig < rhopw->npw; ig++)
             {
-                const ModuleBase::Vector3<double> g_d = rhopw->gdirect[ig];
+                const ModuleBase::Vector3<double> g_d = rhopw_dev->gdirect[ig];
                 const ModuleBase::Vector3<double> kqg_d = k_d - q_d + g_d;
                 // For gamma_extrapolation (https://doi.org/10.1103/PhysRevB.79.205114)
                 // 7/8 of the points in the grid are "activated" and 1/8 are disabled.
@@ -665,7 +692,7 @@ void OperatorEXXPW<T, Device>::get_potential() const
                 const int nk = nks / nk_fac;
                 const int ig_kq = ik * nks * npw + iq * npw + ig;
 
-                Real gg = (k_c - q_c + rhopw->gcar[ig]).norm2() * tpiba2;
+                Real gg = (k_c - q_c + rhopw_dev->gcar[ig]).norm2() * tpiba2;
                 Real hse_omega2 = GlobalC::exx_info.info_global.hse_omega * GlobalC::exx_info.info_global.hse_omega;
                 // if (kqgcar2 > 1e-12) // vasp uses 1/40 of the smallest (k spacing)**2
                 if (gg >= 1e-8)
@@ -674,15 +701,15 @@ void OperatorEXXPW<T, Device>::get_potential() const
                     // if (PARAM.inp.dft_functional == "hse")
                     if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc)
                     {
-                        pot[ig_kq] = fac * (1.0 - std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
+                        pot_cpu[ig_kq] = fac * (1.0 - std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
                     }
                     else if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erf)
                     {
-                        pot[ig_kq] = fac * (std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
+                        pot_cpu[ig_kq] = fac * (std::exp(-gg / 4.0 / hse_omega2)) * grid_factor;
                     }
                     else
                     {
-                        pot[ig_kq] = fac * grid_factor;
+                        pot_cpu[ig_kq] = fac * grid_factor;
                     }
                 }
                 // }
@@ -692,17 +719,22 @@ void OperatorEXXPW<T, Device>::get_potential() const
                     if (GlobalC::exx_info.info_global.ccp_type == Conv_Coulomb_Pot_K::Ccp_Type::Erfc &&
                         !gamma_extrapolation)
                     {
-                        pot[ig_kq] = exx_div - ModuleBase::PI * ModuleBase::e2 / hse_omega2;
+                        pot_cpu[ig_kq] = exx_div - ModuleBase::PI * ModuleBase::e2 / hse_omega2;
                     }
                     else
                     {
-                        pot[ig_kq] = exx_div;
+                        pot_cpu[ig_kq] = exx_div;
                     }
                 }
                 // assert(is_finite(density_recip[ig]));
             }
         }
     }
+
+    // copy the potential to the device memory
+    syncmem_real_c2d_op()(pot, pot_cpu, rhopw_dev->npw * wfcpw->nks * wfcpw->nks);
+
+    delete pot_cpu;
 }
 
 template <typename T, typename Device>
@@ -733,10 +765,10 @@ void OperatorEXXPW<T, Device>::exx_divergence()
 #ifdef _OPENMP
 #pragma omp parallel for reduction(+:div)
 #endif
-        for (int ig = 0; ig < rhopw->npw; ig++)
+        for (int ig = 0; ig < rhopw_dev->npw; ig++)
         {
-            const ModuleBase::Vector3<double> q_c = k_c + rhopw->gcar[ig];
-            const ModuleBase::Vector3<double> q_d = k_d + rhopw->gdirect[ig];
+            const ModuleBase::Vector3<double> q_c = k_c + rhopw_dev->gcar[ig];
+            const ModuleBase::Vector3<double> q_d = k_d + rhopw_dev->gdirect[ig];
             double qq = q_c.norm2();
             // For gamma_extrapolation (https://doi.org/10.1103/PhysRevB.79.205114)
             // 7/8 of the points in the grid are "activated" and 1/8 are disabled.
@@ -886,12 +918,24 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
 
     using setmem_complex_op = base_device::memory::set_memory_op<T, Device>;
     using delmem_complex_op = base_device::memory::delete_memory_op<T, Device>;
-    T* psi_nk_real = new T[wfcpw->nrxx];
-    T* psi_mq_real = new T[wfcpw->nrxx];
-    T* h_psi_recip = new T[wfcpw->npwk_max];
-    T* h_psi_real = new T[wfcpw->nrxx];
-    T* density_real = new T[wfcpw->nrxx];
-    T* density_recip = new T[rhopw->npw];
+    // T* psi_nk_real = new T[wfcpw->nrxx];
+    // T* psi_mq_real = new T[wfcpw->nrxx];
+    // T* h_psi_recip = new T[wfcpw->npwk_max];
+    // T* h_psi_real = new T[wfcpw->nrxx];
+    // T* density_real = new T[wfcpw->nrxx];
+    // T* density_recip = new T[rhopw_dev->npw];
+    // resmem_complex_op()(psi_nk_real, wfcpw->nrxx);
+    // resmem_complex_op()(psi_mq_real, wfcpw->nrxx);
+    // resmem_complex_op()(h_psi_recip, wfcpw->npwk_max);
+    // resmem_complex_op()(h_psi_real, rhopw_dev->nrxx);
+    // resmem_complex_op()(density_real, rhopw_dev->nrxx);
+    // resmem_complex_op()(density_recip, rhopw_dev->npw);
+    setmem_complex_op()(psi_nk_real, 0, wfcpw->nrxx);
+    setmem_complex_op()(psi_mq_real, 0, wfcpw->nrxx);
+    setmem_complex_op()(h_psi_recip, 0, wfcpw->npwk_max);
+    setmem_complex_op()(h_psi_real, 0, rhopw_dev->nrxx);
+    setmem_complex_op()(density_real, 0, rhopw_dev->nrxx);
+    setmem_complex_op()(density_recip, 0, rhopw_dev->npw);
 
     if (wg == nullptr) return 0.0;
     const int nk_fac = PARAM.inp.nspin == 2 ? 2 : 1;
@@ -903,9 +947,9 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
         for (int n_iband = 0; n_iband < psi.get_nbands(); n_iband++)
         {
             setmem_complex_op()(h_psi_recip, 0, wfcpw->npwk_max);
-            setmem_complex_op()(h_psi_real, 0, rhopw->nrxx);
-            setmem_complex_op()(density_real, 0, rhopw->nrxx);
-            setmem_complex_op()(density_recip, 0, rhopw->npw);
+            setmem_complex_op()(h_psi_real, 0, rhopw_dev->nrxx);
+            setmem_complex_op()(density_real, 0, rhopw_dev->nrxx);
+            setmem_complex_op()(density_recip, 0, rhopw_dev->npw);
 
             // double wg_ikb_real = GlobalC::exx_helper.wg(this->ik, n_iband);
             double wg_ikb_real = (*wg)(ik, n_iband);
@@ -947,35 +991,12 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
                     // const T* psi_mq = get_pw(m_iband, iq);
                     wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq);
 
-                    T omega_inv = 1.0 / ucell->omega;
+                    cal_density_recip(psi_nk_real, psi_mq_real, ucell->omega);
 
-                    // direct multiplication in real space, \psi_nk(r) * \psi_mq(r)
-                    #ifdef _OPENMP
-                    #pragma omp parallel for
-                    #endif
-                    for (int ir = 0; ir < wfcpw->nrxx; ir++)
-                    {
-                        // assert(is_finite(psi_nk_real[ir]));
-                        // assert(is_finite(psi_mq_real[ir]));
-                        density_real[ir] = psi_nk_real[ir] * std::conj(psi_mq_real[ir]) * omega_inv;
-                    }
-                    // to be changed into kernel function
-
-                    // bring the density to recip space
-                    rhopw->real2recip(density_real, density_recip);
-
-                    #ifdef _OPENMP
-                    #pragma omp parallel for reduction(+:Eexx_ik_real)
-                    #endif
-                    for (int ig = 0; ig < rhopw->npw; ig++)
-                    {
-                        int nks = wfcpw->nks;
-                        int npw = rhopw->npw;
-                        int nk = nks / nk_fac;
-                        Real Fac = pot[ik * nks * npw + iq * npw + ig];
-                        Eexx_ik_real += Fac * (density_recip[ig] * std::conj(density_recip[ig])).real()
-                                        * wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik];
-                    }
+                    int nks = wfcpw->nks;
+                    int npw = rhopw_dev->npw;
+                    int nk = nks / nk_fac;
+                    Eexx_ik_real += exx_cal_energy_op<T, Device>()(density_recip, pot + ik * nks * npw + iq * npw, wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik], npw);
 
                 } // m_iband
 
@@ -988,16 +1009,53 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
     Parallel_Reduce::reduce_pool(Eexx_ik_real);
     //    std::cout << "omega = " << this_->pelec->omega << " tpiba = " << this_->pw_rho->tpiba2 << " exx_div = " << exx_div << std::endl;
 
-    delete[] psi_nk_real;
-    delete[] psi_mq_real;
-    delete[] h_psi_recip;
-    delete[] h_psi_real;
-    delete[] density_real;
-    delete[] density_recip;
+    setmem_complex_op()(psi_nk_real, 0, wfcpw->nrxx);
+    setmem_complex_op()(psi_mq_real, 0, wfcpw->nrxx);
+    setmem_complex_op()(h_psi_recip, 0, wfcpw->npwk_max);
+    setmem_complex_op()(h_psi_real, 0, rhopw_dev->nrxx);
+    setmem_complex_op()(density_real, 0, rhopw_dev->nrxx);
+    setmem_complex_op()(density_recip, 0, rhopw_dev->npw);
 
     double Eexx = Eexx_ik_real;
     return Eexx;
 }
+
+template <>
+void OperatorEXXPW<complex<double>, base_device::DEVICE_CPU>::cal_density_recip(const complex<double>* psi_nk_real,
+                                                                                const complex<double>* psi_mq_real,
+                                                                                double omega) const
+{
+    cal_density_real_op<complex<double>, base_device::DEVICE_CPU>()(psi_nk_real, psi_mq_real, density_real, omega, wfcpw->nrxx);
+    rhopw_dev->real2recip(density_real, density_recip);
+}
+
+template <>
+void OperatorEXXPW<complex<float>, base_device::DEVICE_CPU>::cal_density_recip(const complex<float>* psi_nk_real,
+                                                                                const complex<float>* psi_mq_real,
+                                                                                double omega) const
+{
+    cal_density_real_op<complex<float>, base_device::DEVICE_CPU>()(psi_nk_real, psi_mq_real, density_real, omega, wfcpw->nrxx);
+    rhopw_dev->real2recip(density_real, density_recip);
+}
+
+template <>
+void OperatorEXXPW<complex<double>, base_device::DEVICE_CPU>::rho_recip2real(const complex<double>* rho_recip,
+                                                                             complex<double>* rho_real,
+                                                                             bool add,
+                                                                             double factor) const
+{
+    rhopw_dev->recip2real(rho_recip, rho_real, add, factor);
+}
+
+template <>
+void OperatorEXXPW<complex<float>, base_device::DEVICE_CPU>::rho_recip2real(const complex<float>* rho_recip,
+                                                                             complex<float>* rho_real,
+                                                                             bool add,
+                                                                             float factor) const
+{
+    rhopw_dev->recip2real(rho_recip, rho_real, add, factor);
+}
+
 
 template <>
 void trtri_op<std::complex<float>, base_device::DEVICE_CPU>::operator()(char *uplo, char *diag, int *n, std::complex<float> *a, int *lda, int *info)
@@ -1028,6 +1086,307 @@ template class OperatorEXXPW<std::complex<double>, base_device::DEVICE_CPU>;
 #if ((defined __CUDA) || (defined __ROCM))
 template class OperatorEXXPW<std::complex<float>, base_device::DEVICE_GPU>;
 template class OperatorEXXPW<std::complex<double>, base_device::DEVICE_GPU>;
+
+template <>
+void OperatorEXXPW<complex<double>, base_device::DEVICE_GPU>::cal_density_recip(const complex<double>* psi_nk_real,
+                                                                                const complex<double>* psi_mq_real,
+                                                                                double omega) const
+{
+    cal_density_real_op<complex<double>, base_device::DEVICE_GPU>()(psi_nk_real, psi_mq_real, density_real, omega, wfcpw->nrxx);
+    rhopw_dev->real2recip_gpu(density_real, density_recip);
+}
+
+template <>
+void OperatorEXXPW<complex<float>, base_device::DEVICE_GPU>::cal_density_recip(const complex<float>* psi_nk_real,
+                                                                                const complex<float>* psi_mq_real,
+                                                                                double omega) const
+{
+    cal_density_real_op<complex<float>, base_device::DEVICE_GPU>()(psi_nk_real, psi_mq_real, density_real, omega, wfcpw->nrxx);
+    rhopw_dev->real2recip_gpu(density_real, density_recip);
+}
+
+template <>
+void OperatorEXXPW<complex<double>, base_device::DEVICE_GPU>::rho_recip2real(const complex<double>* rho_recip,
+                                                                             complex<double>* rho_real,
+                                                                             bool add,
+                                                                             double factor) const
+{
+    rhopw_dev->recip2real_gpu(rho_recip, rho_real, add, factor);
+}
+
+template <>
+void OperatorEXXPW<complex<float>, base_device::DEVICE_GPU>::rho_recip2real(const complex<float>* rho_recip,
+                                                                             complex<float>* rho_real,
+                                                                             bool add,
+                                                                             float factor) const
+{
+    rhopw_dev->recip2real_gpu(rho_recip, rho_real, add, factor);
+}
+
+template <>
+void trtri_op<std::complex<float>, base_device::DEVICE_GPU>::operator()(char *uplo, char *diag, int *n, std::complex<float> *a, int *lda, int *info)
+{
+    // ctrtri_(uplo, diag, n, a, lda, info);
+    cusolverDnHandle_t cusolver;
+    cusolverDnCreate(&cusolver);
+    size_t workspaceInBytesOnDevice = 0;
+    size_t workspaceInBytesOnHost = 0;
+    int* d_info = nullptr;
+    cudaMalloc((void**)&d_info, sizeof(int));
+
+    cusolverDnXtrtri_bufferSize(
+        cusolver,
+        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
+        *diag == 'N' ? CUBLAS_DIAG_NON_UNIT : CUBLAS_DIAG_UNIT,
+        *n,
+        CUDA_C_32F,
+        a,
+        *lda,
+        &workspaceInBytesOnDevice,
+        &workspaceInBytesOnHost
+    );
+
+    void* bufferOnDevice = nullptr;
+    void* bufferOnHost = nullptr;
+
+    if (workspaceInBytesOnDevice > 0) {
+        cudaMalloc(&bufferOnDevice, workspaceInBytesOnDevice);
+    }
+
+    if (workspaceInBytesOnHost > 0) {
+        bufferOnHost = malloc(workspaceInBytesOnHost);
+    }
+
+    cusolverDnXtrtri(
+        cusolver,
+        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
+        *diag == 'N' ? CUBLAS_DIAG_NON_UNIT : CUBLAS_DIAG_UNIT,
+        *n,
+        CUDA_C_32F,
+        a,
+        *lda,
+        bufferOnDevice, // 设备端 workspace
+        workspaceInBytesOnDevice,
+        bufferOnHost,   // 主机端 workspace
+        workspaceInBytesOnHost,
+        d_info          // info（设备指针）
+    );
+
+    if (bufferOnDevice) cudaFree(bufferOnDevice);
+    if (bufferOnHost) free(bufferOnHost);
+    cudaMemcpy(info, d_info, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaFree(d_info);
+    cusolverDnDestroy(cusolver);
+
+    // handle info
+    if (*info != 0) {
+        std::cerr << "Error in trtri: info = " << (*info) << std::endl;
+        throw std::runtime_error("trtri failed");
+    }
+}
+
+template <>
+void trtri_op<std::complex<double>, base_device::DEVICE_GPU>::operator()(char *uplo, char *diag, int *n, std::complex<double> *a, int *lda, int *info)
+{
+    // ztrtri_(uplo, diag, n, a, lda, info);
+    cusolverDnHandle_t cusolver;
+    cusolverDnCreate(&cusolver);
+    size_t workspaceInBytesOnDevice = 0;
+    size_t workspaceInBytesOnHost = 0;
+    int* d_info = nullptr;
+    cudaMalloc((void**)&d_info, sizeof(int));
+
+    cusolverDnXtrtri_bufferSize(
+        cusolver,
+        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
+        *diag == 'N' ? CUBLAS_DIAG_NON_UNIT : CUBLAS_DIAG_UNIT,
+        *n,
+        CUDA_C_64F,
+        a,
+        *lda,
+        &workspaceInBytesOnDevice,
+        &workspaceInBytesOnHost
+    );
+
+    void* bufferOnDevice = nullptr;
+    void* bufferOnHost = nullptr;
+
+    if (workspaceInBytesOnDevice > 0) {
+        cudaMalloc(&bufferOnDevice, workspaceInBytesOnDevice);
+    }
+
+    if (workspaceInBytesOnHost > 0) {
+        bufferOnHost = malloc(workspaceInBytesOnHost);
+    }
+
+    cusolverDnXtrtri(
+        cusolver,
+        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
+        *diag == 'N' ? CUBLAS_DIAG_NON_UNIT : CUBLAS_DIAG_UNIT,
+        *n,
+        CUDA_C_64F,
+        a,
+        *lda,
+        bufferOnDevice, // 设备端 workspace
+        workspaceInBytesOnDevice,
+        bufferOnHost,   // 主机端 workspace
+        workspaceInBytesOnHost,
+        d_info
+    );
+
+    cudaMemcpy(info, d_info, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaFree(d_info);
+    cusolverDnDestroy(cusolver);
+
+    // handle info
+    if (*info != 0) {
+        std::cerr << "Error in trtri: info = " << (*info) << std::endl;
+        throw std::runtime_error("trtri failed");
+    }
+}
+
+template <>
+void potrf_op<std::complex<float>, base_device::DEVICE_GPU>::operator()(
+    char *uplo, int *n, std::complex<float> *a, int *lda, int *info)
+{
+    cusolverDnHandle_t cusolver;
+    cusolverDnParams_t params;
+    cusolverDnCreate(&cusolver);
+    cusolverDnCreateParams(&params);
+    int* d_info = nullptr;
+    cudaMalloc((void**)&d_info, sizeof(int));
+
+    size_t workspaceInBytesOnDevice = 0;
+    size_t workspaceInBytesOnHost = 0;
+
+    // 查询 workspace 大小
+    cusolverDnXpotrf_bufferSize(
+        cusolver,
+        params,
+        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
+        *n,
+        CUDA_C_32F,
+        a,
+        *lda,
+        CUDA_C_32F,
+        &workspaceInBytesOnDevice,
+        &workspaceInBytesOnHost
+    );
+
+    // 分配 workspace
+    void* bufferOnDevice = nullptr;
+    void* bufferOnHost = nullptr;
+
+    if (workspaceInBytesOnDevice > 0) {
+        cudaMalloc(&bufferOnDevice, workspaceInBytesOnDevice);
+    }
+
+    if (workspaceInBytesOnHost > 0) {
+        bufferOnHost = malloc(workspaceInBytesOnHost);
+    }
+
+    // 调用 cusolver 接口
+    cusolverDnXpotrf(
+        cusolver,
+        params,
+        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
+        *n,
+        CUDA_C_32F,
+        a,
+        *lda,
+        CUDA_C_32F,
+        bufferOnDevice,
+        workspaceInBytesOnDevice,
+        bufferOnHost,
+        workspaceInBytesOnHost,
+        d_info
+    );
+
+    // 清理资源
+    if (bufferOnDevice) cudaFree(bufferOnDevice);
+    if (bufferOnHost) free(bufferOnHost);
+    cudaMemcpy(info, d_info, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaFree(d_info);
+    cusolverDnDestroy(cusolver);
+
+    // handle info
+    if (*info != 0) {
+        std::cerr << "Error in trtri: info = " << (*info) << std::endl;
+        throw std::runtime_error("trtri failed");
+    }
+}
+
+template <>
+void potrf_op<std::complex<double>, base_device::DEVICE_GPU>::operator()(
+    char *uplo, int *n, std::complex<double> *a, int *lda, int *info)
+{
+    cusolverDnHandle_t cusolver;
+    cusolverDnParams_t params;
+    cusolverDnCreate(&cusolver);
+    cusolverDnCreateParams(&params);
+    int* d_info = nullptr;
+    cudaMalloc((void**)&d_info, sizeof(int));
+
+    size_t workspaceInBytesOnDevice = 0;
+    size_t workspaceInBytesOnHost = 0;
+
+    // 查询 workspace 大小
+    cusolverDnXpotrf_bufferSize(
+        cusolver,
+        params,
+        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
+        *n,
+        CUDA_C_64F,
+        a,
+        *lda,
+        CUDA_C_64F,
+        &workspaceInBytesOnDevice,
+        &workspaceInBytesOnHost
+    );
+
+    // 分配 workspace
+    void* bufferOnDevice = nullptr;
+    void* bufferOnHost = nullptr;
+
+    if (workspaceInBytesOnDevice > 0) {
+        cudaMalloc(&bufferOnDevice, workspaceInBytesOnDevice);
+    }
+
+    if (workspaceInBytesOnHost > 0) {
+        bufferOnHost = malloc(workspaceInBytesOnHost);
+    }
+
+    // 调用 cusolver 接口
+    cusolverDnXpotrf(
+        cusolver,
+        params,
+        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
+        *n,
+        CUDA_C_64F,
+        a,
+        *lda,
+        CUDA_C_64F,
+        bufferOnDevice,
+        workspaceInBytesOnDevice,
+        bufferOnHost,
+        workspaceInBytesOnHost,
+        d_info
+    );
+
+    // 清理资源
+    if (bufferOnDevice) cudaFree(bufferOnDevice);
+    if (bufferOnHost) free(bufferOnHost);
+    cudaMemcpy(info, d_info, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaFree(d_info);
+    cusolverDnDestroy(cusolver);
+
+    // handle info
+    if (*info != 0) {
+        std::cerr << "Error in trtri: info = " << (*info) << std::endl;
+        throw std::runtime_error("trtri failed");
+    }
+}
+
 #endif
 
 } // namespace hamilt

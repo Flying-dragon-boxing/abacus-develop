@@ -54,6 +54,10 @@ list(APPEND device_srcs
   module_hamilt_pw/hamilt_pwdft/kernels/vnl_op.cpp
   source_base/kernels/math_ylm_op.cpp
   module_hamilt_general/module_xc/kernels/xc_functional_op.cpp
+  module_hamilt_pw/hamilt_pwdft/kernels/cal_density_real_op.cpp
+  module_hamilt_pw/hamilt_pwdft/kernels/mul_potential_op.cpp
+  module_hamilt_pw/hamilt_pwdft/kernels/vec_mul_vec_complex_op.cpp
+  module_hamilt_pw/hamilt_pwdft/kernels/exx_cal_energy_op.cpp
 )
 
 if(USE_CUDA)
@@ -80,6 +84,10 @@ if(USE_CUDA)
     source_base/kernels/cuda/math_kernel_op.cu
     source_base/kernels/cuda/math_kernel_op_vec.cu
     module_hamilt_general/module_xc/kernels/cuda/xc_functional_op.cu
+    module_hamilt_pw/hamilt_pwdft/kernels/cuda/cal_density_real_op.cu
+    module_hamilt_pw/hamilt_pwdft/kernels/cuda/mul_potential_op.cu
+    module_hamilt_pw/hamilt_pwdft/kernels/cuda/vec_mul_vec_complex.cu
+    module_hamilt_pw/hamilt_pwdft/kernels/cuda/exx_cal_energy_op.cu
   )
 endif()
 

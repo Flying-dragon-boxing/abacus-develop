@@ -1,9 +1,9 @@
 #include "esolver_lj.h"
-#include "module_parameter/parameter.h"
+#include "source_io/module_parameter/parameter.h"
 #include "source_cell/module_neighbor/sltk_atom_arrange.h"
 #include "source_cell/module_neighbor/sltk_grid_driver.h"
-#include "module_io/output_log.h"
-#include "module_io/cif_io.h"
+#include "source_io/output_log.h"
+#include "source_io/cif_io.h"
 
 
 namespace ModuleESolver
@@ -77,7 +77,7 @@ void ESolver_LJ::runner(UnitCell& ucell, const int istep)
     }
 
     lj_potential /= 2.0;
-    GlobalV::ofs_running << " final etot is " << std::setprecision(11) << lj_potential * ModuleBase::Ry_to_eV << " eV"
+    GlobalV::ofs_running << " #TOTAL ENERGY# " << std::setprecision(11) << lj_potential * ModuleBase::Ry_to_eV << " eV"
                          << std::endl;
 
     // Post treatment for virial

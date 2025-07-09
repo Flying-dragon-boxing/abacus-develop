@@ -4,8 +4,8 @@
 #include <string>
 
 #include "source_cell/module_neighbor/sltk_grid_driver.h"
-#include "module_hamilt_lcao/hamilt_lcaodft/record_adj.h"
-#include "module_hamilt_lcao/module_hcontainer/hcontainer.h"
+#include "source_lcao/record_adj.h"
+#include "source_lcao/module_hcontainer/hcontainer.h"
 
 namespace elecstate
 {
@@ -87,7 +87,7 @@ class DensityMatrix
     /// since copy HContainer from another HContainer with different TR is not supported yet
     /// would be refactor in the future
     /// @param _DMR_in 
-    // the old input type ``:HContainer<complex<double>` causes redefination error if TR = complex<double>
+    // the old input type ``:HContainer <std::complex<double>` causes redefination error if TR = std::complex<double>
     void init_DMR(const hamilt::HContainer<TRShift>& _DMR_in);
 
     /**

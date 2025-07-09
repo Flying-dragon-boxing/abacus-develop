@@ -11,33 +11,32 @@
 #include "source_estate/module_charge/symmetry_rho.h"
 #include "source_hamilt/module_ewald/H_Ewald_pw.h"
 #include "source_hamilt/module_vdw/vdw.h"
-#include "module_hamilt_lcao/module_deltaspin/spin_constrain.h"
-#include "module_hamilt_lcao/module_dftu/dftu.h"
-#include "source_pw/hamilt_pwdft/elecond.h"
-#include "source_pw/hamilt_pwdft/forces.h"
-#include "source_pw/hamilt_pwdft/hamilt_pw.h"
-#include "source_pw/hamilt_pwdft/onsite_projector.h"
-#include "source_pw/hamilt_pwdft/stress_pw.h"
+#include "source_lcao/module_deltaspin/spin_constrain.h"
+#include "source_lcao/module_dftu/dftu.h"
+#include "source_pw/module_pwdft/elecond.h"
+#include "source_pw/module_pwdft/forces.h"
+#include "source_pw/module_pwdft/hamilt_pw.h"
+#include "source_pw/module_pwdft/onsite_projector.h"
+#include "source_pw/module_pwdft/stress_pw.h"
 #include "source_hsolver/diago_iter_assist.h"
 #include "source_hsolver/hsolver_pw.h"
 #include "source_hsolver/kernels/dngvd_op.h"
-#include "module_io/berryphase.h"
-#include "module_io/cal_ldos.h"
-#include "module_io/get_pchg_pw.h"
-#include "module_io/get_wf_pw.h"
-#include "module_io/numerical_basis.h"
-#include "module_io/numerical_descriptor.h"
-#include "module_io/to_wannier90_pw.h"
-#include "module_io/winput.h"
-#include "module_io/write_dos_pw.h"
-#include "module_io/write_wfc_pw.h"
-#include "module_io/write_wfc_r.h"
-#include "module_parameter/parameter.h"
+#include "source_io/berryphase.h"
+#include "source_io/cal_ldos.h"
+#include "source_io/get_pchg_pw.h"
+#include "source_io/get_wf_pw.h"
+#include "source_io/numerical_basis.h"
+#include "source_io/numerical_descriptor.h"
+#include "source_io/to_wannier90_pw.h"
+#include "source_io/winput.h"
+#include "source_io/write_dos_pw.h"
+#include "source_io/write_wfc_pw.h"
+#include "source_io/module_parameter/parameter.h"
 
 #include <iostream>
 
 #ifdef __MLALGO
-#include "module_io/write_mlkedf_descriptors.h"
+#include "source_io/write_mlkedf_descriptors.h"
 #endif
 
 #include <ATen/kernels/blas.h>
@@ -724,9 +723,6 @@ void ESolver_KS_PW<T, Device>::after_scf(UnitCell& ucell, const int istep, const
         ModuleIO::get_pchg_pw(out_pchg,
                               this->kspw_psi->get_nbands(),
                               PARAM.inp.nspin,
-                              this->pw_rhod->nx,
-                              this->pw_rhod->ny,
-                              this->pw_rhod->nz,
                               this->pw_rhod->nxyz,
                               this->chr.ngmc,
                               &ucell,
@@ -947,16 +943,6 @@ void ESolver_KS_PW<T, Device>::after_all_runners(UnitCell& ucell)
     //----------------------------------------------------------
     //! 5) Print out electronic wave functions in real space
     //----------------------------------------------------------
-
-    //----------------------------------------------------------
-    //! The write_psi_r_1 interface will be removed in the very
-    //! near future. Don't use it!
-    //----------------------------------------------------------
-    // if (PARAM.inp.out_wfc_r == 1) // Peize Lin add 2021.11.21
-    // {
-    //     ModuleIO::write_psi_r_1(ucell, this->psi[0], this->pw_wfc, "wfc_realspace", true, this->kv);
-    // }
-
     const std::vector<int> out_wfc_norm = PARAM.inp.out_wfc_norm;
     const std::vector<int> out_wfc_re_im = PARAM.inp.out_wfc_re_im;
     if (out_wfc_norm.size() > 0 || out_wfc_re_im.size() > 0)

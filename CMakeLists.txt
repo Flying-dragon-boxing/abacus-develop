@@ -252,8 +252,8 @@ if(ENABLE_LCAO)
     add_compile_definitions(__PEXSI)
     set(CMAKE_CXX_STANDARD 14)
   endif()
-  if(NEW_GINT)
-    add_compile_definitions(__NEW_GINT)
+  if(OLD_GINT)
+    add_compile_definitions(__OLD_GINT)
   endif()
 else()
   set(ENABLE_MLALGO OFF)
@@ -735,9 +735,9 @@ target_link_libraries(
   hsolver
   elecstate
   hamilt_general
-  hamilt_pwdft
-  hamilt_ofdft
-  hamilt_stodft
+  module_pwdft
+  module_ofdft
+  module_stodft
   psi
   psi_initializer
   psi_overall_init

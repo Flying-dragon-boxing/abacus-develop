@@ -9,7 +9,7 @@
 #include "source_basis/module_pw/pw_basis.h"
 #include "source_basis/module_pw/pw_basis_k.h"
 #include "source_cell/klist.h"
-#include "source_lcao/module_ri/Exx_LRI.hpp"
+#include "source_lcao/module_ri/conv_coulomb_pot_k.h"
 #include "source_psi/psi.h"
 
 #include <memory>

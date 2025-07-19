@@ -948,6 +948,7 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
     setmem_complex_op()(density_recip, 0, rhopw_dev->npw);
 
     double Eexx = Eexx_ik_real;
+    std::cout << Eexx << std::endl;
     return Eexx;
 }
 

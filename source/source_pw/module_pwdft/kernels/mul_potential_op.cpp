@@ -1,6 +1,5 @@
-#include "source_pw/hamilt_pwdft/kernels/mul_potential_op.h"
-
-#include "module_parameter/parameter.h"
+#include "source_pw/module_pwdft/kernels/mul_potential_op.h"
+#include "source_io/module_parameter/parameter.h"
 #include "source_psi/psi.h"
 #include "source_base/macros.h"
 namespace hamilt {

@@ -1,4 +1,4 @@
-#include "source_pw/hamilt_pwdft/kernels/cal_density_real_op.h"
+#include "source_pw/module_pwdft/kernels/cal_density_real_op.h"
 #include "source_psi/psi.h"
 namespace hamilt
 {

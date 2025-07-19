@@ -16,7 +16,7 @@ __global__ void cal_density_real_kernel(
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < nrxx)
     {
-        out[idx] = in1[idx] * thrust::conj(in2[idx]) / omega;
+        out[idx] = in1[idx] * thrust::conj(in2[idx]) / static_cast<thrust::complex<FPTYPE>>(omega);
     }
 }
 

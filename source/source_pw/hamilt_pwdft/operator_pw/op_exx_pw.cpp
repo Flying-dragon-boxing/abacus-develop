@@ -15,8 +15,6 @@
 #include <cmath>
 #include <complex>
 #include <cstdlib>
-#include <memory>
-#include <thrust/execution_policy.h>
 #include <utility>
 
 extern "C"

@@ -1,6 +1,6 @@
 /**
  * @file esolver_dp.cpp
-#include "module_parameter/parameter.h"
+#include "source_io/module_parameter/parameter.h"
  * @brief Implementation of ESolver_DP class for DeePMD method.
  *
  * This file contains the implementation of the ESolver_DP class, which is used for solving the energy and forces in a
@@ -21,8 +21,8 @@
 
 #include "source_base/parallel_common.h"
 #include "source_base/timer.h"
-#include "module_io/output_log.h"
-#include "module_io/cif_io.h"
+#include "source_io/output_log.h"
+#include "source_io/cif_io.h"
 
 #include <iomanip>
 #include <sstream>
@@ -97,7 +97,7 @@ void ESolver_DP::runner(UnitCell& ucell, const int istep)
     const double fact_v = rescaling / (ucell.omega * ModuleBase::Ry_to_eV);
 
     dp_potential *= fact_e;
-    GlobalV::ofs_running << " final etot is " << std::setprecision(11) << dp_potential * ModuleBase::Ry_to_eV << " eV"
+    GlobalV::ofs_running << " #TOTAL ENERGY# " << std::setprecision(11) << dp_potential * ModuleBase::Ry_to_eV << " eV"
                          << std::endl;
 
     for (int i = 0; i < ucell.nat; ++i)

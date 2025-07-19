@@ -1,12 +1,12 @@
 #include "source_main/driver.h"
 #include "source_cell/check_atomic_stru.h"
 #include "source_cell/module_neighbor/sltk_atom_arrange.h"
-#include "source_pw/hamilt_pwdft/global.h"
-#include "module_parameter/parameter.h"
-#include "module_io/para_json.h"
-#include "module_io/print_info.h"
-#include "module_io/winput.h"
-#include "module_md/run_md.h"
+#include "source_pw/module_pwdft/global.h"
+#include "source_io/module_parameter/parameter.h"
+#include "source_io/para_json.h"
+#include "source_io/print_info.h"
+#include "source_io/winput.h"
+#include "source_md/run_md.h"
 
 /**
  * @brief This is the driver function which defines the workflow of ABACUS
@@ -69,13 +69,13 @@ void Driver::driver_run()
     else if (cal == "scf" || cal == "relax" || cal == "cell-relax" || cal == "nscf")
     {
         Relax_Driver rl_driver;
-        rl_driver.relax_driver(p_esolver, ucell);
+        rl_driver.relax_driver(p_esolver, ucell, PARAM.inp);
     }
     else if (cal == "get_s")
     {
         p_esolver->runner(ucell, 0);
     }
-    else if (cal == "get_pchg" || cal == "get_wf" || cal == "gen_bessel" || 
+    else if (cal == "get_pchg" || cal == "get_wf" || cal == "gen_bessel" || cal == "gen_opt_abfs" || 
              cal == "test_memory" || cal == "test_neighbour")
     {
         //! supported "other" functions:

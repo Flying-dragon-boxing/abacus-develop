@@ -1,10 +1,10 @@
 #include "read_stru.h"
 
-#include "module_parameter/parameter.h"
+#include "source_io/module_parameter/parameter.h"
 #include "source_base/tool_title.h"
 #ifdef __EXX
-#include "source_pw/hamilt_pwdft/global.h"
-#include "module_ri/serialization_cereal.h"
+#include "source_pw/module_pwdft/global.h"
+#include "source_lcao/module_ri/serialization_cereal.h"
 #endif
 namespace unitcell
 {

@@ -1,7 +1,7 @@
 #ifndef ATOM_H
 #define ATOM_H
 
-#include "../module_io/output.h"
+#include "../source_io/output.h"
 #include "atom_pseudo.h"
 class Atom
 {
@@ -38,8 +38,7 @@ class Atom
     std::vector<ModuleBase::Vector3<double>> taud;  // Direct coordinates of each atom in this type.
     std::vector<ModuleBase::Vector3<double>> vel;   // velocities of each atom in this type.
     std::vector<ModuleBase::Vector3<double>> force; // force acting on each atom in this type.
-    std::vector<ModuleBase::Vector3<double>>
-        lambda; // Lagrange multiplier for each atom in this type. used in deltaspin
+    std::vector<ModuleBase::Vector3<double>> lambda; // Lagrange multiplier for each atom in this type. used in deltaspin
     std::vector<ModuleBase::Vector3<int>> constrain; // constrain for each atom in this type. used in deltaspin
     std::string label_orb = "\0";                    // atomic Element symbol in the orbital file of lcao
 

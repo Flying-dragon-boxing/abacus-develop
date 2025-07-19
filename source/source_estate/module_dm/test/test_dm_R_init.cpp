@@ -4,7 +4,7 @@
 #include "gtest/gtest.h"
 #define private public
 #include "source_estate/module_dm/density_matrix.h"
-#include "module_hamilt_lcao/module_hcontainer/hcontainer.h"
+#include "source_lcao/module_hcontainer/hcontainer.h"
 #include "source_cell/klist.h"
 #undef private
 /************************************************
@@ -212,7 +212,7 @@ TEST_F(DMTest, DMInit3)
     delete kv;
 }
 
-// test for construct DMR from another HContainer<complex<double>>
+// test for construct DMR from another HContainer <std::complex<double>>
 TEST_F(DMTest, DMInit4)
 {
     // initalize a kvectors

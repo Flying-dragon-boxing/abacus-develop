@@ -1,41 +1,39 @@
+#include "source_lcao/hamilt_lcao.h"
+#include "source_lcao/module_dftu/dftu.h"
+#include "source_esolver/esolver_ks_lcao.h"
 #include "source_estate/cal_ux.h"
 #include "source_estate/module_charge/symmetry_rho.h"
-#include "source_esolver/esolver_ks_lcao.h"
-#include "module_hamilt_lcao/hamilt_lcaodft/hamilt_lcao.h"
-#include "module_hamilt_lcao/module_dftu/dftu.h"
-#include "source_pw/hamilt_pwdft/global.h"
+#include "source_pw/module_pwdft/global.h"
 //
+#include "source_io/berryphase.h"
+#include "source_io/get_pchg_lcao.h"
+#include "source_io/get_wf_lcao.h"
+#include "source_io/to_wannier90_lcao.h"
+#include "source_io/to_wannier90_lcao_in_pw.h"
+#include "source_io/write_HS_R.h"
+#include "source_io/module_parameter/parameter.h"
 #include "source_base/timer.h"
 #include "source_cell/module_neighbor/sltk_atom_arrange.h"
 #include "source_cell/module_neighbor/sltk_grid_driver.h"
-#include "module_io/berryphase.h"
-#include "module_io/get_pchg_lcao.h"
-#include "module_io/get_wf_lcao.h"
-#include "module_io/to_wannier90_lcao.h"
-#include "module_io/to_wannier90_lcao_in_pw.h"
-#include "module_io/write_HS_R.h"
-#include "module_parameter/parameter.h"
 #ifdef __MLALGO
-#include "module_hamilt_lcao/module_deepks/LCAO_deepks.h"
+#include "source_lcao/module_deepks/LCAO_deepks.h"
 #endif
+#include "source_lcao/LCAO_domain.h"
+#include "source_lcao/module_operator_lcao/op_exx_lcao.h"
+#include "source_lcao/module_operator_lcao/operator_lcao.h"
+#include "source_lcao/module_deltaspin/spin_constrain.h"
+#include "source_io/read_wfc_nao.h"
+#include "source_io/write_elecstat_pot.h"
 #include "source_base/formatter.h"
 #include "source_estate/elecstate_lcao.h"
 #include "source_estate/module_dm/cal_dm_psi.h"
 
-#include "module_hamilt_lcao/hamilt_lcaodft/LCAO_domain.h"
-#include "module_hamilt_lcao/hamilt_lcaodft/operator_lcao/op_exx_lcao.h"
-#include "module_hamilt_lcao/hamilt_lcaodft/operator_lcao/operator_lcao.h"
-#include "module_hamilt_lcao/module_deltaspin/spin_constrain.h"
-
-#include "module_io/read_wfc_nao.h"
-#include "module_io/write_elecstat_pot.h"
-
 #ifdef __EXX
-#include "module_io/restart_exx_csr.h"
+#include "source_io/restart_exx_csr.h"
 #endif
 
 // mohan add 2025-03-06
-#include "module_io/cal_test.h"
+#include "source_io/cal_test.h"
 
 namespace ModuleESolver
 {
@@ -76,6 +74,10 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
         std::cout << FmtCore::format(" >> Finish %s.\n * * * * * *\n", "testing neighbour");
         return;
     }
+    else if (cal_type == "gen_opt_abfs")
+    {
+        return;
+    }
 
     // 1. prepare HS matrices, prepare grid integral
     // (1) Find adjacent atoms for each atom.
@@ -93,6 +95,7 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
                          PARAM.inp.test_atom_input);
 
     // (3) Periodic condition search for each grid.
+#ifdef __OLD_GINT
     double dr_uniform = 0.001;
     std::vector<double> rcuts;
     std::vector<std::vector<double>> psi_u;
@@ -100,7 +103,6 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
     std::vector<std::vector<double>> d2psi_u;
 
     Gint_Tools::init_orb(dr_uniform, rcuts, ucell, orb_, psi_u, dpsi_u, d2psi_u);
-
     this->GridT.set_pbc_grid(this->pw_rho->nx,
                              this->pw_rho->ny,
                              this->pw_rho->nz,
@@ -124,12 +126,35 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
                              dpsi_u,
                              d2psi_u,
                              PARAM.inp.nstream);
+        
     psi_u.clear();
     psi_u.shrink_to_fit();
     dpsi_u.clear();
     dpsi_u.shrink_to_fit();
     d2psi_u.clear();
     d2psi_u.shrink_to_fit();
+    // prepare grid in Gint
+    LCAO_domain::grid_prepare(this->GridT, this->GG, this->GK, ucell, orb_, *this->pw_rho, *this->pw_big);
+#else
+    gint_info_.reset(
+        new ModuleGint::GintInfo(
+        this->pw_big->nbx,
+        this->pw_big->nby,
+        this->pw_big->nbz,
+        this->pw_rho->nx,
+        this->pw_rho->ny,
+        this->pw_rho->nz,
+        0,
+        0,
+        this->pw_big->nbzp_start,
+        this->pw_big->nbx,
+        this->pw_big->nby,
+        this->pw_big->nbzp,
+        orb_.Phi,
+        ucell,
+        this->gd));
+    ModuleGint::Gint::set_gint_info(gint_info_.get());
+#endif
 
     // (2)For each atom, calculate the adjacent atoms in different cells
     // and allocate the space for H(R) and S(R).
@@ -174,20 +199,17 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
     // init wfc from file
     if (istep == 0 && PARAM.inp.init_wfc == "file")
     {
-		if (!ModuleIO::read_wfc_nao(PARAM.globalv.global_readin_dir, 
-					this->pv, 
-					*(this->psi), 
-					this->pelec,
-                    this->pelec->klist->ik2iktot,
-                    this->pelec->klist->get_nkstot(),
-					PARAM.inp.nspin))
+        if (!ModuleIO::read_wfc_nao(PARAM.globalv.global_readin_dir,
+                                    this->pv,
+                                    *(this->psi),
+                                    this->pelec,
+                                    this->pelec->klist->ik2iktot,
+                                    this->pelec->klist->get_nkstot(),
+                                    PARAM.inp.nspin))
         {
             ModuleBase::WARNING_QUIT("ESolver_KS_LCAO::others", "read wfc nao failed");
         }
     }
-
-    // prepare grid in Gint
-    LCAO_domain::grid_prepare(this->GridT, this->GG, this->GK, ucell, orb_, *this->pw_rho, *this->pw_big);
 
     // init Hamiltonian
     if (this->p_hamilt != nullptr)
@@ -283,67 +305,46 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
     if (cal_type == "get_pchg")
     {
         std::cout << FmtCore::format("\n * * * * * *\n << Start %s.\n", "getting partial charge");
-        IState_Charge chr_i(this->psi, &(this->pv));
+        Get_pchg_lcao get_pchg(this->psi, &(this->pv));
         if (PARAM.globalv.gamma_only_local)
         {
-            chr_i.begin(this->GG,
-                      this->chr.rho,
-                      this->pelec->wg,
-                      this->pelec->eferm.get_all_ef(),
-                      this->pw_rhod->nrxx,
-                      this->pw_rhod->nplane,
-                      this->pw_rhod->startz_current,
-                      this->pw_rhod->nx,
-                      this->pw_rhod->ny,
-                      this->pw_rhod->nz,
-                      this->pw_big->bz,
-                      this->pw_big->nbz,
-                      PARAM.globalv.gamma_only_local,
-                      PARAM.inp.nbands_istate,
-                      PARAM.inp.out_pchg,
-                      PARAM.inp.nbands,
-                      PARAM.inp.nelec,
-                      PARAM.inp.nspin,
-                      PARAM.globalv.nlocal,
-                      PARAM.globalv.global_out_dir,
-                      GlobalV::ofs_warning,
-                      &ucell,
-                      this->Pgrid,
-                      &this->gd,
-                      this->kv);
+            get_pchg.begin(this->GG,
+                           this->chr.rho,
+                           this->pelec->wg,
+                           this->pelec->eferm.get_all_ef(),
+                           this->pw_rhod->nrxx,
+                           PARAM.inp.out_pchg,
+                           PARAM.inp.nbands,
+                           PARAM.inp.nelec,
+                           PARAM.inp.nspin,
+                           &ucell,
+                           this->Pgrid,
+                           &this->gd,
+                           this->kv,
+                           PARAM.globalv.global_out_dir,
+                           GlobalV::ofs_running);
         }
         else
         {
-            chr_i.begin(this->GK,
-                      this->chr.rho,
-                      this->chr.rhog,
-                      this->pelec->wg,
-                      this->pelec->eferm.get_all_ef(),
-                      this->pw_rhod,
-                      this->pw_rhod->nrxx,
-                      this->pw_rhod->nplane,
-                      this->pw_rhod->startz_current,
-                      this->pw_rhod->nx,
-                      this->pw_rhod->ny,
-                      this->pw_rhod->nz,
-                      this->pw_big->bz,
-                      this->pw_big->nbz,
-                      PARAM.globalv.gamma_only_local,
-                      PARAM.inp.nbands_istate,
-                      PARAM.inp.out_pchg,
-                      PARAM.inp.nbands,
-                      PARAM.inp.nelec,
-                      PARAM.inp.nspin,
-                      PARAM.globalv.nlocal,
-                      PARAM.globalv.global_out_dir,
-                      GlobalV::ofs_warning,
-                      &ucell,
-                      this->Pgrid,
-                      &this->gd,
-                      this->kv,
-                      PARAM.inp.if_separate_k,
-                      &this->Pgrid,
-                      this->chr.ngmc);
+            get_pchg.begin(this->GK,
+                           this->chr.rho,
+                           this->chr.rhog,
+                           this->pelec->wg,
+                           this->pelec->eferm.get_all_ef(),
+                           this->pw_rhod,
+                           this->pw_rhod->nrxx,
+                           PARAM.inp.out_pchg,
+                           PARAM.inp.nbands,
+                           PARAM.inp.nelec,
+                           PARAM.inp.nspin,
+                           &ucell,
+                           this->Pgrid,
+                           &this->gd,
+                           this->kv,
+                           PARAM.globalv.global_out_dir,
+                           GlobalV::ofs_running,
+                           PARAM.inp.if_separate_k,
+                           this->chr.ngmc);
         }
         std::cout << FmtCore::format(" >> Finish %s.\n * * * * * *\n", "getting partial charge");
     }
@@ -354,44 +355,40 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
         if (PARAM.globalv.gamma_only_local)
         {
             get_wf.begin(ucell,
-                      this->psi,
-                      this->pw_rhod,
-                      this->pw_wfc,
-                      this->pw_big,
-                      this->Pgrid,
-                      this->pv,
-                      this->GG,
-                      PARAM.inp.out_wfc_pw,
-                      this->kv,
-                      PARAM.inp.nelec,
-                      PARAM.inp.nbands_istate,
-                      PARAM.inp.out_wfc_norm,
-                      PARAM.inp.out_wfc_re_im,
-                      PARAM.inp.nbands,
-                      PARAM.inp.nspin,
-                      PARAM.globalv.nlocal,
-                      PARAM.globalv.global_out_dir);
+                         this->psi,
+                         this->pw_wfc,
+                         this->Pgrid,
+                         this->pv,
+                         this->GG,
+                         PARAM.inp.out_wfc_pw,
+                         this->kv,
+                         PARAM.inp.nelec,
+                         PARAM.inp.out_wfc_norm,
+                         PARAM.inp.out_wfc_re_im,
+                         PARAM.inp.nbands,
+                         PARAM.inp.nspin,
+                         PARAM.globalv.nlocal,
+                         PARAM.globalv.global_out_dir,
+                         GlobalV::ofs_running);
         }
         else
         {
             get_wf.begin(ucell,
-                      this->psi,
-                      this->pw_rhod,
-                      this->pw_wfc,
-                      this->pw_big,
-                      this->Pgrid,
-                      this->pv,
-                      this->GK,
-                      PARAM.inp.out_wfc_pw,
-                      this->kv,
-                      PARAM.inp.nelec,
-                      PARAM.inp.nbands_istate,
-                      PARAM.inp.out_wfc_norm,
-                      PARAM.inp.out_wfc_re_im,
-                      PARAM.inp.nbands,
-                      PARAM.inp.nspin,
-                      PARAM.globalv.nlocal,
-                      PARAM.globalv.global_out_dir);
+                         this->psi,
+                         this->pw_wfc,
+                         this->Pgrid,
+                         this->pv,
+                         this->GK,
+                         PARAM.inp.out_wfc_pw,
+                         this->kv,
+                         PARAM.inp.nelec,
+                         PARAM.inp.out_wfc_norm,
+                         PARAM.inp.out_wfc_re_im,
+                         PARAM.inp.nbands,
+                         PARAM.inp.nspin,
+                         PARAM.globalv.nlocal,
+                         PARAM.globalv.global_out_dir,
+                         GlobalV::ofs_running);
         }
         std::cout << FmtCore::format(" >> Finish %s.\n * * * * * *\n", "getting wave function");
     }

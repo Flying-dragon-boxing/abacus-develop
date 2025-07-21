@@ -56,7 +56,9 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
 {
     gamma_extrapolation = PARAM.inp.exx_gamma_extrapolation;
     bool is_mp = kv_in->get_is_mp();
+#ifdef __MPI
     Parallel_Common::bcast_bool(is_mp);
+#endif
     if (!is_mp)
     {
         gamma_extrapolation = false;

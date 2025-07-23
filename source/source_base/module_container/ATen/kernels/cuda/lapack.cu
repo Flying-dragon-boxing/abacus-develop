@@ -70,8 +70,10 @@ struct lapack_trtri<T, DEVICE_GPU> {
     {
         // TODO: trtri is not implemented in this method yet
         // Cause the trtri in cuSolver is not stable for ABACUS!
-        //cuSolverConnector::trtri(cusolver_handle, uplo, diag, dim, Mat, lda);
-        cuSolverConnector::potri(cusolver_handle, uplo, diag, dim, Mat, lda);
+        // But why?! trtri and potri are different routines for different job! 
+        // How can BPCG work without using a proper routine? 
+        cuSolverConnector::trtri(cusolver_handle, uplo, diag, dim, Mat, lda);
+        // cuSolverConnector::potri(cusolver_handle, uplo, diag, dim, Mat, lda);
     }
 };
 

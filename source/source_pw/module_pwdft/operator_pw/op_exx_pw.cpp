@@ -33,7 +33,9 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
 {
     gamma_extrapolation = PARAM.inp.exx_gamma_extrapolation;
     bool is_mp = kv_in->get_is_mp();
+#ifdef __MPI
     Parallel_Common::bcast_bool(is_mp);
+#endif
     if (!is_mp)
     {
         gamma_extrapolation = false;
@@ -425,55 +427,16 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         int info = 0;
         char up = 'U', lo = 'L';
 
-        // print L_ace
-        if (ik == 0)
-        {
-            T* L_ace_print = new T[nbands * nbands];
-            syncmem_complex_d2c_op()(L_ace_print, L_ace, nbands * nbands);
-            for (int i = 0; i < nbands * nbands; i++)
-            {
-                std::cout << L_ace_print[i] << " ";
-            }
-            std::cout << std::endl;
-            delete[] L_ace_print;
-        }
-
         lapack_potrf()(lo, nbands, L_ace, nbands);
-
-        // print L_ace
-        if (ik == 0)
-        {
-            T* L_ace_print = new T[nbands * nbands];
-            syncmem_complex_d2c_op()(L_ace_print, L_ace, nbands * nbands);
-            for (int i = 0; i < nbands * nbands; i++)
-            {
-                std::cout << L_ace_print[i] << " ";
-            }
-            std::cout << std::endl;
-            delete[] L_ace_print;
-        }
 
         // // expand for-loop
         // for (int i = 0; i < nbands; ++i) {
         //     setmem_complex_op()(L_ace + i * nbands, 0, i);
         // }
+
         // L_ace inv in place
         char non = 'N';
         lapack_trtri()(lo, non, nbands, L_ace, nbands);
-
-        // print L_ace
-        if (ik == 0)
-        {
-            T* L_ace_print = new T[nbands * nbands];
-            syncmem_complex_d2c_op()(L_ace_print, L_ace, nbands * nbands);
-            for (int i = 0; i < nbands * nbands; i++)
-            {
-                std::cout << L_ace_print[i] << " ";
-            }
-            std::cout << std::endl;
-            delete[] L_ace_print;
-        }
-
 
         // Xi_ace = L_ace^-1 * h_psi_ace^dagger
         gemm_complex_op()('N',

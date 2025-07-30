@@ -11,6 +11,7 @@
 #include "source_cell/klist.h"
 #include "source_lcao/module_ri/conv_coulomb_pot_k.h"
 #include "source_psi/psi.h"
+#include "source_base/module_container/ATen/kernels/lapack.h"
 
 #include <memory>
 #include <utility>
@@ -140,6 +141,7 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     base_device::DEVICE_CPU* cpu_ctx = {};
     base_device::AbacusDevice_t device = {};
 
+    using ct_Device = typename ct::PsiToContainer<Device>::type;
     using setmem_complex_op = base_device::memory::set_memory_op<T, Device>;
     using setmem_real_op = base_device::memory::set_memory_op<Real, Device>;
     using resmem_complex_op = base_device::memory::resize_memory_op<T, Device>;
@@ -155,6 +157,8 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     using syncmem_complex_d2c_op = base_device::memory::synchronize_memory_op<T, base_device::DEVICE_CPU, Device>;
     using syncmem_real_c2d_op = base_device::memory::synchronize_memory_op<Real, Device, base_device::DEVICE_CPU>;
     using syncmem_real_d2c_op = base_device::memory::synchronize_memory_op<Real, base_device::DEVICE_CPU, Device>;
+    using lapack_potrf = container::kernels::lapack_potrf<T, ct_Device>;
+    using lapack_trtri = container::kernels::lapack_trtri<T, ct_Device>;
 
     bool gamma_extrapolation = true;
 

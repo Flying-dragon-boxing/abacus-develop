@@ -1,46 +1,27 @@
-#include "source_hamilt/operator.h"
-#include "source_pw/module_pwdft/kernels/cal_density_real_op.h"
-#include "source_pw/module_pwdft/kernels/exx_cal_energy_op.h"
-#include "source_pw/module_pwdft/kernels/mul_potential_op.h"
-#include "source_pw/module_pwdft/kernels/vec_mul_vec_complex_op.h"
-#include "source_psi/psi.h"
+#include "op_exx_pw.h"
+
 #include "source_base/constants.h"
 #include "source_base/global_variable.h"
+#include "source_base/parallel_common.h"
 #include "source_base/parallel_reduce.h"
 #include "source_base/timer.h"
 #include "source_base/tool_quit.h"
 #include "source_cell/klist.h"
+#include "source_hamilt/operator.h"
+#include "source_psi/psi.h"
+#include "source_pw/module_pwdft/global.h"
+#include "source_pw/module_pwdft/kernels/cal_density_real_op.h"
+#include "source_pw/module_pwdft/kernels/exx_cal_energy_op.h"
+#include "source_pw/module_pwdft/kernels/mul_potential_op.h"
+#include "source_pw/module_pwdft/kernels/vec_mul_vec_complex_op.h"
 
 #include <cmath>
 #include <complex>
 #include <cstdlib>
 #include <utility>
 
-extern "C"
-{
-    void ztrtri_(char *uplo, char *diag, int *n, std::complex<double> *a, int *lda, int *info);
-    void ctrtri_(char *uplo, char *diag, int *n, std::complex<float> *a, int *lda, int *info);
-}
-
-//extern "C" void zpotrf_(char* uplo, const int* n, std::complex<double>* A, const int* lda, int* info);
-//extern "C" void cpotrf_(char* uplo, const int* n, std::complex<float>* A, const int* lda, int* info);
-
-#include "op_exx_pw.h"
-#include "source_pw/module_pwdft/global.h"
-
 namespace hamilt
 {
-template <typename T, typename Device>
-struct trtri_op
-{
-    void operator()(char *uplo, char *diag, int *n, T *a, int *lda, int *info);
-};
-
-template <typename T, typename Device>
-struct potrf_op
-{
-    void operator()(char *uplo, int *n, T *a, int *lda, int *info);
-};
 
 template <typename T, typename Device>
 OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
@@ -51,7 +32,9 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
     : isk(isk_in), wfcpw(wfcpw_in), rhopw(rhopw_in), kv(kv_in), ucell(ucell)
 {
     gamma_extrapolation = PARAM.inp.exx_gamma_extrapolation;
-    if (!kv_in->get_is_mp())
+    bool is_mp = kv_in->get_is_mp();
+    Parallel_Common::bcast_bool(is_mp);
+    if (!is_mp)
     {
         gamma_extrapolation = false;
     }
@@ -442,17 +425,55 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         int info = 0;
         char up = 'U', lo = 'L';
 
-        potrf_op<T, Device>()(&lo, &nbands, L_ace, &nbands, &info);
-
-        // expand for-loop
-        for (int i = 0; i < nbands; ++i) {
-            setmem_complex_op()(L_ace + i * nbands, 0, i);
+        // print L_ace
+        if (ik == 0)
+        {
+            T* L_ace_print = new T[nbands * nbands];
+            syncmem_complex_d2c_op()(L_ace_print, L_ace, nbands * nbands);
+            for (int i = 0; i < nbands * nbands; i++)
+            {
+                std::cout << L_ace_print[i] << " ";
+            }
+            std::cout << std::endl;
+            delete[] L_ace_print;
         }
 
+        lapack_potrf()(lo, nbands, L_ace, nbands);
+
+        // print L_ace
+        if (ik == 0)
+        {
+            T* L_ace_print = new T[nbands * nbands];
+            syncmem_complex_d2c_op()(L_ace_print, L_ace, nbands * nbands);
+            for (int i = 0; i < nbands * nbands; i++)
+            {
+                std::cout << L_ace_print[i] << " ";
+            }
+            std::cout << std::endl;
+            delete[] L_ace_print;
+        }
+
+        // // expand for-loop
+        // for (int i = 0; i < nbands; ++i) {
+        //     setmem_complex_op()(L_ace + i * nbands, 0, i);
+        // }
         // L_ace inv in place
-        // T == std::complex<float> or std::complex<double>
         char non = 'N';
-        trtri_op<T, Device>()(&lo, &non, &nbands, L_ace, &nbands, &info);
+        lapack_trtri()(lo, non, nbands, L_ace, nbands);
+
+        // print L_ace
+        if (ik == 0)
+        {
+            T* L_ace_print = new T[nbands * nbands];
+            syncmem_complex_d2c_op()(L_ace_print, L_ace, nbands * nbands);
+            for (int i = 0; i < nbands * nbands; i++)
+            {
+                std::cout << L_ace_print[i] << " ";
+            }
+            std::cout << std::endl;
+            delete[] L_ace_print;
+        }
+
 
         // Xi_ace = L_ace^-1 * h_psi_ace^dagger
         gemm_complex_op()('N',
@@ -1040,31 +1061,6 @@ void OperatorEXXPW<std::complex<float>, base_device::DEVICE_CPU>::rho_recip2real
     rhopw_dev->recip2real(rho_recip, rho_real, add, factor);
 }
 
-
-template <>
-void trtri_op<std::complex<float>, base_device::DEVICE_CPU>::operator()(char *uplo, char *diag, int *n, std::complex<float> *a, int *lda, int *info)
-{
-    ctrtri_(uplo, diag, n, a, lda, info);
-}
-
-template <>
-void trtri_op<std::complex<double>, base_device::DEVICE_CPU>::operator()(char *uplo, char *diag, int *n, std::complex<double> *a, int *lda, int *info)
-{
-    ztrtri_(uplo, diag, n, a, lda, info);
-}
-
-template <>
-void potrf_op<std::complex<float>, base_device::DEVICE_CPU>::operator()(char *uplo, int *n, std::complex<float> *a, int *lda, int *info)
-{
-    cpotrf_(uplo, n, a, lda, info);
-}
-
-template <>
-void potrf_op<std::complex<double>, base_device::DEVICE_CPU>::operator()(char *uplo, int *n, std::complex<double> *a, int *lda, int *info)
-{
-    zpotrf_(uplo, n, a, lda, info);
-}
-
 template class OperatorEXXPW<std::complex<float>, base_device::DEVICE_CPU>;
 template class OperatorEXXPW<std::complex<double>, base_device::DEVICE_CPU>;
 #if ((defined __CUDA) || (defined __ROCM))
@@ -1105,270 +1101,6 @@ void OperatorEXXPW<std::complex<float>, base_device::DEVICE_GPU>::rho_recip2real
                                                                              float factor) const
 {
     rhopw_dev->recip2real_gpu(rho_recip, rho_real, add, factor);
-}
-
-template <>
-void trtri_op<std::complex<float>, base_device::DEVICE_GPU>::operator()(char *uplo, char *diag, int *n, std::complex<float> *a, int *lda, int *info)
-{
-    // ctrtri_(uplo, diag, n, a, lda, info);
-    cusolverDnHandle_t cusolver;
-    cusolverDnCreate(&cusolver);
-    size_t workspaceInBytesOnDevice = 0;
-    size_t workspaceInBytesOnHost = 0;
-    int* d_info = nullptr;
-    cudaMalloc((void**)&d_info, sizeof(int));
-
-    cusolverDnXtrtri_bufferSize(
-        cusolver,
-        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
-        *diag == 'N' ? CUBLAS_DIAG_NON_UNIT : CUBLAS_DIAG_UNIT,
-        *n,
-        CUDA_C_32F,
-        a,
-        *lda,
-        &workspaceInBytesOnDevice,
-        &workspaceInBytesOnHost
-    );
-
-    void* bufferOnDevice = nullptr;
-    void* bufferOnHost = nullptr;
-
-    if (workspaceInBytesOnDevice > 0) {
-        cudaMalloc(&bufferOnDevice, workspaceInBytesOnDevice);
-    }
-
-    if (workspaceInBytesOnHost > 0) {
-        bufferOnHost = malloc(workspaceInBytesOnHost);
-    }
-
-    cusolverDnXtrtri(
-        cusolver,
-        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
-        *diag == 'N' ? CUBLAS_DIAG_NON_UNIT : CUBLAS_DIAG_UNIT,
-        *n,
-        CUDA_C_32F,
-        a,
-        *lda,
-        bufferOnDevice, // 设备端 workspace
-        workspaceInBytesOnDevice,
-        bufferOnHost,   // 主机端 workspace
-        workspaceInBytesOnHost,
-        d_info          // info（设备指针）
-    );
-
-    if (bufferOnDevice) cudaFree(bufferOnDevice);
-    if (bufferOnHost) free(bufferOnHost);
-    cudaMemcpy(info, d_info, sizeof(int), cudaMemcpyDeviceToHost);
-    cudaFree(d_info);
-    cusolverDnDestroy(cusolver);
-
-    // handle info
-    if (*info != 0) {
-        std::cerr << "Error in trtri: info = " << (*info) << std::endl;
-        throw std::runtime_error("trtri failed");
-    }
-}
-
-template <>
-void trtri_op<std::complex<double>, base_device::DEVICE_GPU>::operator()(char *uplo, char *diag, int *n, std::complex<double> *a, int *lda, int *info)
-{
-    // ztrtri_(uplo, diag, n, a, lda, info);
-    cusolverDnHandle_t cusolver;
-    cusolverDnCreate(&cusolver);
-    size_t workspaceInBytesOnDevice = 0;
-    size_t workspaceInBytesOnHost = 0;
-    int* d_info = nullptr;
-    cudaMalloc((void**)&d_info, sizeof(int));
-
-    cusolverDnXtrtri_bufferSize(
-        cusolver,
-        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
-        *diag == 'N' ? CUBLAS_DIAG_NON_UNIT : CUBLAS_DIAG_UNIT,
-        *n,
-        CUDA_C_64F,
-        a,
-        *lda,
-        &workspaceInBytesOnDevice,
-        &workspaceInBytesOnHost
-    );
-
-    void* bufferOnDevice = nullptr;
-    void* bufferOnHost = nullptr;
-
-    if (workspaceInBytesOnDevice > 0) {
-        cudaMalloc(&bufferOnDevice, workspaceInBytesOnDevice);
-    }
-
-    if (workspaceInBytesOnHost > 0) {
-        bufferOnHost = malloc(workspaceInBytesOnHost);
-    }
-
-    cusolverDnXtrtri(
-        cusolver,
-        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
-        *diag == 'N' ? CUBLAS_DIAG_NON_UNIT : CUBLAS_DIAG_UNIT,
-        *n,
-        CUDA_C_64F,
-        a,
-        *lda,
-        bufferOnDevice, // 设备端 workspace
-        workspaceInBytesOnDevice,
-        bufferOnHost,   // 主机端 workspace
-        workspaceInBytesOnHost,
-        d_info
-    );
-
-    cudaMemcpy(info, d_info, sizeof(int), cudaMemcpyDeviceToHost);
-    cudaFree(d_info);
-    cusolverDnDestroy(cusolver);
-
-    // handle info
-    if (*info != 0) {
-        std::cerr << "Error in trtri: info = " << (*info) << std::endl;
-        throw std::runtime_error("trtri failed");
-    }
-}
-
-template <>
-void potrf_op<std::complex<float>, base_device::DEVICE_GPU>::operator()(
-    char *uplo, int *n, std::complex<float> *a, int *lda, int *info)
-{
-    cusolverDnHandle_t cusolver;
-    cusolverDnParams_t params;
-    cusolverDnCreate(&cusolver);
-    cusolverDnCreateParams(&params);
-    int* d_info = nullptr;
-    cudaMalloc((void**)&d_info, sizeof(int));
-
-    size_t workspaceInBytesOnDevice = 0;
-    size_t workspaceInBytesOnHost = 0;
-
-    // 查询 workspace 大小
-    cusolverDnXpotrf_bufferSize(
-        cusolver,
-        params,
-        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
-        *n,
-        CUDA_C_32F,
-        a,
-        *lda,
-        CUDA_C_32F,
-        &workspaceInBytesOnDevice,
-        &workspaceInBytesOnHost
-    );
-
-    // 分配 workspace
-    void* bufferOnDevice = nullptr;
-    void* bufferOnHost = nullptr;
-
-    if (workspaceInBytesOnDevice > 0) {
-        cudaMalloc(&bufferOnDevice, workspaceInBytesOnDevice);
-    }
-
-    if (workspaceInBytesOnHost > 0) {
-        bufferOnHost = malloc(workspaceInBytesOnHost);
-    }
-
-    // 调用 cusolver 接口
-    cusolverDnXpotrf(
-        cusolver,
-        params,
-        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
-        *n,
-        CUDA_C_32F,
-        a,
-        *lda,
-        CUDA_C_32F,
-        bufferOnDevice,
-        workspaceInBytesOnDevice,
-        bufferOnHost,
-        workspaceInBytesOnHost,
-        d_info
-    );
-
-    // 清理资源
-    if (bufferOnDevice) cudaFree(bufferOnDevice);
-    if (bufferOnHost) free(bufferOnHost);
-    cudaMemcpy(info, d_info, sizeof(int), cudaMemcpyDeviceToHost);
-    cudaFree(d_info);
-    cusolverDnDestroy(cusolver);
-
-    // handle info
-    if (*info != 0) {
-        std::cerr << "Error in trtri: info = " << (*info) << std::endl;
-        throw std::runtime_error("trtri failed");
-    }
-}
-
-template <>
-void potrf_op<std::complex<double>, base_device::DEVICE_GPU>::operator()(
-    char *uplo, int *n, std::complex<double> *a, int *lda, int *info)
-{
-    cusolverDnHandle_t cusolver;
-    cusolverDnParams_t params;
-    cusolverDnCreate(&cusolver);
-    cusolverDnCreateParams(&params);
-    int* d_info = nullptr;
-    cudaMalloc((void**)&d_info, sizeof(int));
-
-    size_t workspaceInBytesOnDevice = 0;
-    size_t workspaceInBytesOnHost = 0;
-
-    // 查询 workspace 大小
-    cusolverDnXpotrf_bufferSize(
-        cusolver,
-        params,
-        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
-        *n,
-        CUDA_C_64F,
-        a,
-        *lda,
-        CUDA_C_64F,
-        &workspaceInBytesOnDevice,
-        &workspaceInBytesOnHost
-    );
-
-    // 分配 workspace
-    void* bufferOnDevice = nullptr;
-    void* bufferOnHost = nullptr;
-
-    if (workspaceInBytesOnDevice > 0) {
-        cudaMalloc(&bufferOnDevice, workspaceInBytesOnDevice);
-    }
-
-    if (workspaceInBytesOnHost > 0) {
-        bufferOnHost = malloc(workspaceInBytesOnHost);
-    }
-
-    // 调用 cusolver 接口
-    cusolverDnXpotrf(
-        cusolver,
-        params,
-        *uplo == 'U' ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER,
-        *n,
-        CUDA_C_64F,
-        a,
-        *lda,
-        CUDA_C_64F,
-        bufferOnDevice,
-        workspaceInBytesOnDevice,
-        bufferOnHost,
-        workspaceInBytesOnHost,
-        d_info
-    );
-
-    // 清理资源
-    if (bufferOnDevice) cudaFree(bufferOnDevice);
-    if (bufferOnHost) free(bufferOnHost);
-    cudaMemcpy(info, d_info, sizeof(int), cudaMemcpyDeviceToHost);
-    cudaFree(d_info);
-    cusolverDnDestroy(cusolver);
-
-    // handle info
-    if (*info != 0) {
-        std::cerr << "Error in trtri: info = " << (*info) << std::endl;
-        throw std::runtime_error("trtri failed");
-    }
 }
 
 #endif

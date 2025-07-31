@@ -73,7 +73,9 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
 
     rhopw_dev = new ModulePW::PW_Basis(wfcpw->get_device(), rhopw->get_precision());
     rhopw_dev->fft_bundle.setfft(wfcpw->get_device(), rhopw->get_precision());
+#ifdef __MPI
     rhopw_dev->initmpi(rhopw->poolnproc, rhopw->poolrank, rhopw->pool_world);
+#endif
     // here we can actually use different ecut to init the grids
     rhopw_dev->initgrids(rhopw->lat0, rhopw->latvec, rhopw->gridecut_lat * rhopw->tpiba2);
     rhopw_dev->initgrids(rhopw->lat0, rhopw->latvec, rhopw->nx, rhopw->ny, rhopw->nz);

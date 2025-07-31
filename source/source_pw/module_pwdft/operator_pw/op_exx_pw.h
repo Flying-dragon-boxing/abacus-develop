@@ -143,6 +143,7 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     using ct_Device = typename ct::PsiToContainer<Device>::type;
     using setmem_complex_op = base_device::memory::set_memory_op<T, Device>;
     using setmem_real_op = base_device::memory::set_memory_op<Real, Device>;
+    using setmem_real_cpu_op = base_device::memory::set_memory_op<Real, base_device::DEVICE_CPU>;
     using resmem_complex_op = base_device::memory::resize_memory_op<T, Device>;
     using delmem_complex_op = base_device::memory::delete_memory_op<T, Device>;
     using syncmem_complex_op = base_device::memory::synchronize_memory_op<T, Device, Device>;

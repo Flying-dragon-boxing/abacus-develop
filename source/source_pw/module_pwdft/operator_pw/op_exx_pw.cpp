@@ -572,7 +572,7 @@ void OperatorEXXPW<T, Device>::get_potential() const
     double tpiba2 = tpiba * tpiba;
     pot_cpu = new Real[npw * wfcpw->nks * wfcpw->nks];
     // fill zero
-
+    setmem_real_cpu_op()(pot_cpu, 0, npw * nks * nks);
 
     // calculate Fock pot
     auto param_fock = GlobalC::exx_info.info_global.coulomb_param[Conv_Coulomb_Pot_K::Coulomb_Type::Fock];
@@ -986,9 +986,7 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
     setmem_complex_op()(density_real, 0, rhopw_dev->nrxx);
     setmem_complex_op()(density_recip, 0, rhopw_dev->npw);
 
-    double Eexx = Eexx_ik_real;
-    std::cout << Eexx << std::endl;
-    return Eexx;
+    return Eexx_ik_real;
 }
 
 template <>

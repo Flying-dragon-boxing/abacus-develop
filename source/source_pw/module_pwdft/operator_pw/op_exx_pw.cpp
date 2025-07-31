@@ -432,10 +432,10 @@ void OperatorEXXPW<T, Device>::construct_ace() const
 
         lapack_potrf()(lo, nbands, L_ace, nbands);
 
-        // // expand for-loop
-        // for (int i = 0; i < nbands; ++i) {
-        //     setmem_complex_op()(L_ace + i * nbands, 0, i);
-        // }
+        // expand for-loop
+        for (int i = 0; i < nbands; ++i) {
+            setmem_complex_op()(L_ace + i * nbands, 0, i);
+        }
 
         // L_ace inv in place
         char non = 'N';

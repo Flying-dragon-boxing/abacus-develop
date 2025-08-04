@@ -6,6 +6,8 @@ list(APPEND operator_ks_pw_srcs
     meta_pw.cpp
     velocity_pw.cpp
     onsite_proj_pw.cpp
+    operator_pw/exx_pw_ace.cpp
+    operator_pw/exx_pw_pot.cpp
 )
 
 # this library is included in module_pwdft now

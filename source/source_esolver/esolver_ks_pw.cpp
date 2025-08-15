@@ -645,8 +645,9 @@ void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int
     //----------------------------------------------------------
     // 3) Print out electronic wavefunctions in pw basis
     //----------------------------------------------------------
-    if (iter % PARAM.inp.out_freq_elec == 0 || iter == PARAM.inp.scf_nmax || conv_esolver)
+    if (iter % PARAM.inp.out_freq_elec == 0 || iter == PARAM.inp.scf_nmax)
     {
+        // conv_esolver == true has already been dealt with in after_scf
         ModuleIO::write_wfc_pw(GlobalV::KPAR,
                                GlobalV::MY_POOL,
                                GlobalV::MY_RANK,

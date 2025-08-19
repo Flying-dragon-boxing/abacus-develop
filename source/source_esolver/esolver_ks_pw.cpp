@@ -623,8 +623,8 @@ void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int
                 double dexx = exx_helper.cal_exx_energy(this->kspw_psi);
                 exx_helper.set_psi(this->kspw_psi);
                 dexx -= exx_helper.cal_exx_energy(this->kspw_psi);
-
-                conv_esolver = std::abs(dexx) < PARAM.inp.scf_ene_thr || exx_helper.exx_after_converge(iter);
+                double exx_ene_thr = 1e-6;
+                conv_esolver = std::abs(dexx) < exx_ene_thr || exx_helper.exx_after_converge(iter);
 
                 if (!conv_esolver)
                 {

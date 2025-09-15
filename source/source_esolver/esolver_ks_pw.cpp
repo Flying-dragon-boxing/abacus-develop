@@ -589,12 +589,20 @@ void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int
                 auto start = std::chrono::high_resolution_clock::now();
                 exx_helper.set_firstiter(false);
                 exx_helper.op_exx->first_iter = false;
-                double dexx = exx_helper.cal_exx_energy(this->kspw_psi);
-                exx_helper.set_psi(this->kspw_psi);
-                dexx -= exx_helper.cal_exx_energy(this->kspw_psi);
-                double exx_ene_thr = 3e-5;
-                conv_esolver = std::abs(dexx) < exx_ene_thr || exx_helper.exx_after_converge(iter);
-                std::cout << "dexx = " << dexx << std::endl;
+                if (PARAM.inp.exx_thr_type == "energy")
+                {
+                    double dexx = exx_helper.cal_exx_energy(this->kspw_psi);
+                    exx_helper.set_psi(this->kspw_psi);
+                    dexx -= exx_helper.cal_exx_energy(this->kspw_psi);
+                    conv_esolver = std::abs(dexx) < PARAM.inp.exx_ene_thr || exx_helper.exx_after_converge(iter);
+                    std::cout << "dexx = " << dexx << std::endl;
+                }
+                else if (PARAM.inp.exx_thr_type == "density")
+                {
+                    conv_esolver = exx_helper.cal_psi_diff(this->kspw_psi) < PARAM.inp.exx_psi_thr
+                                   || exx_helper.exx_after_converge(iter);
+                    exx_helper.set_psi(this->kspw_psi);
+                }
                 if (!conv_esolver)
                 {
                     auto duration = std::chrono::high_resolution_clock::now() - start;

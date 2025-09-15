@@ -170,7 +170,7 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
 //              << std::endl;
     if (!potential_got)
     {
-        get_potential();
+        get_exx_potential<Real, Device>(kv, wfcpw, rhopw_dev, pot, tpiba, gamma_extrapolation, ucell->omega);
         potential_got = true;
     }
 

@@ -589,13 +589,17 @@ void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int
                 auto start = std::chrono::high_resolution_clock::now();
                 exx_helper.set_firstiter(false);
                 exx_helper.op_exx->first_iter = false;
+                double dexx = 0.0;
                 if (PARAM.inp.exx_thr_type == "energy")
                 {
-                    double dexx = exx_helper.cal_exx_energy(this->kspw_psi);
+                    dexx = exx_helper.cal_exx_energy(this->kspw_psi);
+                }
                     exx_helper.set_psi(this->kspw_psi);
+                if (PARAM.inp.exx_thr_type == "energy")
+                {
                     dexx -= exx_helper.cal_exx_energy(this->kspw_psi);
                     conv_esolver = std::abs(dexx) < PARAM.inp.exx_ene_thr || exx_helper.exx_after_converge(iter);
-                    std::cout << "dexx = " << dexx << std::endl;
+                    // std::cout << "dexx = " << dexx << std::endl;
                 }
                 else if (PARAM.inp.exx_thr_type == "density")
                 {

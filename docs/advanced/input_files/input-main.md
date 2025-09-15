@@ -22,6 +22,7 @@
     - [min\_dist\_coef](#min_dist_coef)
     - [device](#device)
     - [precision](#precision)
+    - [timer_enable_nvtx](#timer_enable_nvtx)
     - [nb2d](#nb2d)
   - [Input Files](#variables-related-to-input-files)
     - [stru\_file](#stru_file)
@@ -30,7 +31,7 @@
     - [orbital\_dir](#orbital_dir)
     - [read\_file\_dir](#read_file_dir)
     - [restart\_load](#restart_load)
-    - [wannier\_card](#wannier_card)
+    - [spillage\_outdir](#spillage_outdir)
   - [Plane Wave](#plane-wave-related-variables)
     - [ecutwfc](#ecutwfc)
     - [ecutrho](#ecutrho)
@@ -172,6 +173,7 @@
     - [out\_wfc_re_im](#out_wfc_re_im)
     - [if\_separate\_k](#if_separate_k)
     - [out\_elf](#out_elf)
+    - [out\_spillage](#out_spillage)
   - [Density of States](#density-of-states)
     - [dos\_edelta\_ev](#dos_edelta_ev)
     - [dos\_sigma](#dos_sigma)
@@ -190,6 +192,7 @@
   - [DeePKS](#deepks)
     - [deepks\_out\_labels](#deepks_out_labels)
     - [deepks\_out\_freq\_elec](#deepks_out_freq_elec)
+    - [deepks\_out\_base](#deepks_out_base)
     - [deepks\_scf](#deepks_scf)
     - [deepks\_equiv](#deepks_equiv)
     - [deepks\_model](#deepks_model)
@@ -704,6 +707,15 @@ If only one value is set (such as `kspacing 0.5`), then kspacing values of a/b/c
   - double: double precision
 - **Default**: double
 
+### timer_enable_nvtx
+
+- **Type**: Boolean
+- **Description**: Controls whether NVTX profiling labels are emitted by the timer. This feature is only effective on CUDA platforms.
+
+  - True: Enable NVTX profiling labels in the timer.
+  - False: Disable NVTX profiling labels in the timer.
+- **Default**: False
+
 ### nb2d
 
 - **Type**: Integer
@@ -773,12 +785,12 @@ These variables are used to control parameters related to input files.
   If EXX(exact exchange) is calculated (i.e. *[dft_fuctional](#dft_functional)==hse/hf/pbe0/scan0* or *[rpa](#rpa)==True*), the Hexx(R) files in the same folder for each processor will also be read.
 - **Default**: False
 
-### wannier_card
+### spillage_outdir
 
 - **Type**: String
-- **Availability**: Using ABACUS with Wannier90.
-- **Description**: The name of the input file related to Wannier90.
-- **Default**: "none"
+- **Availability**: Used only for plane wave basis set.
+- **Description**: The directory to save the spillage files.
+- **Default**: "./"
 
 [back to top](#full-list-of-input-keywords)
 
@@ -1697,21 +1709,21 @@ These variables are used to control the output of properties.
 
 ### out_dmk
 
-- **Type**: Boolean
+- **Type**: Boolean \[Integer\](optional) 
 - **Availability**: Numerical atomic orbital basis
 - **Description**: Whether to output the density matrix for each k-point into files in the folder `OUT.${suffix}`. The files are named as:
   - For gamma only case:
-    - nspin = 1: `dms1_nao.csr`;
+    - nspin = 1 and 4: `dm_nao.csr`;
     - nspin = 2: `dms1_nao.csr` and `dms2_nao.csr` for the two spin channels. 
   - For multi-k points case:
-    - nspin = 1: `dms1k1_nao.csr`, `dms1k2_nao.csr`, ...;
-    - nspin = 2: `dms1k1_nao.csr`... and `dms2k1_nao.csr`... for the two spin channels. 
+    - nspin = 1 and 4: `dmk1_nao.csr`, `dmk2_nao.csr`, ...;
+    - nspin = 2: `dmk1s1_nao.csr`... and `dmk1s2_nao.csr`... for the two spin channels. 
 - **Default**: False
 - **Note**: In the 3.10-LTS version, the parameter is named `out_dm` and the file names are SPIN1_DM and SPIN2_DM, etc.
 
 ### out_dmr
 
-- **Type**: Boolean
+- **Type**: Boolean \[Integer\](optional)
 - **Availability**: Numerical atomic orbital basis (multi-k points)
 - **Description**: Whether to output the density matrix with Bravias lattice vector R index into files in the folder `OUT.${suffix}`. The files are named as `dmr{s}{spin index}{g}{geometry index}{_nao} + {".csr"}`. Here, 's' refers to spin, where s1 means spin up channel while s2 means spin down channel, and the sparse matrix format 'csr' is mentioned in [out_mat_hs2](#out_mat_hs2). Finally, if [out_app_flag](#out_app_flag) is set to false, the file name contains the optional 'g' index for each ionic step that may have different geometries, and if [out_app_flag](#out_app_flag) is set to true, the density matrix with respect to Bravias lattice vector R accumulates during ionic steps:
   - nspin = 1: `dmrs1_nao.csr`;
@@ -2026,6 +2038,13 @@ These variables are used to control the output of properties.
   In molecular dynamics calculations, the output frequency is controlled by [out_interval](#out_interval).
 - **Default**: 0 3
 
+### out_spillage
+
+- **Type**: Integer
+- **Availability**: Only for Kohn-Sham DFT with plane-wave basis.
+- **Description**: This output is only intentively needed by the ABACUS numerical atomic orbital generation workflow. This parameter is used to control whether to output the overlap integrals between truncated spherical Bessel functions (TSBFs) and plane-wave basis expanded wavefunctions (named as `OVERLAP_Q`), and between TSBFs (named as `OVERLAP_Sq`), also their first order derivatives. The output files are named starting with `orb_matrix`. A value of `2` would enable the output.
+- **Default**: 0 
+
 [back to top](#full-list-of-input-keywords)
 
 ## Density of states
@@ -2165,6 +2184,13 @@ Warning: this function is not robust enough for the current version. Please try 
 - **Description**: When `deepks_out_freq_elec` is greater than 0, print labels and descriptors for DeePKS in OUT.${suffix}/DeePKS_Labels_Elec per `deepks_out_freq_elec` electronic iterations, with suffix `_e*` to distinguish different steps. Often used with `deepks_out_labels` equals 1.
 - **Default**: 0
 
+### deepks_out_base
+
+- **Type**: String
+- **Availability**: Numerical atomic orbital basis and `deepks_out_freq_elec` is greater than 0
+- **Description**: Print labels and descriptors calculated by base functional ( determined by `deepks_out_base` ) and target functional ( determined by `dft_functional` ) for DeePKS in per `deepks_out_freq_elec` electronic iterations. The SCF process, labels and descriptors output of the target functional are all consistent with those when the target functional is used alone. The only additional output under this configuration is the labels of the base functional. Often used with `deepks_out_labels` equals 1.
+- **Default**: None
+
 ### deepks_scf
 
 - **Type**: Boolean
@@ -2258,7 +2284,7 @@ Warning: this function is not robust enough for the current version. Please try 
 
 - **Type**: int
 - **Availability**: Numerical atomic orbital basis
-- **Description**: Include V_delta/V_delta_R (Hamiltonian in k/real space) label for DeePKS training. When `deepks_out_labels` is true and `deepks_v_delta` > 0 (k space), ABACUS will output `deepks_hbase.npy`, `deepks_vdelta.npy` and `deepks_htot.npy`(htot=hbase+vdelta). When `deepks_out_labels` is true and `deepks_v_delta` < 0 (real space), ABACUS will output `deepks_hrtot.csr`, `deepks_hrdelta.csr`. Some more files output for different settings.
+- **Description**: Include V_delta/V_delta_R (Hamiltonian in k/real space) label for DeePKS training. When `deepks_out_labels` is true and `deepks_v_delta` > 0 (k space), ABACUS will output `deepks_hbase.npy`, `deepks_vdelta.npy` and `deepks_htot.npy`(htot=hbase+vdelta). When `deepks_out_labels` is true and `deepks_v_delta` < 0 (real space), ABACUS will output `deepks_hrtot.csr`, `deepks_hrdelta.csr`. Some more files output for different settings. *NOTICE: To match the unit Normally used in DeePKS, the unit of Hamiltonian in k space is Hartree. However, currently in R space the unit is still Ry.*
   - `deepks_v_delta` = 1: `deepks_vdpre.npy`, which is used to calculate V_delta during DeePKS training.
   - `deepks_v_delta` = 2: `deepks_phialpha.npy` and `deepks_gevdm.npy`, which can be used to calculate `deepks_vdpre.npy`. A recommanded method for memory saving.
   - `deepks_v_delta` = -1: `deepks_vdrpre.npy`, which is used to calculate V_delta_R during DeePKS training.

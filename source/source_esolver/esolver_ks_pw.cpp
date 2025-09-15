@@ -599,9 +599,7 @@ void ESolver_KS_PW<T, Device>::iter_finish(UnitCell& ucell, const int istep, int
                 }
                 else if (PARAM.inp.exx_thr_type == "density")
                 {
-                    conv_esolver = exx_helper.cal_psi_diff(this->kspw_psi) < PARAM.inp.exx_psi_thr
-                                   || exx_helper.exx_after_converge(iter);
-                    exx_helper.set_psi(this->kspw_psi);
+                    conv_esolver = exx_helper.exx_after_converge(iter);
                 }
                 if (!conv_esolver)
                 {

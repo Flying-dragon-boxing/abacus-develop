@@ -31,10 +31,22 @@ namespace information
 {
 
 /**
- * @brief Get the device info object
+ * @brief Get the device name
  * for source_esolver
  */
-std::string get_device_info(std::string device_flag);
+std::string get_device_name(std::string device_flag);
+
+/**
+ * @brief Get the device number
+ * for source_esolver
+ */
+int get_device_num(std::string device_flag);
+
+/**
+ * @brief Output the device information
+ * for source_esolver
+ */
+void output_device_info(std::ostream& output);
 
 /**
  * @brief Get the device kpar object
@@ -53,8 +65,8 @@ std::string get_device_flag(const std::string& device,
 /**
  * @brief Get the rank of current node
  *        Note that GPU can only be binded with CPU in the same node
- * 
- * @return int 
+ *
+ * @return int
  */
 int get_node_rank();
 int get_node_rank_with_mpi_shared(const MPI_Comm mpi_comm = MPI_COMM_WORLD);
@@ -78,6 +90,14 @@ void record_device_memory(const Device* dev, std::ofstream& ofs_device, std::str
 {
     return;
 }
+
+#if defined(__CUDA) || defined(__ROCM)
+template <>
+void print_device_info<base_device::DEVICE_GPU>(const base_device::DEVICE_GPU *ctx, std::ofstream &ofs_device);
+
+template <>
+void record_device_memory<base_device::DEVICE_GPU>(const base_device::DEVICE_GPU* dev, std::ofstream& ofs_device, std::string str, size_t size);
+#endif
 
 } // end of namespace information
 } // end of namespace base_device

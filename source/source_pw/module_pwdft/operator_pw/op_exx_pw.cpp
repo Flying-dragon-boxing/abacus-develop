@@ -66,7 +66,7 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
 
     int nks = wfcpw->nks;
     int nk_fac = PARAM.inp.nspin == 2 ? 2 : 1;
-    resmem_real_op()(pot, rhopw->npw * nks * nks);
+    resmem_real_op()(pot, rhopw->npw);
 
     tpiba = ucell->tpiba;
     Real tpiba2 = tpiba * tpiba;
@@ -168,11 +168,7 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
 //              << " ngk_ik: " << ngk_ik
 //              << " is_first_node: " << is_first_node
 //              << std::endl;
-    if (!potential_got)
-    {
-        get_exx_potential<Real, Device>(kv, wfcpw, rhopw_dev, pot, tpiba, gamma_extrapolation, ucell->omega);
-        potential_got = true;
-    }
+    // get_exx_potential<Real, Device>(kv, wfcpw, rhopw_dev, pot, tpiba, gamma_extrapolation, ucell->omega, ik, iq);
 
 //    set_psi(&p_exx_helper->psi);
 
@@ -199,6 +195,7 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
         Real nqs = q_points.size();
         for (int iq: q_points)
         {
+            get_exx_potential<Real, Device>(kv, wfcpw, rhopw_dev, pot, tpiba, gamma_extrapolation, ucell->omega, this->ik, iq);
 //            std::cout << "ik" << this->ik << " iq" << iq << std::endl;
             for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
             {
@@ -421,6 +418,7 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
 
             for (int iq: q_points)
             {
+                get_exx_potential<Real, Device>(kv, wfcpw, rhopw_dev, pot, tpiba, gamma_extrapolation, ucell->omega, ik, iq);
                 for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
                 {
                     // double wg_f = GlobalC::exx_helper.wg(iq, m_iband);
@@ -441,7 +439,7 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
                     int nks = wfcpw->nks;
                     int npw = rhopw_dev->npw;
                     int nk = nks / nk_fac;
-                    Eexx_ik_real += exx_cal_energy_op<T, Device>()(density_recip, pot + ik * nks * npw + iq * npw, wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik], npw);
+                    Eexx_ik_real += exx_cal_energy_op<T, Device>()(density_recip, pot, wg_iqb_real / nqs * wg_ikb_real / kv->wk[ik], npw);
 
                 } // m_iband
 

@@ -54,11 +54,11 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
     resmem_complex_op()(psi_mq_real, wfcpw->nrxx);
     resmem_complex_op()(density_real, rhopw->nrxx);
     resmem_complex_op()(density_recip, rhopw->npw);
-    resmem_real_op()(pot, rhopw->npw * nks * nks);
-    resmem_real_op()(pot_stress, rhopw->npw * nks * nks);
+    resmem_real_op()(pot, rhopw->npw);
+    resmem_real_op()(pot_stress, rhopw->npw);
 
-    hamilt::get_exx_potential<Real, Device>(p_kv, wfcpw, rhopw, pot, tpiba, gamma_extrapolation, omega);
-    hamilt::get_exx_stress_potential<Real, Device>(p_kv, wfcpw, rhopw, pot_stress, tpiba, gamma_extrapolation, omega);
+    // hamilt::get_exx_potential<Real, Device>(p_kv, wfcpw, rhopw, pot, tpiba, gamma_extrapolation, omega);
+    // hamilt::get_exx_stress_potential<Real, Device>(p_kv, wfcpw, rhopw, pot_stress, tpiba, gamma_extrapolation, omega);
 
     // calculate the stress
 
@@ -75,6 +75,8 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
 
             for (int iq = 0; iq < nqs; iq++)
             {
+                hamilt::get_exx_potential<Real, Device>(p_kv, wfcpw, rhopw, pot, tpiba, gamma_extrapolation, omega, ik, iq);
+                hamilt::get_exx_stress_potential<Real, Device>(p_kv, wfcpw, rhopw, pot_stress, tpiba, gamma_extrapolation, omega, ik, iq);
                 for (int mband = 0; mband < d_psi_in->get_nbands(); mband++)
                 {
                     // psi_mq in real space
@@ -111,7 +113,7 @@ void Stress_PW<FPTYPE, Device>::stress_exx(ModuleBase::matrix& sigma,
                                 double kqg_beta = kqg[beta] * tpiba;
                                 // equation 10 of 10.1103/PhysRevB.73.125120
                                 double density_recip2 = std::real(density_recip[ig] * std::conj(density_recip[ig]));
-                                const int idx = ig + iq * rhopw->npw + ik * rhopw->npw * nqs;
+                                const int idx = ig;
                                 double pot_local = pot[idx];
                                 double pot_stress_local = pot_stress[idx];
                                 sigma_ab_loc += density_recip2 * pot_local * (kqg_alpha * kqg_beta * pot_stress_local - delta_ab) ;

@@ -167,7 +167,9 @@ void get_exx_potential(const K_Vectors* kv,
                        Real* pot,
                        double tpiba,
                        bool gamma_extrapolation,
-                       double ucell_omega);
+                       double ucell_omega,
+                       int ik,
+                       int iq);
 
 template <typename Real, typename Device>
 void get_exx_stress_potential(const K_Vectors* kv,
@@ -176,7 +178,9 @@ void get_exx_stress_potential(const K_Vectors* kv,
                               Real* pot,
                               double tpiba,
                               bool gamma_extrapolation,
-                              double ucell_omega);
+                              double ucell_omega,
+                              int ik,
+                              int iq);
 
 double exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type coulomb_type,
                       double erfc_omega,

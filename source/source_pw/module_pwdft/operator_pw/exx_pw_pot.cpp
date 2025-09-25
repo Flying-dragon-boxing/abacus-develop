@@ -13,7 +13,8 @@ void get_exx_potential(const K_Vectors* kv,
                        bool gamma_extrapolation,
                        double ucell_omega,
                        int ik,
-                       int iq)
+                       int iq,
+                       bool is_stress)
 {
     using setmem_real_cpu_op = base_device::memory::set_memory_op<Real, base_device::DEVICE_CPU>;
     using syncmem_real_c2d_op = base_device::memory::synchronize_memory_op<Real, base_device::DEVICE_CPU, Device>;
@@ -162,7 +163,10 @@ void get_exx_potential(const K_Vectors* kv,
                 // if (PARAM.inp.dft_functional == "hse")
                 if (!gamma_extrapolation)
                 {
-                    pot_cpu[ig] += (exx_div - ModuleBase::PI * ModuleBase::e2 / erfc_omega2) * alpha;
+                    if (is_stress)
+                        pot_cpu[ig] += (- ModuleBase::PI * ModuleBase::e2 / erfc_omega2) * alpha;
+                    else
+                        pot_cpu[ig] += (exx_div - ModuleBase::PI * ModuleBase::e2 / erfc_omega2) * alpha;
                 }
                 else
                 {
@@ -326,7 +330,7 @@ void get_exx_stress_potential(const K_Vectors* kv,
             {
                 Real fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg;
                 pot_cpu[ig] += (1.0 - (1.0 + gg / 4.0 / erfc_omega2) * std::exp(-gg / 4.0 / erfc_omega2))
-                                  / (1.0 - std::exp(-gg / 4.0 / erfc_omega2)) / gg * grid_factor * alpha;
+                               / (1.0 - std::exp(-gg / 4.0 / erfc_omega2)) / gg * grid_factor * alpha;
             }
             // }
             else
@@ -480,7 +484,8 @@ template void get_exx_potential<float, base_device::DEVICE_CPU>(const K_Vectors*
                                                                 bool,
                                                                 double,
                                                                 int,
-                                                                int);
+                                                                int,
+                                                                        bool);
 template void get_exx_potential<double, base_device::DEVICE_CPU>(const K_Vectors*,
                                                                  const ModulePW::PW_Basis_K*,
                                                                  ModulePW::PW_Basis*,
@@ -488,8 +493,9 @@ template void get_exx_potential<double, base_device::DEVICE_CPU>(const K_Vectors
                                                                  double,
                                                                  bool,
                                                                  double,
-                                                                int,
-                                                                int);
+                                                                 int,
+                                                                 int,
+                                                                        bool);
 template void get_exx_stress_potential<float, base_device::DEVICE_CPU>(const K_Vectors*,
                                                                        const ModulePW::PW_Basis_K*,
                                                                        ModulePW::PW_Basis*,
@@ -497,8 +503,8 @@ template void get_exx_stress_potential<float, base_device::DEVICE_CPU>(const K_V
                                                                        double,
                                                                        bool,
                                                                        double,
-                                                                int,
-                                                                int);
+                                                                       int,
+                                                                       int);
 template void get_exx_stress_potential<double, base_device::DEVICE_CPU>(const K_Vectors*,
                                                                         const ModulePW::PW_Basis_K*,
                                                                         ModulePW::PW_Basis*,
@@ -506,8 +512,8 @@ template void get_exx_stress_potential<double, base_device::DEVICE_CPU>(const K_
                                                                         double,
                                                                         bool,
                                                                         double,
-                                                                int,
-                                                                int);
+                                                                        int,
+                                                                        int);
 #if ((defined __CUDA) || (defined __ROCM))
 template class OperatorEXXPW<std::complex<float>, base_device::DEVICE_GPU>;
 template class OperatorEXXPW<std::complex<double>, base_device::DEVICE_GPU>;
@@ -519,7 +525,8 @@ template void get_exx_potential<float, base_device::DEVICE_GPU>(const K_Vectors*
                                                                 bool,
                                                                 double,
                                                                 int,
-                                                                int);
+                                                                int,
+                                                                        bool));
 template void get_exx_potential<double, base_device::DEVICE_GPU>(const K_Vectors*,
                                                                  const ModulePW::PW_Basis_K*,
                                                                  ModulePW::PW_Basis*,
@@ -527,8 +534,9 @@ template void get_exx_potential<double, base_device::DEVICE_GPU>(const K_Vectors
                                                                  double,
                                                                  bool,
                                                                  double,
-                                                                int,
-                                                                int);
+                                                                 int,
+                                                                 int,
+                                                                        bool));
 template void get_exx_stress_potential<float, base_device::DEVICE_GPU>(const K_Vectors*,
                                                                        const ModulePW::PW_Basis_K*,
                                                                        ModulePW::PW_Basis*,
@@ -536,8 +544,8 @@ template void get_exx_stress_potential<float, base_device::DEVICE_GPU>(const K_V
                                                                        double,
                                                                        bool,
                                                                        double,
-                                                                int,
-                                                                int);
+                                                                       int,
+                                                                       int);
 template void get_exx_stress_potential<double, base_device::DEVICE_GPU>(const K_Vectors*,
                                                                         const ModulePW::PW_Basis_K*,
                                                                         ModulePW::PW_Basis*,
@@ -545,7 +553,7 @@ template void get_exx_stress_potential<double, base_device::DEVICE_GPU>(const K_
                                                                         double,
                                                                         bool,
                                                                         double,
-                                                                int,
-                                                                int);
+                                                                        int,
+                                                                        int);
 #endif
 } // namespace hamilt

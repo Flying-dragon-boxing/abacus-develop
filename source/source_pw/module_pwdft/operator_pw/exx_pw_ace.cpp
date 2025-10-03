@@ -1,4 +1,5 @@
 #include "op_exx_pw.h"
+#include "source_base/parallel_comm.h"
 
 namespace hamilt
 {
@@ -76,6 +77,7 @@ void OperatorEXXPW<T, Device>::construct_ace() const
     int nbands = psi.get_nbands();
     int nbasis = psi.get_nbasis();
     int nk = psi.get_nk();
+    // printf("Pool: %d, Rank in Pool: %d, nk: %d\n", GlobalV::MY_POOL, GlobalV::RANK_IN_POOL, nk);
 
     int ik_save = this->ik;
     int * ik_ = const_cast<int*>(&this->ik);
@@ -138,6 +140,8 @@ void OperatorEXXPW<T, Device>::construct_ace() const
             false
         );
 
+        // printf("h_psi_ace[0]: %10.5e + %10.5ei at rank %d\n", h_psi_ace[0].real(), h_psi_ace[0].imag(), GlobalV::MY_RANK);
+
         // psi_h_psi_ace = psi^\dagger * h_psi_ace
         // p_exx_helper->psi.fix_kb(0, 0);
         gemm_complex_op()('C',
@@ -169,6 +173,16 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         int info = 0;
         char up = 'U', lo = 'L';
 
+        // // print out L_ace for debug
+        // for (int i = 0; i < nbands; ++i) {
+        //     for (int j = 0; j < nbands; ++j) {
+        //         // printf("%10.5e + %10.5ei ", L_ace[i * nbands + j].real(), L_ace[i * nbands + j].imag());
+        //         std::cout << psi_h_psi_ace[i * nbands + j] << " ";
+        //     }
+        //
+        //     std::cout << std::endl;
+        // }
+
         lapack_potrf()(lo, nbands, L_ace, nbands);
 
         // expand for-loop
@@ -199,6 +213,40 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         setmem_complex_op()(h_psi_ace, 0, nbands * nbasis);
         setmem_complex_op()(psi_h_psi_ace, 0, nbands * nbands);
         setmem_complex_op()(L_ace, 0, nbands * nbands);
+
+    }
+
+    int max_nks_pool = kv->para_k.get_max_nks_pool();
+    int nqs = kv->get_nkstot_full();
+    for (int ik = nk; ik < max_nks_pool; ik++)
+    {
+        for (int iq = 0; iq < nqs; iq++)
+        {
+            // decide which pool does the iq belong to
+            int iq_pool = kv->para_k.whichpool[iq];
+            int iq_loc  = iq - kv->para_k.startk_pool[iq_pool];
+
+            for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
+            {
+                bool skip = false;
+                if (iq_pool == GlobalV::MY_POOL)
+                {
+                    double wg_mqb = (*wg)(iq_loc, m_iband); // later should be ik?
+                    if (wg_mqb < 1e-12)
+                    {
+                        skip = true;
+                    }
+                }
+                printf("ik: %d, iq: %d, m_iband: %d\n", ik, iq, m_iband);
+
+                MPI_Bcast(&skip, 1, MPI_INT, kv->para_k.get_startpro_pool(iq_pool), MPI_COMM_WORLD);
+                if (skip)
+                    continue;
+
+                MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
+                printf("done bcast ik: %d, iq: %d, m_iband: %d at rank %d\n", ik, iq, m_iband, GlobalV::MY_RANK);
+            }
+        }
 
     }
 
@@ -234,7 +282,7 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_ace(psi::Psi<T, Device>* ppsi_) 
         }
     }
 
-    Parallel_Reduce::reduce_pool(Eexx);
+    Parallel_Reduce::reduce_all(Eexx);
     *ik_ = ik_save;
     return Eexx;
 }

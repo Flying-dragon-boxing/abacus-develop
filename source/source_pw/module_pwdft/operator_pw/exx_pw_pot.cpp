@@ -32,16 +32,10 @@ void get_exx_potential(const K_Vectors* kv,
 
     // calculate Fock pot
     auto param_fock = GlobalC::exx_info.info_global.coulomb_param[Conv_Coulomb_Pot_K::Coulomb_Type::Fock];
-    for (auto param: param_fock)
+    for (int i = 0; i < param_fock.size(); i++)
     {
-        double exx_div = exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type::Fock,
-                                        0.0,
-                                        kv,
-                                        wfcpw,
-                                        rhopw_dev,
-                                        tpiba,
-                                        gamma_extrapolation,
-                                        ucell_omega);
+        auto param = param_fock[i];
+        double exx_div = OperatorEXXPW<std::complex<Real>, Device>::fock_div[i];
         double alpha = std::stod(param["alpha"]);
         const ModuleBase::Vector3<double> k_c = wfcpw->kvec_c[ik];
         const ModuleBase::Vector3<double> k_d = wfcpw->kvec_d[ik];
@@ -98,20 +92,21 @@ void get_exx_potential(const K_Vectors* kv,
 
     // calculate erfc pot
     auto param_erfc = GlobalC::exx_info.info_global.coulomb_param[Conv_Coulomb_Pot_K::Coulomb_Type::Erfc];
-    for (auto param: param_erfc)
+    for (int i = 0; i < param_erfc.size(); i++)
     {
+        auto param = param_erfc[i];
         double erfc_omega = std::stod(param["omega"]);
         double erfc_omega2 = erfc_omega * erfc_omega;
         double alpha = std::stod(param["alpha"]);
+        // double exx_div = OperatorEXXPW<std::complex<Real>, Device>::erfc_div[i];
         double exx_div = exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type::Erfc,
-                                        erfc_omega,
-                                        kv,
-                                        wfcpw,
-                                        rhopw_dev,
-                                        tpiba,
-                                        gamma_extrapolation,
-                                        ucell_omega);
-
+                                          erfc_omega,
+                                          kv,
+                                          wfcpw,
+                                          rhopw_dev,
+                                          tpiba,
+                                          gamma_extrapolation,
+                                          ucell_omega);
         const ModuleBase::Vector3<double> k_c = wfcpw->kvec_c[ik];
         const ModuleBase::Vector3<double> k_d = wfcpw->kvec_d[ik];
         const ModuleBase::Vector3<double> q_c = wfcpw->kvec_c[iq];
@@ -212,14 +207,14 @@ void get_exx_stress_potential(const K_Vectors* kv,
     auto param_fock = GlobalC::exx_info.info_global.coulomb_param[Conv_Coulomb_Pot_K::Coulomb_Type::Fock];
     for (auto param: param_fock)
     {
-        double exx_div = exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type::Fock,
-                                        0.0,
-                                        kv,
-                                        wfcpw,
-                                        rhopw_dev,
-                                        tpiba,
-                                        gamma_extrapolation,
-                                        ucell_omega);
+        // double exx_div = exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type::Fock,
+        //                                 0.0,
+        //                                 kv,
+        //                                 wfcpw,
+        //                                 rhopw_dev,
+        //                                 tpiba,
+        //                                 gamma_extrapolation,
+        //                                 ucell_omega);
         double alpha = std::stod(param["alpha"]);
 
         const ModuleBase::Vector3<double> k_c = wfcpw->kvec_c[ik];

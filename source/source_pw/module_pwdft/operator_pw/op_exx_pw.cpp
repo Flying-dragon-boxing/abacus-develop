@@ -23,6 +23,11 @@
 
 namespace hamilt
 {
+template <typename T, typename Device>
+std::vector<typename GetTypeReal<T>::type> OperatorEXXPW<T, Device>::fock_div = {};
+
+template <typename T, typename Device>
+std::vector<typename GetTypeReal<T>::type> OperatorEXXPW<T, Device>::erfc_div = {};
 
 template <typename T, typename Device>
 OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
@@ -82,6 +87,31 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
     rhopw_dev->initparameters(rhopw->gamma_only, rhopw->ggecut * rhopw->tpiba2, rhopw->distribution_type, rhopw->xprime);
     rhopw_dev->setuptransform();
     rhopw_dev->collect_local_pw();
+
+    auto param_fock = GlobalC::exx_info.info_global.coulomb_param[Conv_Coulomb_Pot_K::Coulomb_Type::Fock];
+    for (auto param: param_fock)
+    {
+        fock_div.push_back(exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type::Fock,
+                                          0.0,
+                                          kv,
+                                          wfcpw,
+                                          rhopw_dev,
+                                          tpiba,
+                                          gamma_extrapolation,
+                                          ucell->omega));
+    }
+    auto param_erfc = GlobalC::exx_info.info_global.coulomb_param[Conv_Coulomb_Pot_K::Coulomb_Type::Erfc];
+    for (auto param: param_erfc)
+    {
+        erfc_div.push_back(exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type::Erfc,
+                                          std::stod(param["omega"]),
+                                          kv,
+                                          wfcpw,
+                                          rhopw_dev,
+                                          tpiba,
+                                          gamma_extrapolation,
+                                          ucell->omega));
+    }
 
 }   // end of constructor
 

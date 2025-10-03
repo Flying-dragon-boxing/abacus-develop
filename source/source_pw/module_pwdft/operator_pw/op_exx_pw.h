@@ -55,13 +55,14 @@ class OperatorEXXPW : public OperatorPW<T, Device>
 
     bool first_iter = true;
 
+    static std::vector<Real> fock_div, erfc_div;
+
   private:
     const int* isk = nullptr;
     const ModulePW::PW_Basis_K* wfcpw = nullptr;
     const ModulePW::PW_Basis* rhopw = nullptr;
     ModulePW::PW_Basis* rhopw_dev = nullptr; // for device
     const UnitCell *ucell = nullptr;
-//    Real exx_div = 0;
     Real tpiba = 0;
     
     std::vector<int> get_q_points(const int ik) const;

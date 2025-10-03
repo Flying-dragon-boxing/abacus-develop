@@ -521,7 +521,7 @@ template void get_exx_potential<float, base_device::DEVICE_GPU>(const K_Vectors*
                                                                 double,
                                                                 int,
                                                                 int,
-                                                                        bool));
+                                                                bool);
 template void get_exx_potential<double, base_device::DEVICE_GPU>(const K_Vectors*,
                                                                  const ModulePW::PW_Basis_K*,
                                                                  ModulePW::PW_Basis*,
@@ -531,7 +531,7 @@ template void get_exx_potential<double, base_device::DEVICE_GPU>(const K_Vectors
                                                                  double,
                                                                  int,
                                                                  int,
-                                                                        bool));
+                                                                 bool);
 template void get_exx_stress_potential<float, base_device::DEVICE_GPU>(const K_Vectors*,
                                                                        const ModulePW::PW_Basis_K*,
                                                                        ModulePW::PW_Basis*,

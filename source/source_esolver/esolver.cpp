@@ -6,6 +6,7 @@
 #include "source_io/module_parameter/parameter.h"
 #ifdef __LCAO
 #include "esolver_dm2rho.h"
+#include "esolver_double_xc.h"
 #include "esolver_gets.h"
 #include "esolver_ks_lcao.h"
 #include "esolver_ks_lcao_tddft.h"
@@ -19,6 +20,7 @@ extern "C"
 #include "esolver_dp.h"
 #include "esolver_lj.h"
 #include "esolver_of.h"
+#include "esolver_of_tddft.h"
 #include "source_io/module_parameter/md_parameter.h"
 
 #include <stdexcept>
@@ -38,6 +40,10 @@ std::string determine_type()
         else if (PARAM.inp.esolver_type == "ofdft")
         {
             esolver_type = "ofdft";
+        }
+        else if (PARAM.inp.esolver_type == "tdofdft")
+        {
+            esolver_type = "tdofdft";
         }
         else if (PARAM.inp.esolver_type == "ksdft")
         {
@@ -107,14 +113,8 @@ std::string determine_type()
             c = std::toupper(c);
         }
     }
-    if (GlobalV::MY_RANK == 0)
-    {
-        std::cout << " RUNNING WITH DEVICE  : " << device_info << " / "
-                  << base_device::information::get_device_info(PARAM.inp.device) << std::endl;
-    }
-
-    GlobalV::ofs_running << "\n RUNNING WITH DEVICE  : " << device_info << " / "
-                         << base_device::information::get_device_info(PARAM.inp.device) << std::endl; 
+    base_device::information::output_device_info(std::cout);
+    base_device::information::output_device_info(GlobalV::ofs_running);
     /***auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
     std::cout << "hipGetDeviceInfo took " << duration.count() << " seconds" << std::endl;***/
@@ -203,13 +203,24 @@ ESolver* init_esolver(const Input_para& inp, UnitCell& ucell)
         }
         if (PARAM.globalv.gamma_only_local)
         {
-            return new ESolver_KS_LCAO<double, double>();
+            if (PARAM.inp.deepks_out_base != "none")
+            {
+                return new ESolver_DoubleXC<double, double>();
+            }
+            else
+            {
+                return new ESolver_KS_LCAO<double, double>();
+            }
         }
         else if (PARAM.inp.nspin < 4)
         {
             if (PARAM.inp.dm_to_rho)
             {
                 return new ESolver_DM2rho<std::complex<double>, double>();
+            }
+            else if (PARAM.inp.deepks_out_base != "none")
+            {
+                return new ESolver_DoubleXC<std::complex<double>, double>();
             }
             else
             {
@@ -221,6 +232,10 @@ ESolver* init_esolver(const Input_para& inp, UnitCell& ucell)
             if (PARAM.inp.dm_to_rho)
             {
                 return new ESolver_DM2rho<std::complex<double>, std::complex<double>>();
+            }
+            else if (PARAM.inp.deepks_out_base != "none")
+            {
+                return new ESolver_DoubleXC<std::complex<double>, std::complex<double>>();
             }
             else
             {
@@ -310,6 +325,10 @@ ESolver* init_esolver(const Input_para& inp, UnitCell& ucell)
     else if (esolver_type == "ofdft")
     {
         return new ESolver_OF();
+    }
+    else if (esolver_type == "tdofdft")
+    {
+        return new ESolver_OF_TDDFT();
     }
     else if (esolver_type == "lj_pot")
     {

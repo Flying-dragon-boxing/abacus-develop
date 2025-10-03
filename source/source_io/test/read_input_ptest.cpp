@@ -41,7 +41,6 @@ TEST_F(InputParaTest, ParaRead)
     EXPECT_EQ(param.inp.pseudo_dir, "../../PP_ORB/");
     EXPECT_EQ(param.inp.orbital_dir, "../../PP_ORB/");
     EXPECT_EQ(param.inp.read_file_dir, "OUT.autotest/");
-    EXPECT_EQ(param.inp.wannier_card, "none");
     EXPECT_EQ(param.inp.latname, "none");
     EXPECT_EQ(param.inp.calculation, "scf");
     EXPECT_EQ(param.inp.esolver_type, "ksdft");
@@ -187,8 +186,8 @@ TEST_F(InputParaTest, ParaRead)
     EXPECT_EQ(param.inp.out_chg[1], 3);
     EXPECT_EQ(param.inp.out_elf[0], 0);
     EXPECT_EQ(param.inp.out_elf[1], 3);
-    EXPECT_EQ(param.inp.out_dmk, 0);
-    EXPECT_EQ(param.inp.out_dmr, 0);
+    EXPECT_EQ(param.inp.out_dmk[0], 0);
+    EXPECT_EQ(param.inp.out_dmr[0], 0);
     EXPECT_EQ(param.inp.deepks_out_labels, 0);
     EXPECT_EQ(param.inp.deepks_scf, 0);
     EXPECT_EQ(param.inp.deepks_equiv, 0);
@@ -208,7 +207,7 @@ TEST_F(InputParaTest, ParaRead)
     EXPECT_FALSE(param.inp.out_mat_xc);
     EXPECT_FALSE(param.inp.out_mat_xc2);
     EXPECT_FALSE(param.inp.out_eband_terms);
-    EXPECT_EQ(param.inp.out_interval, 1);
+    EXPECT_EQ(param.inp.out_freq_ion, 0);
     EXPECT_EQ(param.inp.out_app_flag, 0);
     EXPECT_EQ(param.inp.out_mat_r, 0);
     EXPECT_FALSE(param.inp.out_wfc_lcao);
@@ -297,7 +296,7 @@ TEST_F(InputParaTest, ParaRead)
     EXPECT_DOUBLE_EQ(param.inp.rpa_ccp_rmesh_times, 10.0);
     EXPECT_EQ(param.inp.exx_opt_orb_lmax, 0);
     EXPECT_DOUBLE_EQ(param.inp.exx_opt_orb_ecut, 0.0);
-    EXPECT_DOUBLE_EQ(param.inp.exx_opt_orb_tolerence, 0.0);
+    EXPECT_DOUBLE_EQ(param.inp.exx_opt_orb_tolerence, 1E-12);
     EXPECT_FALSE(param.inp.noncolin);
     EXPECT_FALSE(param.inp.lspinorb);
     EXPECT_DOUBLE_EQ(param.inp.soc_lambda, 1.0);

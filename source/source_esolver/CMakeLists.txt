@@ -8,6 +8,7 @@ list(APPEND objects
     esolver_lj.cpp
     esolver_dp.cpp
     esolver_of.cpp
+    esolver_of_tddft.cpp
     esolver_of_interface.cpp
     esolver_of_tool.cpp
     pw_others.cpp
@@ -22,6 +23,7 @@ if(ENABLE_LCAO)
       esolver_gets.cpp
       lcao_others.cpp
       esolver_dm2rho.cpp
+      esolver_double_xc.cpp
   )
 endif()
 

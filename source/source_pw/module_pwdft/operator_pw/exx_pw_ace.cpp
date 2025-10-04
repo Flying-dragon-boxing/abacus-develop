@@ -76,6 +76,9 @@ void OperatorEXXPW<T, Device>::construct_ace() const
     int nbasis = psi.get_nbasis();
     int nk = psi.get_nk();
 
+    int* ik_ = const_cast<int*>(&this->ik);
+    int ik_save = this->ik;
+
     T intermediate_one = 1.0, intermediate_zero = 0.0;
 
     if (h_psi_ace == nullptr)
@@ -136,81 +139,51 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         {
             skip_ik = true;
         }
-
-        // ik fixed here, select band n
-        for (int iq = 0; iq < nqs; iq++)
+        if (skip_ik)
         {
-            // for \psi_nk, get the pw of iq and band m
-            get_exx_potential<Real,  Device>(kv, wfcpw, rhopw_dev, pot, tpiba, gamma_extrapolation, ucell->omega, ik, iq);
-
-            // decide which pool does the iq belong to
-            int iq_pool = kv->para_k.whichpool[iq];
-            int iq_loc  = iq - kv->para_k.startk_pool[iq_pool];
-
-            for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
+            // ik fixed here, select band n
+            for (int iq = 0; iq < nqs; iq++)
             {
-                double wg_mqb = 0;
-                bool skip = false;
-                if (iq_pool == GlobalV::MY_POOL)
+                // for \psi_nk, get the pw of iq and band m
+                get_exx_potential<Real,  Device>(kv, wfcpw, rhopw_dev, pot, tpiba, gamma_extrapolation, ucell->omega, ik, iq);
+
+                // decide which pool does the iq belong to
+                int iq_pool = kv->para_k.whichpool[iq];
+                int iq_loc  = iq - kv->para_k.startk_pool[iq_pool];
+
+                for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
                 {
-                    wg_mqb = (*wg)(iq_loc, m_iband);
-                }
-
-                MPI_Bcast(&wg_mqb, 1, MPI_DOUBLE, kv->para_k.get_startpro_pool(iq_pool), MPI_COMM_WORLD);
-
-                if (wg_mqb < 1e-12)
-                    continue;
-
-                if (iq_pool == GlobalV::MY_POOL)
-                {
-                    const T* psi_mq = get_pw(m_iband, iq_loc);
-                    wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq_loc);
-                    // send
-                }
-                // if (iq == 0)
-                //     std::cout << "Bcast psi_mq_real" << std::endl;
-                MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
-
-
-                if (!skip_ik)
-                {
-                    for (int n_iband = 0; n_iband < nbands; n_iband++)
+                    double wg_mqb = 0;
+                    bool skip = false;
+                    if (iq_pool == GlobalV::MY_POOL)
                     {
-                        const T* psi_nk = p_psi + n_iband * nbasis;
-                        // retrieve \psi_nk in real space
-                        wfcpw->recip_to_real(ctx, psi_nk, psi_nk_real, ik);
+                        wg_mqb = (*wg)(iq_loc, m_iband);
+                    }
 
-                        // direct multiplication in real space, \psi_nk(r) * \psi_mq(r)
-                        cal_density_recip(psi_nk_real, psi_mq_real, ucell->omega);
+                    MPI_Bcast(&wg_mqb, 1, MPI_DOUBLE, kv->para_k.get_startpro_pool(iq_pool), MPI_COMM_WORLD);
 
-                        mul_potential_op<T, Device>()(pot, density_recip, rhopw_dev->npw, wfcpw->nks, ik, iq);
+                    if (wg_mqb < 1e-12)
+                        continue;
 
-                        rho_recip2real(density_recip, density_real);
+                    if (iq_pool == GlobalV::MY_POOL)
+                    {
+                        const T* psi_mq = get_pw(m_iband, iq_loc);
+                        wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq_loc);
+                        // send
+                    }
+                    // if (iq == 0)
+                    //     std::cout << "Bcast psi_mq_real" << std::endl;
+                    MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
 
-                        vec_mul_vec_complex_op<T, Device>()(density_real, psi_mq_real, density_real, wfcpw->nrxx);
 
-                        Real wk_iq = kv->wk[iq];
-                        Real wk_ik = kv->wk[ik];
-                        // std::cout << "wk_iq: " << wk_iq << " wk_ik: " << wk_ik << std::endl;
+                } // end of iq
 
-                        Real tmp_scalar = wg_mqb / wk_ik / nqs;
-
-                        T* h_psi_nk = h_psi_ace + n_iband * nbasis;
-                        Real hybrid_alpha = GlobalC::exx_info.info_global.hybrid_alpha;
-                        wfcpw->real_to_recip(ctx, density_real, h_psi_nk, ik, true, hybrid_alpha * tmp_scalar);
-
-                    } // end of m_iband
-                    setmem_complex_op()(density_real, 0, rhopw_dev->nrxx);
-                    setmem_complex_op()(density_recip, 0, rhopw_dev->npw);
-                    setmem_complex_op()(psi_mq_real, 0, wfcpw->nrxx);
-                }
-
-            } // end of iq
-
+            }
         }
-
-        if (!skip_ik)
+        else
         {
+            *ik_ = ik;
+            act_op(nbands, nbasis, 1, p_psi, h_psi_ace, nbasis, false);
             // psi_h_psi_ace = psi^\dagger * h_psi_ace
             // p_exx_helper->psi.fix_kb(0, 0);
             gemm_complex_op()('C',
@@ -241,6 +214,19 @@ void OperatorEXXPW<T, Device>::construct_ace() const
 
             int info = 0;
             char up = 'U', lo = 'L';
+            //
+            // for (int i = 0; i < nbands; ++i)
+            // {
+            //     for (int j = 0; j < nbands; ++j)
+            //     {
+            //         {
+            //             std::cout << psi_h_psi_ace[i * nbands + j] << " ";
+            //         }
+            //     }
+            //     std::cout << std::endl;
+            // }
+            // MPI_Barrier(MPI_COMM_WORLD);
+            // MPI_Abort(MPI_COMM_WORLD, 0);
 
             lapack_potrf()(lo, nbands, L_ace, nbands);
 
@@ -275,6 +261,8 @@ void OperatorEXXPW<T, Device>::construct_ace() const
         }
 
     }
+
+    *ik_ = ik_save;
 
     ModuleBase::timer::tick("OperatorEXXPW", "construct_ace");
 

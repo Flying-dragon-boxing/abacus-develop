@@ -39,6 +39,11 @@ void get_exx_potential(const K_Vectors* kv,
     qvec_d = kv->kvec_d;
 #endif
 
+    if (ik > nks)
+    {
+        return;
+    }
+
     // calculate Fock pot
     auto param_fock = GlobalC::exx_info.info_global.coulomb_param[Conv_Coulomb_Pot_K::Coulomb_Type::Fock];
     for (int i = 0; i < param_fock.size(); i++)
@@ -221,7 +226,7 @@ void get_exx_stress_potential(const K_Vectors* kv,
     double tpiba2 = tpiba * tpiba;
     pot_cpu = new Real[npw];
     // fill zero
-    // setmem_real_cpu_op()(pot_cpu, 0, npw);
+    setmem_real_cpu_op()(pot_cpu, 0, npw);
 
     // calculate Fock pot
     auto param_fock = GlobalC::exx_info.info_global.coulomb_param[Conv_Coulomb_Pot_K::Coulomb_Type::Fock];

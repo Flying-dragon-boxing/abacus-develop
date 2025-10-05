@@ -191,7 +191,16 @@ void get_exx_potential(const K_Vectors* kv,
     }
 
     // copy the potential to the device memory
+#ifdef __CUDA
+    cudaError_t err = cudaHostRegister(pot_cpu, sizeof(Real) * npw, cudaHostRegisterPortable);
+    if (err != cudaSuccess) {
+        throw std::runtime_error("failed to register potential CPU memory operations");
+    }
+#endif
     syncmem_real_c2d_op()(pot, pot_cpu, rhopw_dev->npw);
+#ifdef __CUDA
+    cudaHostUnregister(pot_cpu);
+#endif
     // if (GlobalV::MY_RANK == 1)
     // {
     //     for (int i = 0; i < 40; i++)

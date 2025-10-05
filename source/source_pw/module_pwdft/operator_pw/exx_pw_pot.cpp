@@ -176,7 +176,7 @@ void get_exx_potential(const K_Vectors* kv,
 #ifdef __CUDA
     cudaError_t err = cudaHostRegister(pot_cpu, sizeof(Real) * npw, cudaHostRegisterPortable);
     if (err != cudaSuccess) {
-        printf("临时锁定失败: %s\n", cudaGetErrorString(err));
+        throw std::runtime_error("failed to register potential CPU memory operations");
     }
 #endif
     syncmem_real_c2d_op()(pot, pot_cpu, rhopw_dev->npw);
@@ -353,7 +353,7 @@ void get_exx_stress_potential(const K_Vectors* kv,
 #ifdef __CUDA
     cudaError_t err = cudaHostRegister(pot_cpu, sizeof(Real) * npw, cudaHostRegisterPortable);
     if (err != cudaSuccess) {
-        printf("临时锁定失败: %s\n", cudaGetErrorString(err));
+        throw std::runtime_error("failed to register potential CPU memory operations");
     }
 #endif
     syncmem_real_c2d_op()(pot, pot_cpu, rhopw_dev->npw);

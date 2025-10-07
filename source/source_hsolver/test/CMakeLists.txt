@@ -77,14 +77,14 @@ if (ENABLE_MPI)
     TARGET MODULE_HSOLVER_pw
     LIBS parameter  ${math_libs} psi device base container
     SOURCES test_hsolver_pw.cpp ../hsolver_pw.cpp ../hsolver_lcaopw.cpp ../diago_bpcg.cpp ../diago_dav_subspace.cpp ../diag_const_nums.cpp ../diago_iter_assist.cpp ../para_linear_transform.cpp
-    ../../source_estate/elecstate_tools.cpp ../../source_estate/occupy.cpp 
+    ../../source_estate/elecstate_tools.cpp ../../source_estate/occupy.cpp ../../source_base/module_fft/fft_bundle.cpp ../../source_base/module_fft/fft_cpu.cpp
   )
 
   AddTest(
     TARGET MODULE_HSOLVER_sdft
     LIBS parameter  ${math_libs} psi device base container
     SOURCES test_hsolver_sdft.cpp ../hsolver_pw_sdft.cpp ../hsolver_pw.cpp ../diago_bpcg.cpp ../diago_dav_subspace.cpp ../diag_const_nums.cpp ../diago_iter_assist.cpp ../para_linear_transform.cpp
-                ../../source_estate/elecstate_tools.cpp ../../source_estate/occupy.cpp 
+                ../../source_estate/elecstate_tools.cpp ../../source_estate/occupy.cpp ../../source_base/module_fft/fft_bundle.cpp ../../source_base/module_fft/fft_cpu.cpp
     )
 
   if(ENABLE_LCAO)
@@ -115,7 +115,7 @@ if (ENABLE_MPI)
     TARGET MODULE_HSOLVER_LCAO_cusolver
     LIBS parameter  ${math_libs}  base psi device 
     SOURCES diago_lcao_cusolver_test.cpp ../diago_cusolver.cpp ../diago_scalapack.cpp 
-    ../kernels/dngvd_op.cpp
+    ../kernels/hegvd_op.cpp
     ../kernels/cuda/diag_cusolver.cu
   )
   endif()

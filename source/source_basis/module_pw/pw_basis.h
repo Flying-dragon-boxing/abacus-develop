@@ -248,11 +248,11 @@ public:
     ModuleBase::FFT_Bundle fft_bundle;
     //The position of pointer in and out can be equal(in-place transform) or different(out-of-place transform).
     
-    template <typename FPTYPE>
-    void real2recip(const FPTYPE* in,
-                    std::complex<FPTYPE>* out,
-                    const bool add = false,
-                    const FPTYPE factor = 1.0) const; // in:(nplane,nx*ny)  ; out(nz, ns)
+template <typename FPTYPE>
+void real2recip(const FPTYPE* in,
+                std::complex<FPTYPE>* out,
+                const bool add = false,
+                const FPTYPE factor = 1.0) const; // in:(nplane,nx*ny)  ; out(nz, ns)
     template <typename FPTYPE>
     void real2recip(const std::complex<FPTYPE>* in,
                     std::complex<FPTYPE>* out,
@@ -269,16 +269,16 @@ public:
                     const bool add = false,
                     const FPTYPE factor = 1.0) const; // in:(nz, ns)  ; out(nplane,nx*ny)
     
+template <typename FPTYPE>
+void real2recip_gpu(const FPTYPE* in,
+                std::complex<FPTYPE>* out,
+                const bool add = false,
+                const FPTYPE factor = 1.0) const; // in:(nplane,nx*ny)  ; out(nz, ns)
     template <typename FPTYPE>
-    void real2recip_gpu(const FPTYPE* in,
-                    std::complex<FPTYPE>* out,
-                    const bool add = false,
-                    const FPTYPE factor = 1.0) const; // in:(nplane,nx*ny)  ; out(nz, ns)
-    template <typename FPTYPE>
-    void real2recip_gpu(const std::complex<FPTYPE>* in,
-                    std::complex<FPTYPE>* out,
-                    const bool add = false,
-                    const FPTYPE factor = 1.0) const; // in:(nplane,nx*ny)  ; out(nz, ns)
+void real2recip_gpu(const std::complex<FPTYPE>* in,
+                std::complex<FPTYPE>* out,
+                const bool add = false,
+                const FPTYPE factor = 1.0) const; // in:(nplane,nx*ny)  ; out(nz, ns)
     template <typename FPTYPE>
     void recip2real_gpu(const std::complex<FPTYPE>* in,
                     FPTYPE* out,

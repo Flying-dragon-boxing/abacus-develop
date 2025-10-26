@@ -244,26 +244,13 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
 
             // kpar: to real and bcast between same rank_in_pool
             // auto request = MPI_REQUEST_
-            T* psi_mq_real_cpu = new T[wfcpw->nrxx];
             if (iq_pool == GlobalV::MY_POOL)
             {
                 const T* psi_mq = get_pw(m_iband, iq_loc);
                 wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq_loc);
-                cudaMemcpy(psi_mq_real_cpu, psi_mq_real, wfcpw->nrxx, cudaMemcpyDeviceToHost);
                 // send
             }
             MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
-            if (iq_pool == GlobalV::MY_POOL)
-            {
-                const T* psi_mq = get_pw(m_iband, iq_loc);
-                wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq_loc);
-                // send
-            }
-            else
-            {
-                cudaMemcpy(psi_mq_real, psi_mq_real_cpu, wfcpw->nrxx, cudaMemcpyHostToDevice);
-            }
-            delete[] psi_mq_real_cpu;
             // std::cout << "psi_mq_real[0]: " << psi_mq_real[0] << std::endl;
             // if (GlobalV::RANK_IN_POOL == 1)
             // {

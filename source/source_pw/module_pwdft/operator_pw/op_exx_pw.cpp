@@ -37,6 +37,11 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
                                         const UnitCell *ucell)
     : isk(isk_in), wfcpw(wfcpw_in), rhopw(rhopw_in), kv(kv_in), ucell(ucell)
 {
+    if (GlobalV::KPAR != 1 && PARAM.inp.exxace == false)
+    {
+        // GlobalV::ofs_running << "EXX Calculation does not support k-point parallelism" << std::endl;
+        ModuleBase::WARNING_QUIT("OperatorEXXPW", "EXX Calculation does not support k-point parallelism when exxace is set to false");
+    }
     gamma_extrapolation = PARAM.inp.exx_gamma_extrapolation;
     bool is_mp = kv_in->get_is_mp();
 #ifdef __MPI
@@ -187,18 +192,103 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
                                    const int ngk_ik,
                                    const bool is_first_node) const
 {
-//    std::cout << "nbands: " << nbands
-//              << " nbasis: " << nbasis
-//              << " npol: " << npol
-//              << " ngk_ik: " << ngk_ik
-//              << " is_first_node: " << is_first_node
-//              << std::endl;
-    // get_exx_potential<Real, Device>(kv, wfcpw, rhopw_dev, pot, tpiba, gamma_extrapolation, ucell->omega, ik, iq);
+    ModuleBase::timer::tick("OperatorEXXPW", "act_op");
 
-//    set_psi(&p_exx_helper->psi);
-    // std::cout << "wg nc: " << wg->nc << "nr: " << wg->nr << std::endl;
+    setmem_complex_op()(h_psi_recip, 0, wfcpw->npwk_max);
+    setmem_complex_op()(h_psi_real, 0, rhopw_dev->nrxx);
+    setmem_complex_op()(density_real, 0, rhopw_dev->nrxx);
+    setmem_complex_op()(density_recip, 0, rhopw_dev->npw);
+    setmem_complex_op()(psi_nk_real, 0, wfcpw->nrxx);
+    setmem_complex_op()(psi_mq_real, 0, wfcpw->nrxx);
+
+    auto q_points = get_q_points(this->ik);
+    // std::cout << "kpoint " << this->ik << ", qpoints: ";
+    // for (auto iq: q_points)
+    //     std::cout << iq << ", ";
+    // std::cout << std::endl;
+
+    // ik fixed here, select band n
+    for (int n_iband = 0; n_iband < nbands; n_iband++)
+    {
+        const T *psi_nk = tmpsi_in + n_iband * nbasis;
+        // retrieve \psi_nk in real space
+        wfcpw->recip_to_real(ctx, psi_nk, psi_nk_real, this->ik);
+
+        // for \psi_nk, get the pw of iq and band m
+
+        Real nqs = q_points.size();
+        for (int iq: q_points)
+        {
+            get_exx_potential<Real, Device>(kv, wfcpw, rhopw_dev, pot, tpiba, gamma_extrapolation, ucell->omega, this->ik, iq);
+            for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
+            {
+                // double wg_mqb_real = GlobalC::exx_helper.wg(iq, m_iband);
+                double wg_mqb_real = (*wg)(this->ik, m_iband);
+                T wg_mqb = wg_mqb_real;
+                if (wg_mqb_real < 1e-12)
+                {
+                    continue;
+                }
+
+                const T* psi_mq = get_pw(m_iband, iq);
+                wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq);
+
+                // direct multiplication in real space, \psi_nk(r) * \psi_mq(r)
+                cal_density_recip(psi_nk_real, psi_mq_real, ucell->omega);
+
+                // multiply the density with the potential in recip space
+                multiply_potential(density_recip, this->ik, iq);
+
+                // bring the potential back to real space
+                rho_recip2real(density_recip, density_real);
+
+                if (false)
+                {
+                    // do nothing
+                }
+                else
+                {
+                    vec_mul_vec_complex_op<T, Device>()(density_real, psi_mq_real, density_real, wfcpw->nrxx);
+                }
+
+                T wk_iq = kv->wk[iq];
+                T wk_ik = kv->wk[this->ik];
+
+                T tmp_scalar = wg_mqb / wk_iq / nqs;
+                axpy_complex_op()(wfcpw->nrxx,
+                                  &tmp_scalar,
+                                  density_real,
+                                  1,
+                                  h_psi_real,
+                                  1);
+
+            } // end of m_iband
+            setmem_complex_op()(density_real, 0, rhopw_dev->nrxx);
+            setmem_complex_op()(density_recip, 0, rhopw_dev->npw);
+            setmem_complex_op()(psi_mq_real, 0, wfcpw->nrxx);
+
+        } // end of iq
+        T* h_psi_nk = tmhpsi + n_iband * nbasis;
+        Real hybrid_alpha = GlobalC::exx_info.info_global.hybrid_alpha;
+        wfcpw->real_to_recip(ctx, h_psi_real, h_psi_nk, this->ik, true, hybrid_alpha);
+        setmem_complex_op()(h_psi_real, 0, rhopw_dev->nrxx);
+
+    }
 
     ModuleBase::timer::tick("OperatorEXXPW", "act_op");
+
+}
+
+template <typename T, typename Device>
+void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
+                                   const int nbasis,
+                                   const int npol,
+                                   const T *tmpsi_in,
+                                   T *tmhpsi,
+                                   const int ngk_ik,
+                                   const bool is_first_node) const
+{
+    ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar");
 
     setmem_complex_op()(h_psi_recip, 0, wfcpw->npwk_max);
     setmem_complex_op()(h_psi_real, 0, rhopw_dev->nrxx);
@@ -220,12 +310,6 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
         int iq_pool = kv->para_k.whichpool[iq];
         int iq_loc  = iq - kv->para_k.startk_pool[iq_pool];
 
-        // std::cout << "iq: " << iq
-        //           << " iq_pool: " << iq_pool
-        //           << " iq_loc: " << iq_loc
-        //           << std::endl;
-        // later when symmetry is introduced, iq may be ibz_iq
-
         for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
         {
             double wg_mqb = 0;
@@ -239,11 +323,6 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
             if (wg_mqb < 1e-12)
                 continue;
 
-            // const T* psi_mq = get_pw(m_iband, iq);
-            // wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq);
-
-            // kpar: to real and bcast between same rank_in_pool
-            // auto request = MPI_REQUEST_
             if (iq_pool == GlobalV::MY_POOL)
             {
                 const T* psi_mq = get_pw(m_iband, iq_loc);
@@ -251,11 +330,6 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
                 // send
             }
             MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
-            // std::cout << "psi_mq_real[0]: " << psi_mq_real[0] << std::endl;
-            // if (GlobalV::RANK_IN_POOL == 1)
-            // {
-            //     printf("psi_mq_real[0]: %f + %fi\n", psi_mq_real[0].real(), psi_mq_real[0].imag());
-            // }
 
             for (int n_iband = 0; n_iband < nbands; n_iband++)
             {
@@ -268,18 +342,10 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
                 // direct multiplication in real space, \psi_nk(r) * \psi_mq(r)
                 cal_density_recip(psi_nk_real, psi_mq_real, ucell->omega);
 
-                // bring the density to recip space
-                // rhopw->real2recip(density_real, density_recip);
-
-                // multiply the density with the potential in recip space
-                // multiply_potential(density_recip, this->ik, iq);
                 mul_potential_op<T, Device>()(pot, density_recip, rhopw_dev->npw, wfcpw->nks, this->ik, iq);
 
                 // bring the potential back to real space
-                // rhopw_dev->recip2real(density_recip, density_real);
                 rho_recip2real(density_recip, density_real);
-                // printf("density_recip[0]: %10.5e + %10.5ei at rank %d\n", density_recip[0].real(), density_recip[0].imag(), GlobalV::MY_RANK);
-
 
                 if (false)
                 {
@@ -296,19 +362,11 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
                 // std::cout << "wk_iq: " << wk_iq << " wk_ik: " << wk_ik << std::endl;
 
                 Real tmp_scalar = wg_mqb / wk_ik / nqs;
-                // setmem_complex_op()(h_psi_real, 0, rhopw_dev->nrxx);
-                // axpy_complex_op()(wfcpw->nrxx,
-                //                   &tmp_scalar,
-                //                   density_real,
-                //                   1,
-                //                   h_psi_real,
-                //                   1);
+
                 T* h_psi_nk = tmhpsi + n_iband * nbasis;
                 Real hybrid_alpha = GlobalC::exx_info.info_global.hybrid_alpha;
                 wfcpw->real_to_recip(ctx, density_real, h_psi_nk, this->ik, true, hybrid_alpha * tmp_scalar);
-                // if (GlobalV::MY_RANK==1)
-                //     printf("density_real[0]: %10.5e + %10.5ei at rank %d\n", h_psi_nk[0].real(), h_psi_nk[0].imag(), GlobalV::MY_RANK);
-                // MPI_Barrier(MPI_COMM_WORLD);
+
 
             } // end of m_iband
             setmem_complex_op()(density_real, 0, rhopw_dev->nrxx);
@@ -319,7 +377,7 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
 
     }
 
-    ModuleBase::timer::tick("OperatorEXXPW", "act_op");
+    ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar");
 
 }
 
@@ -473,9 +531,29 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_op(psi::Psi<T, Device> *ppsi_) c
             // for \psi_nk, get the pw of iq and band m
             // q_points is a vector of integers, 0 to nks-1
             std::vector<int> q_points;
-            for (int iq = 0; iq < wfcpw->nks; iq++)
+            if (PARAM.inp.nspin == 1)
             {
-                q_points.push_back(iq);
+                for (int iq = 0; iq < wfcpw->nks; iq++)
+                {
+                    q_points.push_back(iq);
+                }
+            }
+            else if (PARAM.inp.nspin == 2)
+            {
+                int nk = wfcpw->nks / nk_fac;
+                int k_spin = ik / nk;
+                for (int iq = 0; iq < wfcpw->nks; iq++)
+                {
+                    int q_spin = iq / nk;
+                    if (k_spin == q_spin)
+                    {
+                        q_points.push_back(iq);
+                    }
+                }
+            }
+            else
+            {
+                ModuleBase::WARNING_QUIT("OperatorEXXPW", "nspin == 4 not supported");
             }
             double nqs = q_points.size();
 

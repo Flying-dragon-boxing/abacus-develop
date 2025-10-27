@@ -404,7 +404,7 @@ double exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type coulomb_type,
 
     // this is the \sum_q F(q) part
     // temporarily for all k points, should be replaced to q points later
-    for (int ik = 0; ik < wfcpw->nks; ik++)
+    for (int ik = 0; ik < wfcpw->nks / nk_fac; ik++)
     {
         const ModuleBase::Vector3<double> k_c = wfcpw->kvec_c[ik];
         const ModuleBase::Vector3<double> k_d = wfcpw->kvec_d[ik];
@@ -497,9 +497,9 @@ double exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type coulomb_type,
     aa += 1.0 / std::sqrt(alpha * ModuleBase::PI);
 
     div -= ModuleBase::e2 * ucell_omega * aa;
-    exx_div = div * kv->get_nkstot_full() / nk_fac;
+    exx_div = div * kv->get_nkstot_full();
     //    exx_div = 0;
-    //    std::cout << "EXX divergence: " << exx_div << std::endl;
+    // std::cout << "EXX divergence: " << exx_div << std::endl;
 
     return exx_div;
 }

@@ -164,9 +164,9 @@ void OperatorEXXPW<T, Device>::construct_ace() const
                         {
                             wg_mqb = (*wg)(iq_loc, m_iband);
                         }
-
+#ifdef __MPI
                         MPI_Bcast(&wg_mqb, 1, MPI_DOUBLE, kv->para_k.get_startpro_pool(iq_pool), MPI_COMM_WORLD);
-
+#endif
                         if (wg_mqb < 1e-12)
                             continue;
 
@@ -178,8 +178,9 @@ void OperatorEXXPW<T, Device>::construct_ace() const
                         }
                         // if (iq == 0)
                         //     std::cout << "Bcast psi_mq_real" << std::endl;
+#ifdef __MPI
                         MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
-
+#endif
 
                     } // end of iq
 

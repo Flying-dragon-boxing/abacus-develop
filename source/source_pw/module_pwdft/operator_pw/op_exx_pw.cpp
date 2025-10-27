@@ -317,9 +317,9 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
             {
                 wg_mqb = (*wg)(iq_loc, m_iband);
             }
-
+#ifdef __MPI
             MPI_Bcast(&wg_mqb, 1, MPI_DOUBLE, kv->para_k.get_startpro_pool(iq_pool), MPI_COMM_WORLD);
-
+#endif
             if (wg_mqb < 1e-12)
                 continue;
 
@@ -329,8 +329,9 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
                 wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq_loc);
                 // send
             }
+#ifdef __MPI
             MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
-
+#endif
             for (int n_iband = 0; n_iband < nbands; n_iband++)
             {
                 double wg_nkb = (*wg)(this->ik, n_iband);

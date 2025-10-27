@@ -1,8 +1,6 @@
 #include "op_exx_pw.h"
 #include "source_base/parallel_comm.h"
-#include "source_pw/module_pwdft/global.h"
-#include "source_pw/module_pwdft/kernels/mul_potential_op.h"
-#include "source_pw/module_pwdft/kernels/vec_mul_vec_complex_op.h"
+#include "source_io/module_parameter/parameter.h"
 
 namespace hamilt
 {

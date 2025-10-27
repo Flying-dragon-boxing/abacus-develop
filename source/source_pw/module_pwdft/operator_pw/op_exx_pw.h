@@ -177,8 +177,8 @@ void get_exx_potential(const K_Vectors* kv,
                        double tpiba,
                        bool gamma_extrapolation,
                        double ucell_omega,
-                       int ik, // local index
-                       int iq, // global index
+                       int ik,
+                       int iq,
                        bool is_stress = false);
 
 template <typename Real, typename Device>

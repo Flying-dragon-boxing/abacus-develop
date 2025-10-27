@@ -9,7 +9,7 @@ list(APPEND objects
     cal_mlkedf_descriptors.cpp
     cif_io.cpp
     write_dos_pw.cpp
-    nscf_band.cpp
+    write_bands.cpp
     nscf_fermi_surf.cpp
     write_eig_occ.cpp
     numerical_basis.cpp
@@ -30,6 +30,7 @@ list(APPEND objects
     write_elecstat_pot.cpp
     write_elf.cpp
     write_dipole.cpp
+    write_init.cpp
     write_mlkedf_descriptors.cpp
     td_current_io.cpp
     write_libxc_r.cpp
@@ -60,7 +61,6 @@ if(ENABLE_LCAO)
       get_pchg_lcao.cpp
       get_wf_lcao.cpp
       read_wfc_nao.cpp
-      read_wfc_lcao.cpp
       write_wfc_nao.cpp
       write_dmk.cpp
       write_dmr.cpp
@@ -83,7 +83,9 @@ if(ENABLE_LCAO)
       single_R_io.cpp
       cal_r_overlap_R.cpp
       output_mat_sparse.cpp
-      ctrl_output_lcao.cpp
+      ctrl_scf_lcao.cpp
+      ctrl_runner_lcao.cpp
+      ctrl_iter_lcao.cpp
   )
 endif()
 

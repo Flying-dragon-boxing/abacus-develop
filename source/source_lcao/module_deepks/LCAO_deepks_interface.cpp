@@ -4,6 +4,7 @@
 #include "LCAO_deepks_io.h" // mohan add 2024-07-22
 #include "source_estate/cal_dm.h"
 #include "source_lcao/module_hcontainer/hcontainer.h"
+#include "source_lcao/module_hcontainer/hcontainer_funcs.h"
 #include "source_lcao/module_hcontainer/output_hcontainer.h"
 #include "source_io/module_parameter/parameter.h"
 #include "source_base/global_variable.h"
@@ -305,6 +306,10 @@ void LCAO_Deepks_Interface<TK, TR>::out_deepks_labels(const double& etot,
 
             // Calculate the bandgap for each k point
             ModuleBase::matrix o_tot(nks, range);
+            if (nocc + PARAM.inp.deepks_band_range[0] < 0 || nocc + PARAM.inp.deepks_band_range[1] >= ekb.nc)
+            {
+                ModuleBase::WARNING_QUIT("out_deepks_labels", "DeePKS band index out of range! Please check if `deepks_band_range` is reasonable!");
+            }
             for (int iks = 0; iks < nks; ++iks)
             {
                 int ib = 0;
@@ -440,12 +445,23 @@ void LCAO_Deepks_Interface<TK, TR>::out_deepks_labels(const double& etot,
                     + (PARAM.inp.deepks_out_labels == 1 ? "deepks_hrtot.csr" : "deepks_hamiltonian_r.csr");
                 hamilt::HContainer<TR>* hR_tot = (p_ham->getHR());
 
+                const int nbasis = hR_tot->get_nbasis();
+#ifdef __MPI
+                Parallel_Orbitals serialV;
+                serialV.init(nbasis, nbasis, nbasis, ParaV->comm());
+                serialV.set_serial(nbasis, nbasis);
+                serialV.set_atomic_trace(ucell.get_iat2iwt(), ucell.nat, nbasis);
+                hamilt::HContainer<TR> hR_serial(&serialV);
+                hamilt::gatherParallels(*hR_tot, &hR_serial, 0);
+#else
+                hamilt::HContainer<TR> hR_serial(*hR_tot);
+#endif
                 if (rank == 0)
                 {
                     std::ofstream ofs_hr(file_hrtot, std::ios::out);
-                    ofs_hr << "Matrix Dimension of H(R): " << hR_tot->get_nbasis() << std::endl;
+                    ofs_hr << "Matrix Dimension of H(R): " << nbasis << std::endl;
                     ofs_hr << "Matrix number of H(R): " << hR_tot->size_R_loop() << std::endl;
-                    hamilt::Output_HContainer<TR> out_hr(hR_tot, ofs_hr, sparse_threshold, precision);
+                    hamilt::Output_HContainer<TR> out_hr(&hR_serial, ofs_hr, sparse_threshold, precision);
                     out_hr.write(true); // write all the matrices, including empty ones
                     ofs_hr.close();
                 }
@@ -457,12 +473,18 @@ void LCAO_Deepks_Interface<TK, TR>::out_deepks_labels(const double& etot,
                         const std::string file_vdeltar = PARAM.globalv.global_out_dir + "deepks_hrdelta.csr";
                         hamilt::HContainer<TR>* h_deltaR = p_ham->get_V_delta_R();
 
+#ifdef __MPI
+                        hamilt::HContainer<TR> h_deltaR_serial(&serialV);
+                        hamilt::gatherParallels(*h_deltaR, &h_deltaR_serial, 0);
+#else
+                        hamilt::HContainer<TR> h_deltaR_serial(*h_deltaR);
+#endif
                         if (rank == 0)
                         {
                             std::ofstream ofs_hr(file_vdeltar, std::ios::out);
                             ofs_hr << "Matrix Dimension of H_delta(R): " << h_deltaR->get_nbasis() << std::endl;
                             ofs_hr << "Matrix number of H_delta(R): " << h_deltaR->size_R_loop() << std::endl;
-                            hamilt::Output_HContainer<TR> out_hr(h_deltaR, ofs_hr, sparse_threshold, precision);
+                            hamilt::Output_HContainer<TR> out_hr(&h_deltaR_serial, ofs_hr, sparse_threshold, precision);
                             out_hr.write(true); // write all the matrices, including empty ones
                             ofs_hr.close();
                         }

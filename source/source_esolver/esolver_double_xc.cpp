@@ -6,7 +6,6 @@
 #include "source_lcao/module_deepks/LCAO_deepks.h"
 #include "source_lcao/module_deepks/LCAO_deepks_interface.h"
 #endif
-//-----force& stress-------------------
 #include "source_lcao/FORCE_STRESS.h"
 
 //-----HSolver ElecState Hamilt--------
@@ -16,6 +15,7 @@
 #include "source_hsolver/hsolver_lcao.h"
 #include "source_io/module_parameter/parameter.h"
 #include "source_io/write_HS.h" // use ModuleIO::write_hsk()
+#include "source_lcao/setup_deepks.h" // use deepks, mohan add 2025-10-10
 
 namespace ModuleESolver
 {
@@ -51,8 +51,6 @@ void ESolver_DoubleXC<TK, TR>::before_all_runners(UnitCell& ucell, const Input_p
         this->pelec_base = new elecstate::ElecStateLCAO<TK>(&(this->chr_base), // use which parameter?
                                                        &(this->kv),
                                                        this->kv.get_nks(),
-                                                       &(this->GG),
-                                                       &(this->GK),
                                                        this->pw_rho,
                                                        this->pw_big);
     }    
@@ -90,7 +88,6 @@ void ESolver_DoubleXC<TK, TR>::before_all_runners(UnitCell& ucell, const Input_p
 
     // 10) inititlize the charge density
     this->chr_base.allocate(PARAM.inp.nspin);
-    this->pelec_base->omega = ucell.omega;
 
     // 11) initialize the potential
     if (this->pelec_base->pot == nullptr)
@@ -116,7 +113,6 @@ void ESolver_DoubleXC<TK, TR>::before_scf(UnitCell& ucell, const int istep)
 
     ESolver_KS_LCAO<TK,TR>::before_scf(ucell, istep);
 
-    this->pelec_base->omega = ucell.omega;
     //----------------------------------------------------------
     //! calculate D2 or D3 vdW
     //----------------------------------------------------------
@@ -145,8 +141,6 @@ void ESolver_DoubleXC<TK, TR>::before_scf(UnitCell& ucell, const int istep)
         elecstate::DensityMatrix<TK, double>* DM = dynamic_cast<elecstate::ElecStateLCAO<TK>*>(this->pelec_base)->get_DM();
 
         this->p_hamilt_base = new hamilt::HamiltLCAO<TK, TR>(
-            PARAM.globalv.gamma_only_local ? &(this->GG) : nullptr,
-            PARAM.globalv.gamma_only_local ? nullptr : &(this->GK),
             ucell,
             this->gd,
             &this->pv,
@@ -154,20 +148,11 @@ void ESolver_DoubleXC<TK, TR>::before_scf(UnitCell& ucell, const int istep)
             this->kv,
             this->two_center_bundle_,
             this->orb_,
-            DM
-#ifdef __MLALGO
-            ,
-            &this->ld
-#endif
-#ifdef __EXX
-            ,
-            istep,
-            GlobalC::exx_info.info_ri.real_number ? &this->exd->two_level_step : &this->exc->two_level_step,
-            GlobalC::exx_info.info_ri.real_number ? &this->exd->get_Hexxs() : nullptr,
-            GlobalC::exx_info.info_ri.real_number ? nullptr : &this->exc->get_Hexxs()
-#endif
-        );
-    }
+            DM,
+			this->deepks,
+			istep,
+			this->exx_nao);
+	}
 
     XC_Functional::set_xc_type(PARAM.inp.deepks_out_base);
     this->pelec_base->init_scf(istep, ucell, this->Pgrid, this->sf.strucFac, this->locpp.numeric, ucell.symm);
@@ -238,7 +223,7 @@ void ESolver_DoubleXC<TK, TR>::iter_finish(UnitCell& ucell, const int istep, int
 #ifdef __MLALGO
         // ---------- output tot and precalc ----------
         hamilt::HamiltLCAO<TK, TR>* p_ham_deepks = dynamic_cast<hamilt::HamiltLCAO<TK, TR>*>(this->p_hamilt);
-        std::shared_ptr<LCAO_Deepks<TK>> ld_shared_ptr(&this->ld, [](LCAO_Deepks<TK>*) {});
+        std::shared_ptr<LCAO_Deepks<TK>> ld_shared_ptr(&this->deepks.ld, [](LCAO_Deepks<TK>*) {});
         LCAO_Deepks_Interface<TK, TR> deepks_interface(ld_shared_ptr);
 
         deepks_interface.out_deepks_labels(this->pelec->f_en.etot,
@@ -391,6 +376,8 @@ void ESolver_DoubleXC<TK, TR>::cal_force(UnitCell& ucell, ModuleBase::matrix& fo
     // set as base functional Temporarily
     XC_Functional::set_xc_type(PARAM.inp.deepks_out_base);
 
+    this->deepks.dpks_out_type = "base";  // for deepks method
+
     fsl.getForceStress(ucell,
                        PARAM.inp.cal_force,
                        PARAM.inp.cal_stress,
@@ -400,8 +387,6 @@ void ESolver_DoubleXC<TK, TR>::cal_force(UnitCell& ucell, ModuleBase::matrix& fo
                        this->pv,
                        this->pelec_base,
                        this->psi,
-                       this->GG, // mohan add 2024-04-01
-                       this->GK, // mohan add 2024-04-01
                        this->two_center_bundle_,
                        this->orb_,
                        force_base,
@@ -411,15 +396,10 @@ void ESolver_DoubleXC<TK, TR>::cal_force(UnitCell& ucell, ModuleBase::matrix& fo
                        this->kv,
                        this->pw_rho,
                        this->solvent,
-#ifdef __MLALGO
-                       this->ld,
-                       "base",
-#endif
-#ifdef __EXX
-                       *this->exd,
-                       *this->exc,
-#endif
-                       &ucell.symm);
+                       this->deepks,
+					   this->exx_nao,
+					   &ucell.symm);
+
     // restore to original xc
     XC_Functional::set_xc_type(ucell.atoms[0].ncpp.xc_func); 
 

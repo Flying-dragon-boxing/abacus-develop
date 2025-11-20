@@ -33,6 +33,7 @@ if(ENABLE_LCAO)
         spar_hsr.cpp
         spar_st.cpp
         spar_u.cpp
+        LCAO_set.cpp
 		LCAO_set_fs.cpp
 		LCAO_set_st.cpp
 		LCAO_nl_mu.cpp	
@@ -42,6 +43,7 @@ if(ENABLE_LCAO)
         LCAO_init_basis.cpp
         setup_exx.cpp
         setup_deepks.cpp
+        setup_dm.cpp
         rho_tau_lcao.cpp
 		record_adj.cpp
         center2_orb.cpp

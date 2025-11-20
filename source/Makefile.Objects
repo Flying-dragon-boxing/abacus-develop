@@ -560,6 +560,7 @@ OBJS_IO=input_conv.o\
     ctrl_iter_lcao.o\
     ctrl_output_fp.o\
     ctrl_output_pw.o\
+    ctrl_output_td.o\
     para_json.o\
     abacusjson.o\
     general_info.o\
@@ -633,6 +634,7 @@ OBJS_LCAO=evolve_elec.o\
       spar_hsr.o\
       spar_st.o\
       spar_u.o\
+      LCAO_set.o\
       LCAO_set_fs.o\
       LCAO_set_st.o\
       LCAO_nl_mu.o\
@@ -642,6 +644,7 @@ OBJS_LCAO=evolve_elec.o\
       LCAO_init_basis.o\
       setup_exx.o\
       setup_deepks.o\
+      setup_dm.o\
       rho_tau_lcao.o\
       center2_orb.o\
       center2_orb-orb11.o\

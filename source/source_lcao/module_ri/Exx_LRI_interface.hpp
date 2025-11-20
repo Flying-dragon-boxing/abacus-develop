@@ -135,20 +135,7 @@ void Exx_LRI_Interface<T, Tdata>::exx_beforescf(const int istep,
         }
         else
         {
-            if (ucell.atoms[0].ncpp.xc_func == "HF" || ucell.atoms[0].ncpp.xc_func == "PBE0" || ucell.atoms[0].ncpp.xc_func == "HSE")
-            {
-                XC_Functional::set_xc_type("pbe");
-            }
-            else if (ucell.atoms[0].ncpp.xc_func == "SCAN0")
-            {
-                XC_Functional::set_xc_type("scan");
-            }
-            // added by jghan, 2024-07-07
-            else if ( ucell.atoms[0].ncpp.xc_func == "MULLER" || ucell.atoms[0].ncpp.xc_func == "POWER"
-                || ucell.atoms[0].ncpp.xc_func == "WP22" || ucell.atoms[0].ncpp.xc_func == "CWP22" )
-            {
-                XC_Functional::set_xc_type("pbe");
-            }
+            XC_Functional::set_xc_first_loop(ucell);
         }
 
         this->cal_exx_ions(ucell,PARAM.inp.out_ri_cv);
@@ -262,14 +249,15 @@ void Exx_LRI_Interface<T, Tdata>::exx_hamilt2rho(elecstate::ElecState& elec, con
 
 template<typename T, typename Tdata>
 void Exx_LRI_Interface<T, Tdata>::exx_iter_finish(const K_Vectors& kv,
-                                                  const UnitCell& ucell,
-                                                  hamilt::Hamilt<T>& hamilt,
-                                                  elecstate::ElecState& elec,
-                                                  Charge_Mixing& chgmix,
-                                                  const double& scf_ene_thr,
-                                                  int& iter,
-                                                  const int istep,
-                                                  bool& conv_esolver)
+		const UnitCell& ucell,
+		hamilt::Hamilt<T>& hamilt,
+		elecstate::ElecState& elec,
+		elecstate::DensityMatrix<T,double>* dm, // mohan add 2025-11-04
+		Charge_Mixing& chgmix,
+		const double& scf_ene_thr,
+		int& iter,
+		const int istep,
+		bool& conv_esolver)
 {
     ModuleBase::TITLE("Exx_LRI_Interface","exx_iter_finish");
     if (GlobalC::restart.info_save.save_H && (this->two_level_step > 0 || istep > 0)
@@ -312,11 +300,12 @@ void Exx_LRI_Interface<T, Tdata>::exx_iter_finish(const K_Vectors& kv,
         {
             chgmix.close_kerker_gg0();
         }
-        this->dm_last_step = dynamic_cast<const elecstate::ElecStateLCAO<T>*>(&elec)->get_DM();
+        // mohan update 2025-11-04
+        this->dm_last_step = dm;
         conv_esolver = this->exx_after_converge(
             ucell,
             hamilt,
-            *dynamic_cast<const elecstate::ElecStateLCAO<T>*>(&elec)->get_DM(),
+            *dm,
             kv,
             PARAM.inp.nspin,
             iter,

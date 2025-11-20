@@ -3185,14 +3185,14 @@ These variables are used to control molecular dynamics calculations. For more in
 
 - **Type**: Boolean
 - **Description**: Control whether to restart molecular dynamics calculations and time-dependent density functional theory calculations.
-  - True: ABACUS will read in `${read_file_dir}/Restart_md.dat` to determine the current step `${md_step}`, then read in the corresponding `STRU_MD_${md_step}` in the folder `OUT.$suffix/STRU/` automatically. For tddft, ABACUS will also read in `WFC_NAO_K${kpoint}` of the last step (You need to set out_wfc_lcao=1 and out_app_flag=0 to obtain this file).
+  - True: ABACUS will read in `${read_file_dir}/Restart_md.txt` to determine the current step `${md_step}`, then read in the corresponding `STRU_MD_${md_step}` in the folder `OUT.$suffix/STRU/` automatically. For tddft, ABACUS will also read in `WFC_NAO_K${kpoint}` of the last step (You need to set out_wfc_lcao=1 and out_app_flag=0 to obtain this file).
   - False: ABACUS will start molecular dynamics calculations normally from the first step.
 - **Default**: False
 
 ### md_restartfreq
 
 - **Type**: Integer
-- **Description**: The output frequency of `OUT.${suffix}/Restart_md.dat` and structural files in the directory `OUT.${suffix}/STRIU/`, which are used to restart molecular dynamics calculations, see [md_restart](#md_restart) in detail.
+- **Description**: The output frequency of `OUT.${suffix}/Restart_md.txt` and structural files in the directory `OUT.${suffix}/STRIU/`, which are used to restart molecular dynamics calculations, see [md_restart](#md_restart) in detail.
 - **Default**: 5
 
 ### md_dumpfreq
@@ -3882,10 +3882,13 @@ These variables are used to control berry phase and wannier90 interface paramete
 - **Description**:
   Type of electric field in the time domain.
   - 0: Gaussian type function:
+
   $$
     E(t) = A \cos\left[2\pi f(t-t_0)+\varphi\right]\exp\left[-\frac{(t-t_0)^2}{2\sigma^2}\right]
   $$
+
   - 1: Trapezoid function:
+
   $$
     E(t) =
     \begin{cases}
@@ -3895,11 +3898,15 @@ These variables are used to control berry phase and wannier90 interface paramete
         0, & t \geqslant t_3
     \end{cases}
   $$
+
   - 2: Trigonometric function:
+
   $$
     E(t) = A \cos(2\pi f_1 t + \varphi_1) \sin^2(2\pi f_2 t + \varphi_2)
   $$
+
   - 3: Heaviside step function:
+
   $$
     E(t) =
     \begin{cases}
@@ -3907,6 +3914,7 @@ These variables are used to control berry phase and wannier90 interface paramete
         0, & t \geqslant t_0
     \end{cases}
   $$
+
 - **Default**: 0
 
 ### td_tstart

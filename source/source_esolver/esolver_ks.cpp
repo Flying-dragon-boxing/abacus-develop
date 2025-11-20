@@ -15,6 +15,7 @@
 #include "source_estate/elecstate_print.h" // print_etot
 #include "source_io/print_info.h" // print_parameters
 #include "source_psi/setup_psi.h" // mohan add 20251009
+#include "source_lcao/module_dftu/dftu.h" // mohan add 2025-11-07
 
 namespace ModuleESolver
 {
@@ -45,7 +46,7 @@ void ESolver_KS<T, Device>::before_all_runners(UnitCell& ucell, const Input_para
 {
     ModuleBase::TITLE("ESolver_KS", "before_all_runners");
 
-    //! 1) init "before_all_runniers" in ESolver_FP
+    //! 1) setup "before_all_runniers" in ESolver_FP
     ESolver_FP::before_all_runners(ucell, inp);
     
     //! 2) setup some parameters
@@ -67,8 +68,9 @@ void ESolver_KS<T, Device>::before_all_runners(UnitCell& ucell, const Input_para
 
     ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running, "SETUP UNITCELL");
 
-    //! 4) setup Exc for the first element '0', because all elements have same exc 
+    //! 4) setup Exc for the first element '0' (all elements have same exc) 
     XC_Functional::set_xc_type(ucell.atoms[0].ncpp.xc_func);
+    GlobalV::ofs_running<<XC_Functional::output_info()<<std::endl;
     
     //! 5) setup the charge mixing parameters
     p_chgmix->set_mixing(inp.mixing_mode, inp.mixing_beta, inp.mixing_ndim,
@@ -84,7 +86,7 @@ void ESolver_KS<T, Device>::before_all_runners(UnitCell& ucell, const Input_para
         ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running, "SYMMETRY");
     }
 
-    //! 7) Setup the k points according to symmetry.
+    //! 7) setup k points in the Brillouin zone according to symmetry.
     this->kv.set(ucell,ucell.symm, inp.kpoint_file, inp.nspin, ucell.G, ucell.latvec, GlobalV::ofs_running);
     ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running, "INIT K-POINTS");
 
@@ -99,19 +101,12 @@ void ESolver_KS<T, Device>::before_all_runners(UnitCell& ucell, const Input_para
 			this->pw_rhod->nplane, this->pw_rhod->nrxx, pw_big->nbz, pw_big->bz);
 
     //! 11) calculate the structure factor
-    this->sf.setup_structure_factor(&ucell, Pgrid, this->pw_rhod);
+    this->sf.setup(&ucell, Pgrid, this->pw_rhod);
 }
 
 template <typename T, typename Device>
 void ESolver_KS<T, Device>::hamilt2rho_single(UnitCell& ucell, const int istep, const int iter, const double ethr)
-{
-    ModuleBase::timer::tick(this->classname, "hamilt2rho_single");
-    // Temporarily, before HSolver is constructed, it should be overrided by
-    // LCAO, PW, SDFT and TDDFT.
-    // After HSolver is constructed, LCAO, PW, SDFT should delete their own
-    // hamilt2rho_single() and use:
-    ModuleBase::timer::tick(this->classname, "hamilt2rho_single");
-}
+{}
 
 template <typename T, typename Device>
 void ESolver_KS<T, Device>::hamilt2rho(UnitCell& ucell, const int istep, const int iter, const double ethr)
@@ -288,9 +283,19 @@ void ESolver_KS<T, Device>::iter_finish(UnitCell& ucell, const int istep, int& i
                                        this->pelec->nelec_spin.data());
 
     // 2.2) charge mixing 
+    // SCF will continue if U is not converged for uramping calculation
+	bool converged_u = true;
+	// to avoid unnecessary dependence on dft+u, refactor is needed
+#ifdef __LCAO
+	if (PARAM.inp.dft_plus_u)
+	{
+		converged_u = this->dftu.u_converged();
+	}
+#endif
+
     module_charge::chgmixing_ks(iter, ucell, this->pelec, this->chr, this->p_chgmix, 
       this->pw_rhod->nrxx, this->drho, this->oscillate_esolver, conv_esolver, hsolver_error, 
-      this->scf_thr, this->scf_ene_thr, PARAM.inp);
+      this->scf_thr, this->scf_ene_thr, converged_u, PARAM.inp);
 
     // 2.3) Update potentials (should be done every SF iter)
     elecstate::update_pot(ucell, this->pelec, this->chr, conv_esolver);

@@ -105,7 +105,7 @@ void ESolver_OF::before_all_runners(UnitCell& ucell, const Input_para& inp)
                         pw_big->nbz,
                         pw_big->bz); // mohan add 2010-07-22, update 2011-05-04
     // Calculate Structure factor
-    sf.setup_structure_factor(&ucell, Pgrid, pw_rho);
+    sf.setup(&ucell, Pgrid, pw_rho);
     ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running, "INIT BASIS");
 
     // initialize local pseudopotential
@@ -575,7 +575,10 @@ double ESolver_OF::cal_energy()
 void ESolver_OF::cal_force(UnitCell& ucell, ModuleBase::matrix& force)
 {
     Forces<double> ff(ucell.nat);
-    ff.cal_force(ucell, force, *pelec, this->pw_rho, &ucell.symm, &sf, this->solvent, &this->locpp);
+ 
+    // here nullptr is for DFT+U, which may cause bugs, mohan note 2025-11-07
+    // solvent can be used? mohan ask 2025-11-07
+    ff.cal_force(ucell, force, *pelec, this->pw_rho, &ucell.symm, &sf, this->solvent, nullptr, &this->locpp);
 }
 
 /**

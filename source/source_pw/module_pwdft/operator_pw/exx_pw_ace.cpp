@@ -151,8 +151,7 @@ void OperatorEXXPW<T, Device>::construct_ace() const
                     int iq;
 
                     int nk = wfcpw->nks / 2;
-                    int ik_spin = ispin;  // 0 for spin up, 1 for spin down
-                    iq = iq0 + ik_spin * nk; // iq in the same spin channel
+                    iq = iq0 + ispin * nk; // iq in the same spin channel
 
                     // for \psi_nk, get the pw of iq and band m
                     get_exx_potential<Real,  Device>(kv, wfcpw, rhopw_dev, pot, tpiba, gamma_extrapolation, ucell->omega, ik, iq);

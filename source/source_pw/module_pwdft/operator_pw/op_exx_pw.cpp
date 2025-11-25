@@ -339,7 +339,27 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
                 // send
             }
 #ifdef __MPI
+#ifdef __CUDA_MPI
             MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
+#else
+            if (PARAM.inp.device == "cpu")
+            {
+                MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
+            }
+            else if (PARAM.inp.device == "gpu")
+            {
+                // need to copy to cpu first
+                T* psi_mq_real_cpu = new T[wfcpw->nrxx];
+                syncmem_complex_d2c_op()(psi_mq_real_cpu, psi_mq_real, wfcpw->nrxx);
+                MPI_Bcast(psi_mq_real_cpu, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
+                syncmem_complex_c2d_op()(psi_mq_real, psi_mq_real_cpu, wfcpw->nrxx);
+                delete[] psi_mq_real_cpu;
+            }
+            else
+            {
+                ModuleBase::WARNING_QUIT("OperatorEXXPW", "construct_ace: unknown device");
+            }
+#endif
 #endif
             for (int n_iband = 0; n_iband < nbands; n_iband++)
             {

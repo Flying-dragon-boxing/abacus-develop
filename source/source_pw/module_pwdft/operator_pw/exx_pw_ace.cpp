@@ -307,7 +307,7 @@ template <typename T, typename Device>
 double OperatorEXXPW<T, Device>::cal_exx_energy_ace(psi::Psi<T, Device>* ppsi_) const
 {
     double Eexx = 0;
-
+    int nspin_fac = PARAM.inp.nspin == 2 ? 2 : 1;
     psi::Psi<T, Device> psi_ = *ppsi_;
     int* ik_ = const_cast<int*>(&this->ik);
     int ik_save = this->ik;

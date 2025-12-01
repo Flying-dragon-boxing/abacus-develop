@@ -342,7 +342,7 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
 
             if (iq_pool == GlobalV::MY_POOL)
             {
-                const T* psi_mq = get_pw(m_iband, iq_loc);
+                const T* psi_mq = get_pw(m_iband, iq_loc + ispin * wfcpw->nks / nspin_fac);
                 wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq_loc);
                 // send
             }

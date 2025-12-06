@@ -1,8 +1,10 @@
 #include "source_hsolver/kernels/hegvd_op.h"
+#include "source_base/module_container/base/third_party/lapack.h"
 
-#include <algorithm>
 #include <fstream>
 #include <iostream>
+
+namespace lapackConnector = container::lapackConnector; // see "source_base/module_container/base/third_party/lapack.h"
 
 namespace hsolver
 {
@@ -15,7 +17,7 @@ struct hegvd_op<T, base_device::DEVICE_CPU>
                     const int nstart,
                     const int ldh,
                     const T* hcc,
-                    const T* scc,
+                    T* scc,
                     Real* eigenvalue,
                     T* vcc)
     {
@@ -39,7 +41,7 @@ struct hegvd_op<T, base_device::DEVICE_CPU>
         //===========================
         // calculate all eigenvalues
         //===========================
-        LapackWrapper::xhegvd(1,
+        lapackConnector::hegvd(1,
                                 'V',
                                 'U',
                                 nstart,
@@ -58,7 +60,7 @@ struct hegvd_op<T, base_device::DEVICE_CPU>
 
         if (info != 0)
         {
-            std::cout << "Error: xhegvd failed, linear dependent basis functions\n"
+            std::cout << "Error: hegvd failed, linear dependent basis functions\n"
                       << ", wrong initialization of wavefunction, or wavefunction information loss\n"
                       << ", output overlap matrix scc.txt to check\n"
                       << std::endl;
@@ -82,68 +84,68 @@ struct hegvd_op<T, base_device::DEVICE_CPU>
     }
 };
 
-template <typename T>
-struct hegv_op<T, base_device::DEVICE_CPU>
-{
-    using Real = typename GetTypeReal<T>::type;
-    void operator()(const base_device::DEVICE_CPU* d,
-                    const int nbase,
-                    const int ldh,
-                    const T* hcc,
-                    T* scc,
-                    Real* eigenvalue,
-                    T* vcc)
-    {
-        for (int i = 0; i < nbase * ldh; i++)
-        {
-            vcc[i] = hcc[i];
-        }
+// template <typename T>
+// struct hegv_op<T, base_device::DEVICE_CPU>
+// {
+//     using Real = typename GetTypeReal<T>::type;
+//     void operator()(const base_device::DEVICE_CPU* d,
+//                     const int nbase,
+//                     const int ldh,
+//                     const T* hcc,
+//                     T* scc,
+//                     Real* eigenvalue,
+//                     T* vcc)
+//     {
+//         for (int i = 0; i < nbase * ldh; i++)
+//         {
+//             vcc[i] = hcc[i];
+//         }
 
-        int info = 0;
+//         int info = 0;
 
-        int lwork = 2 * nbase - 1;
-        T* work = new T[lwork];
-        Parallel_Reduce::ZEROS(work, lwork);
+//         int lwork = 2 * nbase - 1;
+//         T* work = new T[lwork];
+//         Parallel_Reduce::ZEROS(work, lwork);
 
-        int lrwork = 3 * nbase - 2;
-        Real* rwork = new Real[lrwork];
-        Parallel_Reduce::ZEROS(rwork, lrwork);
+//         int lrwork = 3 * nbase - 2;
+//         Real* rwork = new Real[lrwork];
+//         Parallel_Reduce::ZEROS(rwork, lrwork);
 
-        //===========================
-        // calculate all eigenvalues
-        //===========================
-        LapackWrapper::xhegv(1, 'V', 'U', nbase, vcc, ldh, scc, ldh, eigenvalue, work, lwork, rwork, info);
+//         //===========================
+//         // calculate all eigenvalues
+//         //===========================
+//         LapackWrapper::xhegv(1, 'V', 'U', nbase, vcc, ldh, scc, ldh, eigenvalue, work, lwork, rwork, info);
 
-        if (info != 0)
-        {
-            std::cout << "Error: xhegv failed, linear dependent basis functions\n"
-                      << ", wrong initialization of wavefunction, or wavefunction information loss\n"
-                      << ", output overlap matrix scc.txt to check\n"
-                      << std::endl;
-            // print scc to file scc.txt
-            std::ofstream ofs("scc.txt");
-            for (int i = 0; i < nbase; i++)
-            {
-                for (int j = 0; j < nbase; j++)
-                {
-                    ofs << scc[i * ldh + j] << " ";
-                }
-                ofs << std::endl;
-            }
-            ofs.close();
-        }
-        assert(0 == info);
+//         if (info != 0)
+//         {
+//             std::cout << "Error: xhegv failed, linear dependent basis functions\n"
+//                       << ", wrong initialization of wavefunction, or wavefunction information loss\n"
+//                       << ", output overlap matrix scc.txt to check\n"
+//                       << std::endl;
+//             // print scc to file scc.txt
+//             std::ofstream ofs("scc.txt");
+//             for (int i = 0; i < nbase; i++)
+//             {
+//                 for (int j = 0; j < nbase; j++)
+//                 {
+//                     ofs << scc[i * ldh + j] << " ";
+//                 }
+//                 ofs << std::endl;
+//             }
+//             ofs.close();
+//         }
+//         assert(0 == info);
 
-        delete[] work;
-        delete[] rwork;
-    }
-};
+//         delete[] work;
+//         delete[] rwork;
+//     }
+// };
 
 // heevx and syevx
 /**
  * @brief heevx computes the first m eigenvalues and their corresponding eigenvectors of
  * a complex generalized Hermitian-definite eigenproblem.
- * 
+ *
  * both heevx and syevx are implemented through the `evx` interface of LAPACK.
  * wrapped in LapackWrapper::xheevx
  */
@@ -174,8 +176,7 @@ struct heevx_op<T, base_device::DEVICE_CPU>
 
         // When lwork = -1, the demension of work will be assumed
         // Assume the denmension of work by output work[0]
-        LapackWrapper::xheevx(
-            1,          // ITYPE = 1:  A*x = (lambda)*B*x
+        lapackConnector::heevx(
             'V',        // JOBZ = 'V':  Compute eigenvalues and eigenvectors.
             'I',        // RANGE = 'I': the IL-th through IU-th eigenvalues will be found.
             'L',        // UPLO = 'L':  Lower triangles of A and B are stored.
@@ -208,8 +209,7 @@ struct heevx_op<T, base_device::DEVICE_CPU>
         // V is the output of the function, the storage space is also (nstart * ldh), and the data size of valid V
         // obtained by the zhegvx operation is (nstart * nstart) and stored in zux (internal to the function). When
         // the function is output, the data of zux will be mapped to the corresponding position of V.
-        LapackWrapper::xheevx(
-            1,          // ITYPE = 1:  A*x = (lambda)*B*x
+        lapackConnector::heevx(
             'V',        // JOBZ = 'V':  Compute eigenvalues and eigenvectors.
             'I',        // RANGE = 'I': the IL-th through IU-th eigenvalues will be found.
             'L',        // UPLO = 'L':  Lower triangles of A and B are stored.
@@ -267,7 +267,7 @@ struct hegvx_op<T, base_device::DEVICE_CPU>
         int* iwork = new int[5 * nbase];
         int* ifail = new int[nbase];
 
-        LapackWrapper::xhegvx(
+        lapackConnector::hegvx(
             1,     // ITYPE = 1:  A*x = (lambda)*B*x
             'V',   // JOBZ = 'V':  Compute eigenvalues and eigenvectors.
             'I',   // RANGE = 'I': the IL-th through IU-th eigenvalues will be found.
@@ -297,7 +297,7 @@ struct hegvx_op<T, base_device::DEVICE_CPU>
         delete[] work;
         work = new T[lwork];
 
-        LapackWrapper::xhegvx(1,
+        lapackConnector::hegvx(1,
                                 'V',
                                 'I',
                                 'U',
@@ -338,12 +338,12 @@ template struct heevx_op<std::complex<double>, base_device::DEVICE_CPU>;
 template struct hegvx_op<std::complex<float>, base_device::DEVICE_CPU>;
 template struct hegvx_op<std::complex<double>, base_device::DEVICE_CPU>;
 
-template struct hegv_op<std::complex<float>, base_device::DEVICE_CPU>;
-template struct hegv_op<std::complex<double>, base_device::DEVICE_CPU>;
+// template struct hegv_op<std::complex<float>, base_device::DEVICE_CPU>;
+// template struct hegv_op<std::complex<double>, base_device::DEVICE_CPU>;
 #ifdef __LCAO
 template struct hegvd_op<double, base_device::DEVICE_CPU>;
 template struct heevx_op<double, base_device::DEVICE_CPU>;
 template struct hegvx_op<double, base_device::DEVICE_CPU>;
-template struct hegv_op<double, base_device::DEVICE_CPU>;
+// template struct hegv_op<double, base_device::DEVICE_CPU>;
 #endif
 } // namespace hsolver

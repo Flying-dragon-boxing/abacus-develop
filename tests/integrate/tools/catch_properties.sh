@@ -3,7 +3,7 @@
 # mohan add 2025-05-03
 # this compare script is used in different integrate tests
 COMPARE_SCRIPT="../../integrate/tools/CompareFile.py"
-SUM_CUBE_EXE="../../integrate/tools/sum_cube.exe"
+SUM_CUBE_EXE="../../integrate/tools/sum_cube"
 
 
 sum_file(){
@@ -373,13 +373,20 @@ if ! test -z "$has_mat_dh"  && [  $has_mat_dh == 1 ]; then
 fi
 
 #---------------------------------------
+# Charge density
+#---------------------------------------
+#echo $out_chg
+if ! test -z "$out_chg"  && [  $out_chg == 1 ]; then
+	python3 $COMPARE_SCRIPT chg.cube.ref OUT.autotest/chg.cube 8
+	echo "chg.cube_pass $?" >>$1
+fi
+
+#---------------------------------------
 # SCAN exchange-correlation information
 #echo $has_scan
 #---------------------------------------
 if ! test -z "$has_scan"  && [  $has_scan == "scan" ] && \
        ! test -z "$out_chg" && [ $out_chg == 1 ]; then
-    python3 $COMPARE_SCRIPT chg.cube.ref OUT.autotest/chg.cube 8
-    echo "chg.cube_pass $?" >>$1
     python3 $COMPARE_SCRIPT tau.cube.ref OUT.autotest/tau.cube 8
     echo "tau.cube_pass $?" >>$1
 fi
@@ -591,8 +598,8 @@ fi
 # check currents in rt-TDDFT 
 #--------------------------------------------
 if ! test -z "$out_current" && [ $out_current ]; then
-	current1ref=refcurrent_total.dat
-	current1cal=OUT.autotest/current_total.dat
+	current1ref=refcurrent_total.txt
+	current1cal=OUT.autotest/current_total.txt
 	python3 $COMPARE_SCRIPT $current1ref $current1cal 10
 	echo "CompareCurrent_pass $?" >>$1
 fi

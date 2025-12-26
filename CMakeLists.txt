@@ -347,7 +347,7 @@ if(USE_CUDA)
   if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
     # check
     # https://gitlab.kitware.com/cmake/cmake/-/blob/master/Modules/Internal/CMakeCUDAArchitecturesAll.cmake
-    # for available architechures in different CUDA versions
+    # for available architectures in different CUDA versions
     
     # CUDA 13.0+ dropped support for architectures below 75
     if(CUDAToolkit_VERSION VERSION_LESS "13.0")
@@ -356,6 +356,7 @@ if(USE_CUDA)
           70 # V100
       )
     else()
+      # Start with empty list; architectures 75+ will be added below
       set(CMAKE_CUDA_ARCHITECTURES)
     endif()
     

@@ -37,5 +37,4 @@ RUN git clone https://github.com/deepmodeling/abacus-develop.git --depth 1 && \
     cmake -B build -DENABLE_MLALGO=ON -DENABLE_LIBXC=ON -DENABLE_LIBRI=ON -DENABLE_RAPIDJSON=ON && \
     cmake --build build -j`nproc` && \
     cmake --install build && \
-    rm -rf build
-    #&& rm -rf abacus-develop
+    rm -rf build && rm -rf abacus-develop

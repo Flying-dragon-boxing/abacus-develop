@@ -27,5 +27,5 @@ dft_functional                  pbe0
 symmetry                        -1
 init_wfc                        random
 device                          cpu
-exx_thr_type                    energy
-exx_ene_thr                     1e-2
+# exx_thr_type                    energy
+# exx_ene_thr                     1e-2

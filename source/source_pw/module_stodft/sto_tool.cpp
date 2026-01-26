@@ -129,12 +129,19 @@ psi::Psi<std::complex<FPTYPE>, Device>* gatherchi_op<FPTYPE, Device>::operator()
     {
         p_chi = &chi_all;
         ModuleBase::timer::tick("sKG", "bands_gather");
-        Parallel_Common::gatherv_dev<std::complex<FPTYPE>, Device>(chi.get_pointer(),
+        cudaStream_t stream;
+        // init stream using cuda API
+        cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+        Parallel_Common::gatherv_nccl<std::complex<FPTYPE>, Device>(chi.get_pointer(),
                                                                    perbands_sto * npwx,
                                                                    chi_all.get_pointer(),
                                                                    nrecv_sto,
                                                                    displs_sto,
-                                                                   BP_WORLD);
+                                                                   BP_WORLD,
+                                                                   NCCL_BP_WORLD,
+                                                                   stream);
+        cudaStreamSynchronize(stream);
+        cudaStreamDestroy(stream);
         ModuleBase::timer::tick("sKG", "bands_gather");
     }
 #endif

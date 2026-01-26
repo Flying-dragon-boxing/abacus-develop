@@ -328,13 +328,13 @@ double OperatorEXXPW<T, Device>::cal_exx_energy_ace(psi::Psi<T, Device>* ppsi_) 
             T* hpsi_i_n = h_psi_ace + nband * psi_.get_nbasis();
             double wg_i_n = (*wg)(i, nband);
             // Eexx += dot(psi_i_n, h_psi_i_n)
-            Eexx += dot_op()(psi_.get_nbasis(), psi_i_n, hpsi_i_n, false) * wg_i_n * 2;
+            Eexx += dot_op()(psi_.get_nbasis(), psi_i_n, hpsi_i_n, false) * wg_i_n;
         }
     }
 
     Parallel_Reduce::reduce_all(Eexx);
     *ik_ = ik_save;
-    Eexx = Eexx / hybrid_alpha / 4;
+    Eexx = Eexx / hybrid_alpha / 2; // This factor of 2 is from the definition of EXX energy.
     return Eexx;
 }
 template class OperatorEXXPW<std::complex<float>, base_device::DEVICE_CPU>;

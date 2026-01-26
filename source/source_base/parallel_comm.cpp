@@ -21,7 +21,7 @@ ncclComm_t NCCL_INT_BGROUP;
 ncclComm_t NCCL_GRID_WORLD;
 ncclComm_t NCCL_DIAG_WORLD;
 
-static std::map<MPI_Comm, ncclComm_t*> mpi_to_nccl_map;
+std::map<MPI_Comm, ncclComm_t*> mpi_to_nccl_map;
 
 ncclComm_t create_nccl_comm_from_mpi(MPI_Comm mpi_comm)
 {

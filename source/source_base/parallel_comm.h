@@ -3,6 +3,8 @@
 
 #ifdef __MPI
 #include "mpi.h"
+
+#include <map>
 extern MPI_Comm POOL_WORLD;
 extern MPI_Comm KP_WORLD; // communicator among different pools
 extern MPI_Comm INT_BGROUP;
@@ -17,6 +19,7 @@ extern ncclComm_t NCCL_BP_WORLD;
 extern ncclComm_t NCCL_INT_BGROUP;
 extern ncclComm_t NCCL_GRID_WORLD;
 extern ncclComm_t NCCL_DIAG_WORLD;
+extern std::map<MPI_Comm, ncclComm_t*> mpi_to_nccl_map;
 
 void init_nccl_comms();
 void finalize_nccl_comms();

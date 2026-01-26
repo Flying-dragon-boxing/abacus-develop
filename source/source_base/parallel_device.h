@@ -32,6 +32,13 @@ void gatherv_data(const std::complex<double>* sendbuf, int sendcount, std::compl
 void gatherv_data(const float* sendbuf, int sendcount, float* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm);
 void gatherv_data(const std::complex<float>* sendbuf, int sendcount, std::complex<float>* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm);
 
+#include <nccl.h>
+#include "parallel_comm.h"
+void gatherv_nccl(const double* sendbuf, int sendcount, double* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm, ncclComm_t nccl_comm, cudaStream_t stream = 0);
+void gatherv_nccl(const std::complex<double>* sendbuf, int sendcount, std::complex<double>* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm, ncclComm_t nccl_comm, cudaStream_t stream = 0);
+void gatherv_nccl(const float* sendbuf, int sendcount, float* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm, ncclComm_t nccl_comm, cudaStream_t stream = 0);
+void gatherv_nccl(const std::complex<float>* sendbuf, int sendcount, std::complex<float>* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm, ncclComm_t nccl_comm, cudaStream_t stream = 0);
+
 #ifndef __CUDA_MPI
 template<typename T, typename Device>
 struct object_cpu_point
@@ -156,7 +163,7 @@ void gatherv_dev(const T* sendbuf,
                  T* tmp_rspace = nullptr)
 {
 #ifdef __CUDA_MPI
-    gatherv_data(sendbuf, sendcount, recvbuf, recvcounts, displs, comm);
+    gatherv_nccl(sendbuf, sendcount, recvbuf, recvcounts, displs, comm);
 #else
     object_cpu_point<T,Device> o1, o2;
     int size = 0;

@@ -1,4 +1,5 @@
 #include "parallel_device.h"
+#include <complex>
 #ifdef __MPI
 namespace Parallel_Common
 {
@@ -99,6 +100,143 @@ void gatherv_data(const std::complex<float>* sendbuf, int sendcount, std::comple
     MPI_Allgatherv(sendbuf, sendcount, MPI_COMPLEX, recvbuf, recvcounts, displs, MPI_COMPLEX, comm);
 }
 
+#include <nccl.h>
+#include <cuda_runtime.h>
+#include "parallel_comm.h"
+
+void gatherv_nccl(const double* sendbuf, int sendcount, double* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm, ncclComm_t nccl_comm, cudaStream_t stream)
+{
+    int size;
+    MPI_Comm_size(comm, &size);
+    if (size <= 0) return;
+
+    int max_count = 0;
+    for (int i = 0; i < size; ++i) {
+        if (recvcounts[i] > max_count) max_count = recvcounts[i];
+    }
+    if (max_count == 0) return;
+
+    double *tmp_send = nullptr, *tmp_recv = nullptr;
+    base_device::memory::resize_memory_op<double, base_device::DEVICE_GPU>()(tmp_send, max_count);
+    base_device::memory::resize_memory_op<double, base_device::DEVICE_GPU>()(tmp_recv, size * max_count);
+
+    if (sendcount > 0) {
+        cudaMemcpyAsync(tmp_send, sendbuf, sendcount * sizeof(double), cudaMemcpyDeviceToDevice, stream);
+    }
+
+    ncclAllGather(tmp_send, tmp_recv, max_count, ncclDouble, nccl_comm, stream);
+
+    for (int i = 0; i < size; ++i) {
+        if (recvcounts[i] > 0) {
+            cudaMemcpyAsync(recvbuf + displs[i], tmp_recv + i * max_count, recvcounts[i] * sizeof(double), cudaMemcpyDeviceToDevice, stream);
+        }
+    }
+
+    cudaStreamSynchronize(stream);
+    base_device::memory::delete_memory_op<double, base_device::DEVICE_GPU>()(tmp_send);
+    base_device::memory::delete_memory_op<double, base_device::DEVICE_GPU>()(tmp_recv);
+}
+
+void gatherv_nccl(const std::complex<double>* sendbuf, int sendcount, std::complex<double>* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm, ncclComm_t nccl_comm, cudaStream_t stream)
+{
+    int size;
+    MPI_Comm_size(comm, &size);
+    if (size <= 0) return;
+
+    int max_count = 0;
+    for (int i = 0; i < size; ++i) {
+        if (recvcounts[i] > max_count) max_count = recvcounts[i];
+    }
+    if (max_count == 0) return;
+
+    std::complex<double> *tmp_send = nullptr, *tmp_recv = nullptr;
+    base_device::memory::resize_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(tmp_send, max_count);
+    base_device::memory::resize_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(tmp_recv, size * max_count);
+
+    if (sendcount > 0) {
+        cudaMemcpyAsync(tmp_send, sendbuf, sendcount * sizeof(std::complex<double>), cudaMemcpyDeviceToDevice, stream);
+    }
+
+    ncclAllGather(tmp_send, tmp_recv, max_count * 2, ncclDouble, nccl_comm, stream);
+
+    for (int i = 0; i < size; ++i) {
+        if (recvcounts[i] > 0) {
+            cudaMemcpyAsync(recvbuf + displs[i], tmp_recv + i * max_count, recvcounts[i] * sizeof(std::complex<double>), cudaMemcpyDeviceToDevice, stream);
+        }
+    }
+
+    cudaStreamSynchronize(stream);
+    base_device::memory::delete_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(tmp_send);
+    base_device::memory::delete_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(tmp_recv);
+}
+
+void gatherv_nccl(const float* sendbuf, int sendcount, float* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm, ncclComm_t nccl_comm, cudaStream_t stream)
+{
+    int size;
+    MPI_Comm_size(comm, &size);
+    if (size <= 0) return;
+
+    int max_count = 0;
+    for (int i = 0; i < size; ++i) {
+        if (recvcounts[i] > max_count) max_count = recvcounts[i];
+    }
+    if (max_count == 0) return;
+
+    float *tmp_send = nullptr, *tmp_recv = nullptr;
+    base_device::memory::resize_memory_op<float, base_device::DEVICE_GPU>()(tmp_send, max_count);
+    base_device::memory::resize_memory_op<float, base_device::DEVICE_GPU>()(tmp_recv, size * max_count);
+
+    if (sendcount > 0) {
+        cudaMemcpyAsync(tmp_send, sendbuf, sendcount * sizeof(float), cudaMemcpyDeviceToDevice, stream);
+    }
+
+    ncclAllGather(tmp_send, tmp_recv, max_count, ncclFloat, nccl_comm, stream);
+
+    for (int i = 0; i < size; ++i) {
+        if (recvcounts[i] > 0) {
+            cudaMemcpyAsync(recvbuf + displs[i], tmp_recv + i * max_count, recvcounts[i] * sizeof(float), cudaMemcpyDeviceToDevice, stream);
+        }
+    }
+
+    cudaStreamSynchronize(stream);
+    base_device::memory::delete_memory_op<float, base_device::DEVICE_GPU>()(tmp_send);
+    base_device::memory::delete_memory_op<float, base_device::DEVICE_GPU>()(tmp_recv);
+}
+
+void gatherv_nccl(const std::complex<float>* sendbuf, int sendcount, std::complex<float>* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm, ncclComm_t nccl_comm, cudaStream_t stream)
+{
+    int size;
+    MPI_Comm_size(comm, &size);
+    if (size <= 0) return;
+
+    int max_count = 0;
+    for (int i = 0; i < size; ++i) {
+        if (recvcounts[i] > max_count) max_count = recvcounts[i];
+    }
+    if (max_count == 0) return;
+
+    std::complex<float> *tmp_send = nullptr, *tmp_recv = nullptr;
+    base_device::memory::resize_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(tmp_send, max_count);
+    base_device::memory::resize_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(tmp_recv, size * max_count);
+
+    if (sendcount > 0) {
+        cudaMemcpyAsync(tmp_send, sendbuf, sendcount * sizeof(std::complex<float>), cudaMemcpyDeviceToDevice, stream);
+    }
+
+    ncclAllGather(tmp_send, tmp_recv, max_count * 2, ncclFloat, nccl_comm, stream);
+
+    for (int i = 0; i < size; ++i) {
+        if (recvcounts[i] > 0) {
+            cudaMemcpyAsync(recvbuf + displs[i], tmp_recv + i * max_count, recvcounts[i] * sizeof(std::complex<float>), cudaMemcpyDeviceToDevice, stream);
+        }
+    }
+
+    cudaStreamSynchronize(stream);
+    base_device::memory::delete_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(tmp_send);
+    base_device::memory::delete_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(tmp_recv);
+}
+}
+
 #ifndef __CUDA_MPI
 template <typename T>
 struct object_cpu_point<T, base_device::DEVICE_GPU>
@@ -175,4 +313,5 @@ template struct object_cpu_point<std::complex<float>, base_device::DEVICE_GPU>;
 #endif
 
 } // namespace Parallel_Common
+
 #endif

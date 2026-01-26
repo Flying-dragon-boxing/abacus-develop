@@ -10,6 +10,18 @@ extern MPI_Comm BP_WORLD;
 extern MPI_Comm GRID_WORLD; // mohan add 2012-01-13
 extern MPI_Comm DIAG_WORLD; // mohan add 2012-01-13
 
+#include <nccl.h>
+extern ncclComm_t NCCL_POOL_WORLD;
+extern ncclComm_t NCCL_KP_WORLD;
+extern ncclComm_t NCCL_BP_WORLD;
+extern ncclComm_t NCCL_INT_BGROUP;
+extern ncclComm_t NCCL_GRID_WORLD;
+extern ncclComm_t NCCL_DIAG_WORLD;
+
+void init_nccl_comms();
+void finalize_nccl_comms();
+ncclComm_t get_nccl_comm(MPI_Comm mpi_comm);
+
 
 class MPICommGroup
 {

@@ -1,6 +1,5 @@
 #include "sto_elecond.h"
 
-#include "../../../../../../../../usr/local/cuda/targets/x86_64-linux/include/cuda_runtime_api.h"
 #include "base/macros/cuda.h"
 #include "source_base/complexmatrix.h"
 #include "source_base/constants.h"
@@ -222,9 +221,9 @@ void Sto_EleCond<FPTYPE, Device>::cal_jmatrix(hamilt::HamiltSdftPW<std::complex<
     info_gatherv* sto_npwx = static_cast<info_gatherv*>(gatherinfo_sto);
     // rightchi_all = gatherchi_op<lowTYPE, Device>()(rightchi, chi_all, npwx, sto_npwx->nrecv, sto_npwx->displs, perbands_sto);
     // righthchi_all = gatherchi_op<lowTYPE, Device>()(right_hchi, hchi_all, npwx, sto_npwx->nrecv, sto_npwx->displs, perbands_sto);
-    // if (PARAM.inp.bndpar > 1)
     cudaStream_t stream;
     cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+    if (PARAM.inp.bndpar > 1)
     {
         ModuleBase::timer::tick("sKG", "bands_gather");
         Parallel_Common::gatherv_nccl<std::complex<FPTYPE>, Device>(rightchi.get_pointer(),
@@ -234,7 +233,7 @@ void Sto_EleCond<FPTYPE, Device>::cal_jmatrix(hamilt::HamiltSdftPW<std::complex<
                                                                    sto_npwx->displs,
                                                                    nccl_bp,
                                                                    stream);
-        rightchi_all = &rightchi;
+        rightchi_all = &chi_all;
         Parallel_Common::gatherv_nccl<std::complex<FPTYPE>, Device>(right_hchi.get_pointer(),
                                                                    perbands_sto * npwx,
                                                                    hchi_all.get_pointer(),
@@ -242,11 +241,11 @@ void Sto_EleCond<FPTYPE, Device>::cal_jmatrix(hamilt::HamiltSdftPW<std::complex<
                                                                    sto_npwx->displs,
                                                                    nccl_bp,
                                                                    stream);
-        righthchi_all = &right_hchi;
+        righthchi_all = &hchi_all;
         ModuleBase::timer::tick("sKG", "bands_gather");
-        cudaStreamSynchronize(stream);
-        cudaStreamDestroy(stream);
     }
+    cudaStreamSynchronize(stream);
+    cudaStreamDestroy(stream);
 
     if (PARAM.inp.bndpar > 1 && rightfact != nullptr)
     {

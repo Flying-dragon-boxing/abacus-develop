@@ -43,6 +43,26 @@ Sto_EleCond<FPTYPE, Device>::Sto_EleCond(UnitCell* p_ucell_in,
         this->hamilt_sto_ = new hamilt::HamiltSdftPW<std::complex<lowTYPE>, Device>(p_elec_in->pot, p_wfcpw_in, p_kv_in, p_ppcell_in, p_ucell_in, 1, &this->low_emin_, &this->low_emax_);
     }
 #endif
+    if (PARAM.inp.bndpar > 1)
+    {
+        // initialize NCCL
+        nccl_bp = nullptr;
+        int rank;
+        MPI_Comm_rank(BP_WORLD, &rank);
+        // base_device::information::set_device_by_rank();
+        ncclUniqueId id;
+        if (rank == 0) ncclGetUniqueId(&id);
+        MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, BP_WORLD);
+        int size;
+        MPI_Comm_size(BP_WORLD, &size);
+        printf("Rank %d: ID first byte: %d, Total Size: %d\n", rank, (int)id.internal[0], size);
+
+        auto res = ncclCommInitRank(&nccl_bp, size, id, rank);
+        if (res != ncclSuccess) {
+            printf("Rank %d: ncclCommInitRank failed with error %d\n", rank, res);
+            // MPI_Abort(BP_WORLD, res);
+        }
+    }
 }
 
 template <typename FPTYPE, typename Device>
@@ -199,30 +219,11 @@ void Sto_EleCond<FPTYPE, Device>::cal_jmatrix(hamilt::HamiltSdftPW<std::complex<
     std::vector<std::complex<FPTYPE>> vec_rightf_all;
     std::complex<FPTYPE>* rightf_all = rightfact;
 #ifdef __MPI
-    // alloc nccl comms
-    static ncclComm_t nccl_bp = nullptr;
-    int rank;
-    MPI_Comm_rank(BP_WORLD, &rank);
-    // base_device::information::set_device_by_rank();
-    ncclUniqueId id;
-    if (rank == 0) ncclGetUniqueId(&id);
-    MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, BP_WORLD);
-    int size;
-    MPI_Comm_size(BP_WORLD, &size);
-    printf("Rank %d: ID first byte: %d, Total Size: %d\n", rank, (int)id.internal[0], size);
-
-    auto res = ncclCommInitRank(&nccl_bp, size, id, rank);
-    if (res != ncclSuccess) {
-        printf("Rank %d: ncclCommInitRank failed with error %d\n", rank, res);
-        // MPI_Abort(BP_WORLD, res);
-    }
-
     info_gatherv* ks_fact = static_cast<info_gatherv*>(gatherinfo_ks);
     info_gatherv* sto_npwx = static_cast<info_gatherv*>(gatherinfo_sto);
     // rightchi_all = gatherchi_op<lowTYPE, Device>()(rightchi, chi_all, npwx, sto_npwx->nrecv, sto_npwx->displs, perbands_sto);
     // righthchi_all = gatherchi_op<lowTYPE, Device>()(right_hchi, hchi_all, npwx, sto_npwx->nrecv, sto_npwx->displs, perbands_sto);
-    cudaStream_t stream;
-    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+
     if (PARAM.inp.bndpar > 1)
     {
         ModuleBase::timer::tick("sKG", "bands_gather");
@@ -245,7 +246,6 @@ void Sto_EleCond<FPTYPE, Device>::cal_jmatrix(hamilt::HamiltSdftPW<std::complex<
         ModuleBase::timer::tick("sKG", "bands_gather");
     }
     cudaStreamSynchronize(stream);
-    cudaStreamDestroy(stream);
 
     if (PARAM.inp.bndpar > 1 && rightfact != nullptr)
     {

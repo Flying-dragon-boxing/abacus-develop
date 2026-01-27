@@ -2,9 +2,12 @@
 #define STOELECOND_H
 
 #include "source_hamilt/hamilt.h"
+#include "source_hsolver/hsolver_pw_sdft.h"
 #include "source_pw/module_pwdft/elecond.h"
 #include "source_pw/module_stodft/sto_wf.h"
-#include "source_hsolver/hsolver_pw_sdft.h"
+
+#include <cuda_runtime.h>
+#include <nccl.h>
 
 template <typename FPTYPE, typename Device> 
 class Sto_EleCond : protected EleCond<FPTYPE, Device>
@@ -33,6 +36,8 @@ class Sto_EleCond : protected EleCond<FPTYPE, Device>
                 Stochastic_WF<std::complex<FPTYPE>, Device>* p_stowf_in);
     ~Sto_EleCond(){
         delete hamilt_sto_;
+        ncclCommDestroy(nccl_bp);
+        cudaStreamDestroy(stream);
     };
     /**
      * @brief Set the N order of Chebyshev expansion for conductivities
@@ -81,6 +86,8 @@ class Sto_EleCond : protected EleCond<FPTYPE, Device>
     hamilt::HamiltSdftPW<std::complex<lowTYPE>, Device>* hamilt_sto_ = nullptr; ///< pointer to the Hamiltonian for sDFT
     lowTYPE low_emin_ = 0;                                                      ///< Emin of the Hamiltonian for sDFT
     lowTYPE low_emax_ = 0;                                                      ///< Emax of the Hamiltonian for sDFT
+    ncclComm_t nccl_bp = nullptr;                                                  ///< NCCL communicator for band parallelization
+    cudaStream_t stream = nullptr;                                                ///< CUDA stream for NCCL communication
   protected:
     /**
      * @brief calculate Jmatrix  <leftv|J|rightv>

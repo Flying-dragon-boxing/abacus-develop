@@ -195,7 +195,7 @@ void gatherv_nccl(const T* sendbuf,
         }
         return;
     }
-    printf("size%d\n", size);
+    // printf("size%d\n", size);
     // 1. 本地计算最大计数以进行对齐
     int nrecv_max = 0;
     for (int i = 0; i < size; ++i) {

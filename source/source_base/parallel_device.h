@@ -1,10 +1,15 @@
 #ifndef __PARALLEL_DEVICE_H__
 #define __PARALLEL_DEVICE_H__
 #ifdef __MPI
+#include "base/macros/cuda.h"
 #include "mpi.h"
 #include "source_base/module_device/device.h"
 #include "source_base/module_device/memory_op.h"
+
 #include <complex>
+#include <nccl.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
 namespace Parallel_Common
 {
 void isend_data(const double* buf, int count, int dest, int tag, MPI_Comm& comm, MPI_Request* request);
@@ -171,6 +176,76 @@ void gatherv_dev(const T* sendbuf,
     o2.del(recvbuf_cpu);
 #endif
     return;
+}
+
+template <typename T, typename Device>
+void gatherv_nccl(const T* sendbuf,
+                  int sendcount,
+                  T* recvbuf,
+                  const int* recvcounts,
+                  const int* displs,
+                  ncclComm_t comm,
+                  cudaStream_t stream)
+{
+    int size;
+    ncclCommCount(comm, &size);
+    if (size <= 1) {
+        if (size == 1 && sendbuf != recvbuf && sendcount > 0) {
+            cudaMemcpyAsync(recvbuf, sendbuf, (size_t)sendcount * sizeof(T), cudaMemcpyDeviceToDevice, stream);
+        }
+        return;
+    }
+    printf("size%d\n", size);
+    // 1. 本地计算最大计数以进行对齐
+    int nrecv_max = 0;
+    for (int i = 0; i < size; ++i) {
+        if (recvcounts[i] > nrecv_max) nrecv_max = recvcounts[i];
+    }
+    if (nrecv_max <= 0) return;
+
+    // 2. 异步分配临时缓冲区 (对齐 Padding 区域)
+    // 字节单位计算
+    size_t unit_size = sizeof(T);
+    size_t send_bytes_max = (size_t)nrecv_max * unit_size;
+    size_t recv_bytes_total = send_bytes_max * size;
+
+    void *d_tmp_send = nullptr;
+    void *d_tmp_recv = nullptr;
+
+    // 使用框架封装或原生的异步分配
+    cudaMallocAsync(&d_tmp_send, send_bytes_max, stream);
+    cudaMallocAsync(&d_tmp_recv, recv_bytes_total, stream);
+
+    // 3. Padding: 将原始数据拷贝到对齐区域的起始位置
+    if (sendcount > 0) {
+        cudaMemcpyAsync(d_tmp_send, (const void*)sendbuf, (size_t)sendcount * unit_size, cudaMemcpyDeviceToDevice, stream);
+    }
+
+    // 4. 执行对齐后的 ncclAllGather (按 Uint8 字节传输)
+    // 传输长度为每个 rank 对应的最大字节数
+    ncclAllGather((const void*)d_tmp_send,
+                  (void*)d_tmp_recv,
+                  send_bytes_max,
+                  ncclUint8,
+                  comm,
+                  stream);
+
+    // 5. Unpacking: 从对齐的缓冲区按原位移偏移拷贝回紧凑布局
+    for (int i = 0; i < size; ++i) {
+        if (recvcounts[i] > 0) {
+            cudaMemcpyAsync(
+                (void*)(recvbuf + displs[i]),
+                (const void*)((char*)d_tmp_recv + (size_t)i * send_bytes_max),
+                (size_t)recvcounts[i] * unit_size,
+                cudaMemcpyDeviceToDevice,
+                stream
+            );
+        }
+    }
+
+    // 6. 异步释放，保持流水线
+    cudaFreeAsync(d_tmp_send, stream);
+    cudaFreeAsync(d_tmp_recv, stream);
 }
 
 }

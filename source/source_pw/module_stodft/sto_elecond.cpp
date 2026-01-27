@@ -1,5 +1,7 @@
 #include "sto_elecond.h"
 
+#include "../../../../../../../../usr/local/cuda/targets/x86_64-linux/include/cuda_runtime_api.h"
+#include "base/macros/cuda.h"
 #include "source_base/complexmatrix.h"
 #include "source_base/constants.h"
 #include "source_base/memory.h"
@@ -11,7 +13,9 @@
 #include "sto_tool.h"
 
 #include <chrono>
-
+#include <cuda_runtime.h>
+#include <nccl.h>
+#include "source_base/module_device/device.h"
 #define TWOSQRT2LN2 2.354820045030949 // FWHM = 2sqrt(2ln2) * \sigma
 #define FACTOR 1.839939223835727e7
 
@@ -196,10 +200,54 @@ void Sto_EleCond<FPTYPE, Device>::cal_jmatrix(hamilt::HamiltSdftPW<std::complex<
     std::vector<std::complex<FPTYPE>> vec_rightf_all;
     std::complex<FPTYPE>* rightf_all = rightfact;
 #ifdef __MPI
+    // alloc nccl comms
+    static ncclComm_t nccl_bp = nullptr;
+    int rank;
+    MPI_Comm_rank(BP_WORLD, &rank);
+    // base_device::information::set_device_by_rank();
+    ncclUniqueId id;
+    if (rank == 0) ncclGetUniqueId(&id);
+    MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, BP_WORLD);
+    int size;
+    MPI_Comm_size(BP_WORLD, &size);
+    printf("Rank %d: ID first byte: %d, Total Size: %d\n", rank, (int)id.internal[0], size);
+
+    auto res = ncclCommInitRank(&nccl_bp, size, id, rank);
+    if (res != ncclSuccess) {
+        printf("Rank %d: ncclCommInitRank failed with error %d\n", rank, res);
+        // MPI_Abort(BP_WORLD, res);
+    }
+
     info_gatherv* ks_fact = static_cast<info_gatherv*>(gatherinfo_ks);
     info_gatherv* sto_npwx = static_cast<info_gatherv*>(gatherinfo_sto);
-    rightchi_all = gatherchi_op<lowTYPE, Device>()(rightchi, chi_all, npwx, sto_npwx->nrecv, sto_npwx->displs, perbands_sto);
-    righthchi_all = gatherchi_op<lowTYPE, Device>()(right_hchi, hchi_all, npwx, sto_npwx->nrecv, sto_npwx->displs, perbands_sto);
+    // rightchi_all = gatherchi_op<lowTYPE, Device>()(rightchi, chi_all, npwx, sto_npwx->nrecv, sto_npwx->displs, perbands_sto);
+    // righthchi_all = gatherchi_op<lowTYPE, Device>()(right_hchi, hchi_all, npwx, sto_npwx->nrecv, sto_npwx->displs, perbands_sto);
+    // if (PARAM.inp.bndpar > 1)
+    cudaStream_t stream;
+    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+    {
+        ModuleBase::timer::tick("sKG", "bands_gather");
+        Parallel_Common::gatherv_nccl<std::complex<FPTYPE>, Device>(rightchi.get_pointer(),
+                                                                   perbands_sto * npwx,
+                                                                   chi_all.get_pointer(),
+                                                                   sto_npwx->nrecv,
+                                                                   sto_npwx->displs,
+                                                                   nccl_bp,
+                                                                   stream);
+        rightchi_all = &rightchi;
+        Parallel_Common::gatherv_nccl<std::complex<FPTYPE>, Device>(right_hchi.get_pointer(),
+                                                                   perbands_sto * npwx,
+                                                                   hchi_all.get_pointer(),
+                                                                   sto_npwx->nrecv,
+                                                                   sto_npwx->displs,
+                                                                   nccl_bp,
+                                                                   stream);
+        righthchi_all = &right_hchi;
+        ModuleBase::timer::tick("sKG", "bands_gather");
+        cudaStreamSynchronize(stream);
+        cudaStreamDestroy(stream);
+    }
+
     if (PARAM.inp.bndpar > 1 && rightfact != nullptr)
     {
         vec_rightf_all.resize(allbands_ks);

@@ -7,6 +7,8 @@
 #include "source_base/parallel_device.h"
 #include "source_base/timer.h"
 #include "source_base/vector3.h"
+#include "source_estate/module_pot/potential_new.h"
+#include "source_base/module_device/types.h"
 #include "source_io/module_parameter/parameter.h"
 #include "sto_tool.h"
 
@@ -614,8 +616,37 @@ void Sto_EleCond<FPTYPE, Device>::sKG(const int& smear_type,
 
     // ik loop
     ModuleBase::timer::tick("Sto_EleCond", "kloop");
-    hamilt::Velocity<FPTYPE, Device> velop(this->p_wfcpw, this->p_kv->isk.data(), this->p_ppcell, this->p_ucell, nonlocal);
-    hamilt::Velocity<lowTYPE, Device> low_velop(this->p_wfcpw, this->p_kv->isk.data(), this->p_ppcell, this->p_ucell, nonlocal);
+    using Real = typename GetTypeReal<FPTYPE>::type;
+    using LowReal = typename GetTypeReal<lowTYPE>::type;
+    const Real* vtau_ptr = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
+                               ? this->p_elec->pot->template get_vofk_smooth_data<Real>()
+                               : nullptr;
+    const LowReal* vtau_ptr_low = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
+                                      ? this->p_elec->pot->template get_vofk_smooth_data<LowReal>()
+                                      : nullptr;
+    const int vtau_col = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
+                             ? this->p_elec->pot->get_vofk_smooth().nc
+                             : 0;
+    const int vtau_row = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
+                             ? this->p_elec->pot->get_vofk_smooth().nr
+                             : 0;
+
+    hamilt::Velocity<FPTYPE, Device> velop(this->p_wfcpw,
+                                           this->p_kv->isk.data(),
+                                           this->p_ppcell,
+                                           this->p_ucell,
+                                           nonlocal,
+                                           vtau_ptr,
+                                           vtau_col,
+                                           vtau_row);
+    hamilt::Velocity<lowTYPE, Device> low_velop(this->p_wfcpw,
+                                                this->p_kv->isk.data(),
+                                                this->p_ppcell,
+                                                this->p_ucell,
+                                                nonlocal,
+                                                vtau_ptr_low,
+                                                vtau_col,
+                                                vtau_row);
     for (int ik = 0; ik < nk; ++ik)
     {
         velop.init(ik);
@@ -1078,4 +1109,3 @@ template class Sto_EleCond<double, base_device::DEVICE_CPU>;
 #if ((defined __CUDA) || (defined __ROCM))
 template class Sto_EleCond<double, base_device::DEVICE_GPU>;
 #endif
-

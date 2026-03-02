@@ -5,6 +5,8 @@
 #include "source_base/kernels/math_kernel_op.h"
 #include "source_base/parallel_device.h"
 #include "source_estate/occupy.h"
+#include "source_estate/module_pot/potential_new.h"
+#include "source_base/module_device/types.h"
 #include "source_io/binstream.h"
 #include "source_io/module_parameter/parameter.h"
 
@@ -84,7 +86,24 @@ void EleCond<FPTYPE, Device>::KG(const int& smear_type,
     std::vector<double> ct12(nt, 0);
     std::vector<double> ct22(nt, 0);
 
-    hamilt::Velocity<FPTYPE, Device> velop(this->p_wfcpw, this->p_kv->isk.data(), this->p_ppcell, this->p_ucell, nonlocal);
+    using Real = typename GetTypeReal<FPTYPE>::type;
+    const Real* vtau_ptr = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
+                               ? this->p_elec->pot->template get_vofk_smooth_data<Real>()
+                               : nullptr;
+    const int vtau_col = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
+                             ? this->p_elec->pot->get_vofk_smooth().nc
+                             : 0;
+    const int vtau_row = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
+                             ? this->p_elec->pot->get_vofk_smooth().nr
+                             : 0;
+    hamilt::Velocity<FPTYPE, Device> velop(this->p_wfcpw,
+                                           this->p_kv->isk.data(),
+                                           this->p_ppcell,
+                                           this->p_ucell,
+                                           nonlocal,
+                                           vtau_ptr,
+                                           vtau_col,
+                                           vtau_row);
     double decut = (wcut + fwhmin) / ModuleBase::Ry_to_eV;
     std::cout << "Recommended dt: " << 0.25 * M_PI / decut << " a.u." << std::endl;
     for (int ik = 0; ik < nk; ++ik)

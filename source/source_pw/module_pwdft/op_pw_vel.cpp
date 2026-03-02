@@ -3,6 +3,8 @@
 #include "source_base/kernels/math_kernel_op.h"
 #include "source_base/parallel_reduce.h"
 #include "source_base/timer.h"
+#include "source_hamilt/module_xc/xc_functional.h"
+#include "source_pw/module_pwdft/kernels/meta_op.h"
 namespace hamilt
 {
 
@@ -11,7 +13,10 @@ Velocity<FPTYPE, Device>::Velocity(const ModulePW::PW_Basis_K* wfcpw_in,
                                    const int* isk_in,
                                    pseudopot_cell_vnl* ppcell_in,
                                    const UnitCell* ucell_in,
-                                   const bool nonlocal_in)
+                                   const bool nonlocal_in,
+                                   const typename GetTypeReal<FPTYPE>::type* vtau_in,
+                                   const int vtau_col_in,
+                                   const int vtau_row_in)
 {
     if (wfcpw_in == nullptr || isk_in == nullptr || ppcell_in == nullptr || ucell_in == nullptr)
     {
@@ -23,10 +28,16 @@ Velocity<FPTYPE, Device>::Velocity(const ModulePW::PW_Basis_K* wfcpw_in,
     this->ucell = ucell_in;
     this->nonlocal = nonlocal_in;
     this->tpiba = ucell_in->tpiba;
+    this->vtau_ = vtau_in;
+    this->vtau_col_ = vtau_col_in;
+    this->vtau_row_ = vtau_row_in;
     if (this->nonlocal)
     {
         this->ppcell->initgradq_vnl(*this->ucell);
     }
+    // workspace for meta-GGA correction (size follows wfcpw grids)
+    resmem_complex_op()(porter1_, this->wfcpw->nmaxgr);
+    resmem_complex_op()(porter2_, this->wfcpw->nmaxgr);
 }
 
 template <typename FPTYPE, typename Device>
@@ -37,6 +48,8 @@ Velocity<FPTYPE, Device>::~Velocity()
     delmem_var_op()(this->gz_);
     delmem_complex_op()(vkb_);
     delmem_complex_op()(gradvkb_);
+    delmem_complex_op()(porter1_);
+    delmem_complex_op()(porter2_);
 }
 
 template <typename FPTYPE, typename Device>
@@ -93,6 +106,7 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
     const int npw = this->wfcpw->npwk[this->ik];
     const int max_npw = this->wfcpw->npwk_max;
     const int npol = psi_in->get_npol();
+    using Real = typename GetTypeReal<FPTYPE>::type;
     
     std::vector<FPTYPE*> gtmp_ptr = {this->gx_, this->gy_, this->gz_};
     // -------------
@@ -107,6 +121,71 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
             ModuleBase::vector_mul_vector_op<Complex, Device>()(npw, tmpvpsi, tmpsi_in, gtmp_ptr[id], add);
             tmpvpsi += max_npw;
             tmpsi_in += max_npw;
+        }
+    }
+
+    // ---------------------------------------------
+    // meta-GGA velocity correction: i[V_tau, r]
+    // V_tau implemented in ABACUS as -∇·(v_tau ∇),
+    // so [V_tau, r]_j = -[ ∂_j(v_tau ψ) + v_tau ∂_j ψ ].
+    // The contribution to velocity is -i times the bracket.
+    // ---------------------------------------------
+    if (this->vtau_ != nullptr && this->vtau_col_ > 0 && XC_Functional::get_func_type() == 3)
+    {
+        const int current_spin = (this->vtau_row_ > 1 && psi_in->get_npol() == 2) ? this->isk[this->ik] : 0;
+        const Real* vtau_spin = this->vtau_ + current_spin * this->vtau_col_;
+        Complex minus_i(0.0, -1.0);
+        for (int ib = 0; ib < n_npwx; ++ib)
+        {
+            const Complex* bandpsi = psi0 + ib * max_npw;
+            for (int id = 0; id < 3; ++id)
+            {
+                // term1: ∂_id (v_tau * psi)
+                this->wfcpw->recip_to_real(this->ctx, bandpsi, this->porter1_, this->ik);
+                ModuleBase::vector_mul_vector_op<Complex, Device>()(this->vtau_col_, this->porter1_, this->porter1_, vtau_spin);
+                this->wfcpw->real_to_recip(this->ctx, this->porter1_, this->porter1_, this->ik);
+                meta_pw_op<Real, Device>()(this->ctx,
+                                           this->ik,
+                                           id,
+                                           npw,
+                                           max_npw,
+                                           this->tpiba,
+                                           this->wfcpw->template get_gcar_data<Real>(),
+                                           this->wfcpw->template get_kvec_c_data<Real>(),
+                                           this->porter1_,
+                                           this->porter2_,
+                                           false);
+
+                // term2: v_tau * ∂_id psi  (reuse porter1_)
+                meta_pw_op<Real, Device>()(this->ctx,
+                                           this->ik,
+                                           id,
+                                           npw,
+                                           max_npw,
+                                           this->tpiba,
+                                           this->wfcpw->template get_gcar_data<Real>(),
+                                           this->wfcpw->template get_kvec_c_data<Real>(),
+                                           bandpsi,
+                                           this->porter1_,
+                                           false);
+                this->wfcpw->recip_to_real(this->ctx, this->porter1_, this->porter1_, this->ik);
+                ModuleBase::vector_mul_vector_op<Complex, Device>()(this->vtau_col_, this->porter1_, this->porter1_, vtau_spin);
+                this->wfcpw->real_to_recip(this->ctx, this->porter1_, this->porter1_, this->ik);
+
+                // sum and apply -i
+                ModuleBase::vector_add_vector_op<Complex, Device>()(npw,
+                                                                    this->porter1_,
+                                                                    this->porter1_,
+                                                                    static_cast<Real>(1.0),
+                                                                    this->porter2_,
+                                                                    static_cast<Real>(1.0));
+                ModuleBase::scal_op<Real, Device>()(npw, &minus_i, this->porter1_, 1);
+
+                // accumulate to vpsi (component id, band ib)
+                Complex* vpsi_slice = vpsi + id * n_npwx * max_npw + ib * max_npw;
+                Complex one = 1.0;
+                ModuleBase::axpy_op<Complex, Device>()(npw, &one, this->porter1_, 1, vpsi_slice, 1);
+            }
         }
     }
 

@@ -290,6 +290,20 @@ public:
                     const bool add = false,
                     const FPTYPE factor = 1.0) const; // in:(nz, ns)  ; out(nplane,nx*ny)
 
+    template <typename FPTYPE>
+    void real2recip_batched_gpu(const std::complex<FPTYPE>* in,
+                                std::complex<FPTYPE>* out,
+                                const int batch_size,
+                                const bool add = false,
+                                const FPTYPE factor = 1.0) const;
+
+    template <typename FPTYPE>
+    void recip2real_batched_gpu(const std::complex<FPTYPE>* in,
+                                std::complex<FPTYPE>* out,
+                                const int batch_size,
+                                const bool add = false,
+                                const FPTYPE factor = 1.0) const;
+
     /**
      * @brief Converts data from reciprocal space to real space on Cpu
      *

@@ -662,6 +662,7 @@ struct Input_para
     std::string exx_thr_type = "density"; // threshold type for exx outer loop, energy or density
     double exx_ene_thr = 1e-5; // threshold for exx outer loop when exx_thr_type = energy
     double ecutexx = 0.0; // energy cutoff for exx calculation, Ry
+    int exx_fft_batch = 0;
 
     // ====   #Parameters (23.XC external parameterization) ========
     /*

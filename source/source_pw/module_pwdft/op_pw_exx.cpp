@@ -19,6 +19,7 @@
 #include "source_hamilt/module_xc/exx_info.h" // use GlobalC::exx_info
 
 #include <cmath>
+#include <algorithm>
 #include <complex>
 #include <cstdlib>
 #include <utility>
@@ -294,12 +295,12 @@ void OperatorEXXPW<T, Device>::act_op(const int nbands,
 
 template <typename T, typename Device>
 void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
-                                   const int nbasis,
-                                   const int npol,
-                                   const T *tmpsi_in,
-                                   T *tmhpsi,
-                                   const int ngk_ik,
-                                   const bool is_first_node) const
+                                    const int nbasis,
+                                    const int npol,
+                                    const T *tmpsi_in,
+                                    T *tmhpsi,
+                                    const int ngk_ik,
+                                    const bool is_first_node) const
 {
     ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar");
 
@@ -316,10 +317,25 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
     int ispin = this->ik < (wfcpw->nks / nspin_fac) ? 0 : 1;
 
     const int npw_ik = wfcpw->npwk[this->ik];
+    const int npw_rho = rhopw_dev->npw;
+    const int nrxx_rho = rhopw_dev->nrxx;
+    int fft_batch_size = 1;
+    if (PARAM.inp.exx_fft_batch > 0)
+    {
+        fft_batch_size = std::min(nbands, PARAM.inp.exx_fft_batch);
+    }
+    else
+    {
+        fft_batch_size = (nbands >= 64) ? nbands : std::min(nbands, 16);
+    }
     T* psi_nk_packed = nullptr;
     T* psi_nk_real_batched = nullptr;
+    T* density_real_batched = nullptr;
+    T* density_recip_batched = nullptr;
     resmem_complex_op()(psi_nk_packed, static_cast<size_t>(nbands) * npw_ik);
-    resmem_complex_op()(psi_nk_real_batched, static_cast<size_t>(nbands) * wfcpw->nrxx);
+    resmem_complex_op()(psi_nk_real_batched, static_cast<size_t>(fft_batch_size) * wfcpw->nrxx);
+    resmem_complex_op()(density_real_batched, static_cast<size_t>(fft_batch_size) * nrxx_rho);
+    resmem_complex_op()(density_recip_batched, static_cast<size_t>(fft_batch_size) * npw_rho);
 
     for (int n_iband = 0; n_iband < nbands; ++n_iband)
     {
@@ -384,47 +400,106 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
 #endif
 #endif
 
-            wfcpw->recip_to_real_batched(ctx,
-                                         psi_nk_packed,
-                                         psi_nk_real_batched,
-                                         this->ik,
-                                         nbands);
-
-            for (int n_iband = 0; n_iband < nbands; n_iband++)
+            for (int n_begin = 0; n_begin < nbands; n_begin += fft_batch_size)
             {
-                const T* psi_nk_real_batch = psi_nk_real_batched + static_cast<size_t>(n_iband) * wfcpw->nrxx;
+                const int batch_n = std::min(fft_batch_size, nbands - n_begin);
 
-                // direct multiplication in real space, \psi_nk(r) * \psi_mq(r)
-                cal_density_recip(psi_nk_real_batch, psi_mq_real, ucell->omega);
+                wfcpw->recip_to_real_batched(ctx,
+                                             psi_nk_packed + static_cast<size_t>(n_begin) * npw_ik,
+                                             psi_nk_real_batched,
+                                             this->ik,
+                                             batch_n);
 
-                mul_potential_op<T, Device>()(pot, density_recip, rhopw_dev->npw, wfcpw->nks, this->ik, iq);
-
-                // bring the potential back to real space
-                rho_recip2real(density_recip, density_real);
-
-                if (false)
+                for (int ib = 0; ib < batch_n; ++ib)
                 {
-                    // do nothing
+                    const T* psi_nk_real_batch = psi_nk_real_batched + static_cast<size_t>(ib) * wfcpw->nrxx;
+                    T* density_real_batch = density_real_batched + static_cast<size_t>(ib) * nrxx_rho;
+                    cal_density_real_op<T, Device>()(psi_nk_real_batch,
+                                                     psi_mq_real,
+                                                     density_real_batch,
+                                                     ucell->omega,
+                                                     wfcpw->nrxx);
+                }
+
+#if ((defined __CUDA) || (defined __ROCM))
+                if (PARAM.inp.device == "gpu" && batch_n > 1)
+                {
+                    rhopw_dev->real2recip_batched_gpu(density_real_batched,
+                                                      density_recip_batched,
+                                                      batch_n,
+                                                      false,
+                                                      static_cast<Real>(1.0));
                 }
                 else
+#endif
                 {
-                    vec_mul_vec_complex_op<T, Device>()(density_real, psi_mq_real, density_real, wfcpw->nrxx);
+                    for (int ib = 0; ib < batch_n; ++ib)
+                    {
+                        rhopw_dev->real_to_recip<T, T, Device>(density_real_batched + static_cast<size_t>(ib) * nrxx_rho,
+                                                               density_recip_batched + static_cast<size_t>(ib) * npw_rho,
+                                                               false,
+                                                               static_cast<Real>(1.0));
+                    }
                 }
 
+                for (int ib = 0; ib < batch_n; ++ib)
+                {
+                    T* density_recip_batch = density_recip_batched + static_cast<size_t>(ib) * npw_rho;
+                    mul_potential_op<T, Device>()(pot, density_recip_batch, npw_rho, wfcpw->nks, this->ik, iq);
+                }
 
-                Real wk_iq = kv->wk[iq];
-                Real wk_ik = kv->wk[this->ik];
+#if ((defined __CUDA) || (defined __ROCM))
+                if (PARAM.inp.device == "gpu" && batch_n > 1)
+                {
+                    rhopw_dev->recip2real_batched_gpu(density_recip_batched,
+                                                      density_real_batched,
+                                                      batch_n,
+                                                      false,
+                                                      static_cast<Real>(1.0));
+                }
+                else
+#endif
+                {
+                    for (int ib = 0; ib < batch_n; ++ib)
+                    {
+                        rhopw_dev->recip_to_real<T, T, Device>(density_recip_batched + static_cast<size_t>(ib) * npw_rho,
+                                                               density_real_batched + static_cast<size_t>(ib) * nrxx_rho,
+                                                               false,
+                                                               static_cast<Real>(1.0));
+                    }
+                }
 
-                Real tmp_scalar = wg_mqb / wk_ik / nqs; // wk_ik works for now, but wrong for symmetry.
+                for (int ib = 0; ib < batch_n; ++ib)
+                {
+                    const int n_iband = n_begin + ib;
+                    T* density_real_batch = density_real_batched + static_cast<size_t>(ib) * nrxx_rho;
 
-                T* h_psi_nk = tmhpsi + n_iband * nbasis;
-                Real hybrid_alpha = GlobalC::exx_info.info_global.hybrid_alpha;
-                wfcpw->real_to_recip(ctx, density_real, h_psi_nk, this->ik, true, hybrid_alpha * tmp_scalar);
+                    if (false)
+                    {
+                        // do nothing
+                    }
+                    else
+                    {
+                        vec_mul_vec_complex_op<T, Device>()(density_real_batch,
+                                                            psi_mq_real,
+                                                            density_real_batch,
+                                                            wfcpw->nrxx);
+                    }
 
+                    Real wk_iq = kv->wk[iq];
+                    Real wk_ik = kv->wk[this->ik];
+                    Real tmp_scalar = wg_mqb / wk_ik / nqs; // wk_ik works for now, but wrong for symmetry.
 
-            } // end of m_iband
+                    T* h_psi_nk = tmhpsi + static_cast<size_t>(n_iband) * nbasis;
+                    Real hybrid_alpha = GlobalC::exx_info.info_global.hybrid_alpha;
+                    wfcpw->real_to_recip(ctx, density_real_batch, h_psi_nk, this->ik, true, hybrid_alpha * tmp_scalar);
+                }
+            }
+
             setmem_complex_op()(density_real, 0, rhopw_dev->nrxx);
             setmem_complex_op()(density_recip, 0, rhopw_dev->npw);
+            setmem_complex_op()(density_real_batched, 0, static_cast<size_t>(fft_batch_size) * nrxx_rho);
+            setmem_complex_op()(density_recip_batched, 0, static_cast<size_t>(fft_batch_size) * npw_rho);
             setmem_complex_op()(psi_mq_real, 0, wfcpw->nrxx);
 
         } // end of iq
@@ -433,6 +508,8 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
 
     delmem_complex_op()(psi_nk_packed);
     delmem_complex_op()(psi_nk_real_batched);
+    delmem_complex_op()(density_real_batched);
+    delmem_complex_op()(density_recip_batched);
 
     ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar");
 

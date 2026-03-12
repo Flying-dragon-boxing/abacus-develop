@@ -911,6 +911,24 @@ void ReadInput::item_others()
         };
         this->add_item(item);
     }
+    {
+        Input_Item item("exx_fft_batch");
+        item.annotation = "FFT batch size for EXX-PW, 0 means auto";
+        item.category = "Exact Exchange (PW)";
+        item.type = "Integer";
+        item.description = "FFT batch size used in EXX-PW batched transforms. 0 means automatic policy, positive values enforce manual chunk size.";
+        item.default_value = "0";
+        item.unit = "";
+        item.availability = "";
+        read_sync_int(input.exx_fft_batch);
+        item.check_value = [](const Input_Item& item, const Parameter& para) {
+            if (para.input.exx_fft_batch < 0)
+            {
+                ModuleBase::WARNING_QUIT("ReadInput", "exx_fft_batch must >= 0");
+            }
+        };
+        this->add_item(item);
+    }
 
     {
         Input_Item item("exx_thr_type");

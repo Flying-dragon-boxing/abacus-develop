@@ -338,6 +338,94 @@ void PW_Basis_K::recip_to_real(const base_device::DEVICE_CPU* /*dev*/,
     #endif
 }
 
+template <>
+void PW_Basis_K::real_to_recip_batched(const base_device::DEVICE_CPU* ctx,
+                                       const std::complex<float>* in,
+                                       std::complex<float>* out,
+                                       const int ik,
+                                       const int nbands,
+                                       const bool add,
+                                       const float factor) const
+{
+    const int nrxx = this->nrxx;
+    const int npw_k = this->npwk[ik];
+    for (int ib = 0; ib < nbands; ++ib)
+    {
+        this->real_to_recip(ctx,
+                            in + ib * nrxx,
+                            out + ib * npw_k,
+                            ik,
+                            add,
+                            factor);
+    }
+}
+
+template <>
+void PW_Basis_K::real_to_recip_batched(const base_device::DEVICE_CPU* ctx,
+                                       const std::complex<double>* in,
+                                       std::complex<double>* out,
+                                       const int ik,
+                                       const int nbands,
+                                       const bool add,
+                                       const double factor) const
+{
+    const int nrxx = this->nrxx;
+    const int npw_k = this->npwk[ik];
+    for (int ib = 0; ib < nbands; ++ib)
+    {
+        this->real_to_recip(ctx,
+                            in + ib * nrxx,
+                            out + ib * npw_k,
+                            ik,
+                            add,
+                            factor);
+    }
+}
+
+template <>
+void PW_Basis_K::recip_to_real_batched(const base_device::DEVICE_CPU* ctx,
+                                       const std::complex<float>* in,
+                                       std::complex<float>* out,
+                                       const int ik,
+                                       const int nbands,
+                                       const bool add,
+                                       const float factor) const
+{
+    const int nrxx = this->nrxx;
+    const int npw_k = this->npwk[ik];
+    for (int ib = 0; ib < nbands; ++ib)
+    {
+        this->recip_to_real(ctx,
+                            in + ib * npw_k,
+                            out + ib * nrxx,
+                            ik,
+                            add,
+                            factor);
+    }
+}
+
+template <>
+void PW_Basis_K::recip_to_real_batched(const base_device::DEVICE_CPU* ctx,
+                                       const std::complex<double>* in,
+                                       std::complex<double>* out,
+                                       const int ik,
+                                       const int nbands,
+                                       const bool add,
+                                       const double factor) const
+{
+    const int nrxx = this->nrxx;
+    const int npw_k = this->npwk[ik];
+    for (int ib = 0; ib < nbands; ++ib)
+    {
+        this->recip_to_real(ctx,
+                            in + ib * npw_k,
+                            out + ib * nrxx,
+                            ik,
+                            add,
+                            factor);
+    }
+}
+
 #if (defined(__CUDA) || defined(__ROCM))
 template <>
 void PW_Basis_K::real_to_recip(const base_device::DEVICE_GPU* ctx,
@@ -368,6 +456,104 @@ void PW_Basis_K::real_to_recip(const base_device::DEVICE_GPU* ctx,
                                                                   this->fft_bundle.get_auxr_3d_data<float>(),
                                                                   out);
     ModuleBase::timer::tick(this->classname, "real_to_recip gpu");
+}
+
+template <>
+void PW_Basis_K::real_to_recip_batched(const base_device::DEVICE_GPU* ctx,
+                                       const std::complex<float>* in,
+                                       std::complex<float>* out,
+                                       const int ik,
+                                       const int nbands,
+                                       const bool add,
+                                       const float factor) const
+{
+    (void)ctx;
+    ModuleBase::timer::tick(this->classname, "real_to_recip batched gpu");
+    assert(this->gamma_only == false);
+    assert(this->poolnproc == 1);
+
+    const int startig = ik * this->npwk_max;
+    const int npw_k = this->npwk[ik];
+    const int nxyz = this->nxyz;
+    const int nrxx = this->nrxx;
+    const size_t total = static_cast<size_t>(nbands) * nxyz;
+
+    std::complex<float>* auxr_batched = nullptr;
+    base_device::memory::resize_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(auxr_batched, total);
+
+    for (int ib = 0; ib < nbands; ++ib)
+    {
+        base_device::memory::synchronize_memory_op<std::complex<float>,
+                                                   base_device::DEVICE_GPU,
+                                                   base_device::DEVICE_GPU>()(auxr_batched + static_cast<size_t>(ib) * nxyz,
+                                                                              in + static_cast<size_t>(ib) * nrxx,
+                                                                              nrxx);
+    }
+
+    this->fft_bundle.fft3D_forward_batched(auxr_batched, auxr_batched, nbands);
+
+    for (int ib = 0; ib < nbands; ++ib)
+    {
+        set_real_to_recip_output_op<float, base_device::DEVICE_GPU>()(npw_k,
+                                                                       nxyz,
+                                                                       add,
+                                                                       factor,
+                                                                       this->ig2ixyz_k + startig,
+                                                                       auxr_batched + static_cast<size_t>(ib) * nxyz,
+                                                                       out + static_cast<size_t>(ib) * npw_k);
+    }
+
+    base_device::memory::delete_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(auxr_batched);
+    ModuleBase::timer::tick(this->classname, "real_to_recip batched gpu");
+}
+
+template <>
+void PW_Basis_K::real_to_recip_batched(const base_device::DEVICE_GPU* ctx,
+                                       const std::complex<double>* in,
+                                       std::complex<double>* out,
+                                       const int ik,
+                                       const int nbands,
+                                       const bool add,
+                                       const double factor) const
+{
+    (void)ctx;
+    ModuleBase::timer::tick(this->classname, "real_to_recip batched gpu");
+    assert(this->gamma_only == false);
+    assert(this->poolnproc == 1);
+
+    const int startig = ik * this->npwk_max;
+    const int npw_k = this->npwk[ik];
+    const int nxyz = this->nxyz;
+    const int nrxx = this->nrxx;
+    const size_t total = static_cast<size_t>(nbands) * nxyz;
+
+    std::complex<double>* auxr_batched = nullptr;
+    base_device::memory::resize_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(auxr_batched, total);
+
+    for (int ib = 0; ib < nbands; ++ib)
+    {
+        base_device::memory::synchronize_memory_op<std::complex<double>,
+                                                   base_device::DEVICE_GPU,
+                                                   base_device::DEVICE_GPU>()(auxr_batched + static_cast<size_t>(ib) * nxyz,
+                                                                              in + static_cast<size_t>(ib) * nrxx,
+                                                                              nrxx);
+    }
+
+    this->fft_bundle.fft3D_forward_batched(auxr_batched, auxr_batched, nbands);
+
+    for (int ib = 0; ib < nbands; ++ib)
+    {
+        set_real_to_recip_output_op<double, base_device::DEVICE_GPU>()(npw_k,
+                                                                        nxyz,
+                                                                        add,
+                                                                        factor,
+                                                                        this->ig2ixyz_k + startig,
+                                                                        auxr_batched + static_cast<size_t>(ib) * nxyz,
+                                                                        out + static_cast<size_t>(ib) * npw_k);
+    }
+
+    base_device::memory::delete_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(auxr_batched);
+    ModuleBase::timer::tick(this->classname, "real_to_recip batched gpu");
 }
 template <>
 void PW_Basis_K::real_to_recip(const base_device::DEVICE_GPU* ctx,
@@ -468,6 +654,100 @@ void PW_Basis_K::recip_to_real(const base_device::DEVICE_GPU* ctx,
                                                                    out);
 
     ModuleBase::timer::tick(this->classname, "recip_to_real gpu");
+}
+
+template <>
+void PW_Basis_K::recip_to_real_batched(const base_device::DEVICE_GPU* ctx,
+                                       const std::complex<float>* in,
+                                       std::complex<float>* out,
+                                       const int ik,
+                                       const int nbands,
+                                       const bool add,
+                                       const float factor) const
+{
+    (void)ctx;
+    ModuleBase::timer::tick(this->classname, "recip_to_real batched gpu");
+    assert(this->gamma_only == false);
+    assert(this->poolnproc == 1);
+
+    const int startig = ik * this->npwk_max;
+    const int npw_k = this->npwk[ik];
+    const int nxyz = this->nxyz;
+    const int nrxx = this->nrxx;
+    const size_t total = static_cast<size_t>(nbands) * nxyz;
+
+    std::complex<float>* auxr_batched = nullptr;
+    base_device::memory::resize_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(auxr_batched, total);
+    base_device::memory::set_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(auxr_batched, 0, total);
+
+    for (int ib = 0; ib < nbands; ++ib)
+    {
+        set_3d_fft_box_op<float, base_device::DEVICE_GPU>()(npw_k,
+                                                             this->ig2ixyz_k + startig,
+                                                             in + static_cast<size_t>(ib) * npw_k,
+                                                             auxr_batched + static_cast<size_t>(ib) * nxyz);
+    }
+
+    this->fft_bundle.fft3D_backward_batched(auxr_batched, auxr_batched, nbands);
+
+    for (int ib = 0; ib < nbands; ++ib)
+    {
+        set_recip_to_real_output_op<float, base_device::DEVICE_GPU>()(nrxx,
+                                                                       add,
+                                                                       factor,
+                                                                       auxr_batched + static_cast<size_t>(ib) * nxyz,
+                                                                       out + static_cast<size_t>(ib) * nrxx);
+    }
+
+    base_device::memory::delete_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(auxr_batched);
+    ModuleBase::timer::tick(this->classname, "recip_to_real batched gpu");
+}
+
+template <>
+void PW_Basis_K::recip_to_real_batched(const base_device::DEVICE_GPU* ctx,
+                                       const std::complex<double>* in,
+                                       std::complex<double>* out,
+                                       const int ik,
+                                       const int nbands,
+                                       const bool add,
+                                       const double factor) const
+{
+    (void)ctx;
+    ModuleBase::timer::tick(this->classname, "recip_to_real batched gpu");
+    assert(this->gamma_only == false);
+    assert(this->poolnproc == 1);
+
+    const int startig = ik * this->npwk_max;
+    const int npw_k = this->npwk[ik];
+    const int nxyz = this->nxyz;
+    const int nrxx = this->nrxx;
+    const size_t total = static_cast<size_t>(nbands) * nxyz;
+
+    std::complex<double>* auxr_batched = nullptr;
+    base_device::memory::resize_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(auxr_batched, total);
+    base_device::memory::set_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(auxr_batched, 0, total);
+
+    for (int ib = 0; ib < nbands; ++ib)
+    {
+        set_3d_fft_box_op<double, base_device::DEVICE_GPU>()(npw_k,
+                                                              this->ig2ixyz_k + startig,
+                                                              in + static_cast<size_t>(ib) * npw_k,
+                                                              auxr_batched + static_cast<size_t>(ib) * nxyz);
+    }
+
+    this->fft_bundle.fft3D_backward_batched(auxr_batched, auxr_batched, nbands);
+
+    for (int ib = 0; ib < nbands; ++ib)
+    {
+        set_recip_to_real_output_op<double, base_device::DEVICE_GPU>()(nrxx,
+                                                                        add,
+                                                                        factor,
+                                                                        auxr_batched + static_cast<size_t>(ib) * nxyz,
+                                                                        out + static_cast<size_t>(ib) * nrxx);
+    }
+
+    base_device::memory::delete_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(auxr_batched);
+    ModuleBase::timer::tick(this->classname, "recip_to_real batched gpu");
 }
 
 template <typename FPTYPE>

@@ -54,12 +54,58 @@ class FFT_CUDA : public FFT_BASE<FPTYPE>
          */
         void fft3D_backward(std::complex<FPTYPE>* in, 
                             std::complex<FPTYPE>* out) const override;
+
+        /**
+         * @brief Setup batched FFT plan
+         * @param batch_size  number of FFTs to perform in batch
+         * 
+         * This function creates a batched FFT plan using cufftPlanMany.
+         * Call this before using batched FFT operations.
+         */
+        void setupFFT_batched(int batch_size);
+
+        /**
+         * @brief Clean up batched FFT plan
+         * 
+         * This function destroys the batched FFT plan.
+         */
+        void cleanFFT_batched();
+
+        /**
+         * @brief Forward batched FFT in 3D
+         * @param in  input data, complex FPTYPE [batch_size, nz, ny, nx]
+         * @param out  output data, complex FPTYPE [batch_size, nz, ny, nx]
+         * @param batch_size  number of FFTs to perform
+         * 
+         * This function performs batched forward FFT in 3D.
+         */
+        void fft3D_forward_batched(std::complex<FPTYPE>* in, 
+                                   std::complex<FPTYPE>* out,
+                                   int batch_size) const;
+
+        /**
+         * @brief Backward batched FFT in 3D
+         * @param in  input data, complex FPTYPE [batch_size, nz, ny, nx]
+         * @param out  output data, complex FPTYPE [batch_size, nz, ny, nx]
+         * @param batch_size  number of FFTs to perform
+         * 
+         * This function performs batched backward FFT in 3D.
+         */
+        void fft3D_backward_batched(std::complex<FPTYPE>* in, 
+                                    std::complex<FPTYPE>* out,
+                                    int batch_size) const;
+
     private:
         cufftHandle c_handle = {};
         cufftHandle z_handle = {};
+        cufftHandle c_handle_batch = {};  // batched plan for float
+        cufftHandle z_handle_batch = {};  // batched plan for double
        
         std::complex<float>* c_auxr_3d = nullptr;  // fft space
         std::complex<double>* z_auxr_3d = nullptr; // fft space
+
+        int planned_batch_size = 0;
+        bool batch_initialized = false;
 
 };
 

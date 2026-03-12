@@ -45,6 +45,13 @@ template <>
 void FFT_CUDA<float>::clear()
 {
     this->cleanFFT();
+    if (c_handle_batch)
+    {
+        cufftDestroy(c_handle_batch);
+        c_handle_batch = {};
+    }
+    batch_initialized = false;
+    planned_batch_size = 0;
     if (c_auxr_3d != nullptr)
     {
         delmem_cd_op()(c_auxr_3d);
@@ -55,6 +62,13 @@ template <>
 void FFT_CUDA<double>::clear()
 {
     this->cleanFFT();
+    if (z_handle_batch)
+    {
+        cufftDestroy(z_handle_batch);
+        z_handle_batch = {};
+    }
+    batch_initialized = false;
+    planned_batch_size = 0;
     if (z_auxr_3d != nullptr)
     {
         delmem_zd_op()(z_auxr_3d);
@@ -104,6 +118,174 @@ template <>
 std::complex<double>* FFT_CUDA<double>::get_auxr_3d_data() const
 {
     return this->z_auxr_3d;
+}
+
+template <>
+void FFT_CUDA<float>::setupFFT_batched(int batch_size)
+{
+    if (batch_size <= 1) {
+        return;
+    }
+
+    if (batch_initialized && planned_batch_size == batch_size) {
+        return;
+    }
+
+    if (c_handle_batch) {
+        cufftDestroy(c_handle_batch);
+        c_handle_batch = {};
+    }
+    batch_initialized = false;
+    planned_batch_size = 0;
+
+    int n[3] = {this->nx, this->ny, this->nz};
+    const int dist = this->nx * this->ny * this->nz;
+
+    CHECK_CUFFT(cufftPlanMany(&c_handle_batch,
+                              3,
+                              n,
+                              nullptr,
+                              1,
+                              dist,
+                              nullptr,
+                              1,
+                              dist,
+                              CUFFT_C2C,
+                              batch_size));
+
+    planned_batch_size = batch_size;
+    batch_initialized = true;
+}
+
+template <>
+void FFT_CUDA<double>::setupFFT_batched(int batch_size)
+{
+    if (batch_size <= 1) {
+        return;
+    }
+
+    if (batch_initialized && planned_batch_size == batch_size) {
+        return;
+    }
+
+    if (z_handle_batch) {
+        cufftDestroy(z_handle_batch);
+        z_handle_batch = {};
+    }
+    batch_initialized = false;
+    planned_batch_size = 0;
+
+    int n[3] = {this->nx, this->ny, this->nz};
+    const int dist = this->nx * this->ny * this->nz;
+
+    CHECK_CUFFT(cufftPlanMany(&z_handle_batch,
+                              3,
+                              n,
+                              nullptr,
+                              1,
+                              dist,
+                              nullptr,
+                              1,
+                              dist,
+                              CUFFT_Z2Z,
+                              batch_size));
+
+    planned_batch_size = batch_size;
+    batch_initialized = true;
+}
+
+template <>
+void FFT_CUDA<float>::cleanFFT_batched()
+{
+    if (c_handle_batch) {
+        cufftDestroy(c_handle_batch);
+        c_handle_batch = {};
+        batch_initialized = false;
+        planned_batch_size = 0;
+    }
+}
+
+template <>
+void FFT_CUDA<double>::cleanFFT_batched()
+{
+    if (z_handle_batch) {
+        cufftDestroy(z_handle_batch);
+        z_handle_batch = {};
+        batch_initialized = false;
+        planned_batch_size = 0;
+    }
+}
+
+template <>
+void FFT_CUDA<float>::fft3D_forward_batched(std::complex<float>* in,
+                                            std::complex<float>* out,
+                                            int batch_size) const
+{
+    if (batch_size > 1 && c_handle_batch && batch_initialized) {
+        CHECK_CUFFT(cufftExecC2C(c_handle_batch,
+                                 reinterpret_cast<cufftComplex*>(in),
+                                 reinterpret_cast<cufftComplex*>(out),
+                                 CUFFT_FORWARD));
+    } else {
+        for (int b = 0; b < batch_size; b++) {
+            fft3D_forward(in + b * this->nx * this->ny * this->nz,
+                         out + b * this->nx * this->ny * this->nz);
+        }
+    }
+}
+
+template <>
+void FFT_CUDA<double>::fft3D_forward_batched(std::complex<double>* in,
+                                             std::complex<double>* out,
+                                             int batch_size) const
+{
+    if (batch_size > 1 && z_handle_batch && batch_initialized) {
+        CHECK_CUFFT(cufftExecZ2Z(z_handle_batch,
+                                 reinterpret_cast<cufftDoubleComplex*>(in),
+                                 reinterpret_cast<cufftDoubleComplex*>(out),
+                                 CUFFT_FORWARD));
+    } else {
+        for (int b = 0; b < batch_size; b++) {
+            fft3D_forward(in + b * this->nx * this->ny * this->nz,
+                         out + b * this->nx * this->ny * this->nz);
+        }
+    }
+}
+
+template <>
+void FFT_CUDA<float>::fft3D_backward_batched(std::complex<float>* in,
+                                             std::complex<float>* out,
+                                             int batch_size) const
+{
+    if (batch_size > 1 && c_handle_batch && batch_initialized) {
+        CHECK_CUFFT(cufftExecC2C(c_handle_batch,
+                                 reinterpret_cast<cufftComplex*>(in),
+                                 reinterpret_cast<cufftComplex*>(out),
+                                 CUFFT_INVERSE));
+    } else {
+        for (int b = 0; b < batch_size; b++) {
+            fft3D_backward(in + b * this->nx * this->ny * this->nz,
+                          out + b * this->nx * this->ny * this->nz);
+        }
+    }
+}
+
+template <>
+void FFT_CUDA<double>::fft3D_backward_batched(std::complex<double>* in,
+                                              std::complex<double>* out,
+                                              int batch_size) const
+{
+    if (batch_size > 1 && z_handle_batch && batch_initialized) {
+        CHECK_CUFFT(cufftExecZ2Z(z_handle_batch,
+                                 reinterpret_cast<cufftDoubleComplex*>(in),
+                                 reinterpret_cast<cufftDoubleComplex*>(out),
+                                 CUFFT_INVERSE));
+    } else {
+        for (int b = 0; b < batch_size; b++) {
+            fft3D_backward(in + b * this->nx * this->ny * this->nz,
+                          out + b * this->nx * this->ny * this->nz);
+        }
+    }
 }
 
 template FFT_CUDA<float>::FFT_CUDA();

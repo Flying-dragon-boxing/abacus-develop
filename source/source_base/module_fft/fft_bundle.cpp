@@ -44,6 +44,10 @@ void FFT_Bundle::initfft(int nx_in,
                          bool xprime_in,
                          bool mpifft_in)
 {
+    this->nx = nx_in;
+    this->ny = ny_in;
+    this->nz = nz_in;
+
     assert(this->device == "cpu" || this->device == "gpu" || this->device == "dsp");
     assert(this->precision == "single" || this->precision == "double" || this->precision == "mixing");
 
@@ -250,6 +254,126 @@ void FFT_Bundle::fft3D_backward(std::complex<double>* in,
                                 std::complex<double>* out) const
 {
     fft_double->fft3D_backward(in, out);
+}
+
+template <>
+void FFT_Bundle::fft3D_forward_batched(std::complex<float>* in,
+                                       std::complex<float>* out,
+                                       int batch_size) const
+{
+    if (batch_size <= 1) {
+        fft3D_forward(in, out);
+        return;
+    }
+#if defined(__CUDA) || defined(__ROCM)
+    if (this->device == "gpu" && batch_size > 1) {
+#if defined(__CUDA)
+        auto* fft_cuda = dynamic_cast<FFT_CUDA<float>*>(fft_float.get());
+        if (fft_cuda) {
+            fft_cuda->setupFFT_batched(batch_size);
+            fft_cuda->fft3D_forward_batched(in, out, batch_size);
+            return;
+        }
+#elif defined(__ROCM)
+#endif
+    }
+#endif
+    const int block_size = this->nx * this->ny * this->nz;
+    for (int b = 0; b < batch_size; b++) {
+        fft3D_forward(in, out);
+        in += block_size;
+        out += block_size;
+    }
+}
+
+template <>
+void FFT_Bundle::fft3D_forward_batched(std::complex<double>* in,
+                                       std::complex<double>* out,
+                                       int batch_size) const
+{
+    if (batch_size <= 1) {
+        fft3D_forward(in, out);
+        return;
+    }
+#if defined(__CUDA) || defined(__ROCM)
+    if (this->device == "gpu" && batch_size > 1) {
+#if defined(__CUDA)
+        auto* fft_cuda = dynamic_cast<FFT_CUDA<double>*>(fft_double.get());
+        if (fft_cuda) {
+            fft_cuda->setupFFT_batched(batch_size);
+            fft_cuda->fft3D_forward_batched(in, out, batch_size);
+            return;
+        }
+#elif defined(__ROCM)
+#endif
+    }
+#endif
+    const int block_size = this->nx * this->ny * this->nz;
+    for (int b = 0; b < batch_size; b++) {
+        fft3D_forward(in, out);
+        in += block_size;
+        out += block_size;
+    }
+}
+
+template <>
+void FFT_Bundle::fft3D_backward_batched(std::complex<float>* in,
+                                        std::complex<float>* out,
+                                        int batch_size) const
+{
+    if (batch_size <= 1) {
+        fft3D_backward(in, out);
+        return;
+    }
+#if defined(__CUDA) || defined(__ROCM)
+    if (this->device == "gpu" && batch_size > 1) {
+#if defined(__CUDA)
+        auto* fft_cuda = dynamic_cast<FFT_CUDA<float>*>(fft_float.get());
+        if (fft_cuda) {
+            fft_cuda->setupFFT_batched(batch_size);
+            fft_cuda->fft3D_backward_batched(in, out, batch_size);
+            return;
+        }
+#elif defined(__ROCM)
+#endif
+    }
+#endif
+    const int block_size = this->nx * this->ny * this->nz;
+    for (int b = 0; b < batch_size; b++) {
+        fft3D_backward(in, out);
+        in += block_size;
+        out += block_size;
+    }
+}
+
+template <>
+void FFT_Bundle::fft3D_backward_batched(std::complex<double>* in,
+                                        std::complex<double>* out,
+                                        int batch_size) const
+{
+    if (batch_size <= 1) {
+        fft3D_backward(in, out);
+        return;
+    }
+#if defined(__CUDA) || defined(__ROCM)
+    if (this->device == "gpu" && batch_size > 1) {
+#if defined(__CUDA)
+        auto* fft_cuda = dynamic_cast<FFT_CUDA<double>*>(fft_double.get());
+        if (fft_cuda) {
+            fft_cuda->setupFFT_batched(batch_size);
+            fft_cuda->fft3D_backward_batched(in, out, batch_size);
+            return;
+        }
+#elif defined(__ROCM)
+#endif
+    }
+#endif
+    const int block_size = this->nx * this->ny * this->nz;
+    for (int b = 0; b < batch_size; b++) {
+        fft3D_backward(in, out);
+        in += block_size;
+        out += block_size;
+    }
 }
 
 // access the real space data

@@ -1,0 +1,44 @@
+&CONTROL
+    calculation = 'scf'
+    prefix = 'autotest'
+    pseudo_dir = '../../PP_ORB'
+    outdir = './tmp'
+    verbosity = 'low'
+/
+&SYSTEM
+    ibrav = 0
+    nat = 2
+    ntyp = 2
+    ecutwfc = 100.0
+    nspin = 2
+    occupations = 'smearing'
+    smearing = 'gaussian'
+    degauss = 0.01
+    starting_magnetization(1) = -5
+    starting_magnetization(2) = 5
+    input_dft = 'PBE0'
+/
+&ELECTRONS
+    electron_maxstep = 100
+    conv_thr = 1.0e-7
+    mixing_mode = 'plain'
+    mixing_beta = 0.2
+    mixing_ndim = 8
+    diagonalization = 'david'
+    startingwfc = 'random'
+/
+
+&CELL
+/
+ATOMIC_SPECIES
+ Fe1 55.845 Fe_ONCV_PBE-1.0.upf
+ Fe2 55.845 Fe_ONCV_PBE-1.0.upf
+K_POINTS automatic
+1 1 1 0 0 0
+CELL_PARAMETERS angstrom
+   2.8328152400000000      0.000000000000000000    0.000000000000000000
+   0.000000000000000000    2.8328152400000000      0.000000000000000000
+   0.000000000000000000    0.000000000000000000    2.8328152400000000  
+ATOMIC_POSITIONS crystal
+Fe1   0.0000000000000000   0.0000000000000000   0.0000000000000000
+Fe2   0.5000000000000000   0.5000000000000000   0.5000000000000000

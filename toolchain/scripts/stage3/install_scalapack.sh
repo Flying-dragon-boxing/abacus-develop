@@ -98,7 +98,7 @@ case "${with_scalapack}" in
             echo "--pack-run mode specified, skip system check"
             exit 0
         fi
-        check_lib -lscalapack "ScaLAPACK"
+        check_lib -lscalapack-openmpi "ScaLAPACK"
         add_lib_from_paths SCALAPACK_LDFLAGS "libscalapack.*" $LIB_PATHS
         ;;
     __DONTUSE__) ;;

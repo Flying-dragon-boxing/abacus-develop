@@ -193,7 +193,19 @@ class FFT_Bundle
     template <typename FPTYPE>
     void fft3D_backward(std::complex<FPTYPE>* in, std::complex<FPTYPE>* out) const;
 
+    template <typename FPTYPE>
+    void fft3D_forward_batched(std::complex<FPTYPE>* in,
+                               std::complex<FPTYPE>* out,
+                               int batch_size) const;
+    template <typename FPTYPE>
+    void fft3D_backward_batched(std::complex<FPTYPE>* in,
+                                std::complex<FPTYPE>* out,
+                                int batch_size) const;
+
   private:
+    int nx = 0;
+    int ny = 0;
+    int nz = 0;
     int fft_mode = 0;
     bool float_flag = false;
     bool double_flag = false;

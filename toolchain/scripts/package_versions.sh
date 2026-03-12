@@ -100,7 +100,7 @@ libnpy_alt_ver="1.0.1"
 libnpy_alt_sha256="43452a4db1e8c1df606c64376ea1e32789124051d7640e7e4e8518ab4f0fba44"
 
 # Master branch packages (no fixed versions)
-cereal_ver="master"
+cereal_ver="1.3.2"
 cereal_sha256="--no-checksum"
 
 libcomm_ver="master"

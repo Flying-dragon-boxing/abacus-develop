@@ -162,19 +162,36 @@ public:
     #endif
 
      template <typename FPTYPE, typename Device>
-    void real_to_recip(const Device* ctx,
-                       const std::complex<FPTYPE>* in,
-                       std::complex<FPTYPE>* out,
-                       const int ik,
-                       const bool add = false,
-                       const FPTYPE factor = 1.0) const; // in:(nplane,nx*ny)  ; out(nz, ns)
-    template <typename FPTYPE, typename Device>
-    void recip_to_real(const Device* ctx,
-                       const std::complex<FPTYPE>* in,
-                       std::complex<FPTYPE>* out,
-                       const int ik,
-                       const bool add = false,
-                       const FPTYPE factor = 1.0) const; // in:(nz, ns)  ; out(nplane,nx*ny)
+     void real_to_recip(const Device* ctx,
+                        const std::complex<FPTYPE>* in,
+                        std::complex<FPTYPE>* out,
+                        const int ik,
+                        const bool add = false,
+                        const FPTYPE factor = 1.0) const; // in:(nplane,nx*ny)  ; out(nz, ns)
+     template <typename FPTYPE, typename Device>
+     void recip_to_real(const Device* ctx,
+                        const std::complex<FPTYPE>* in,
+                        std::complex<FPTYPE>* out,
+                        const int ik,
+                        const bool add = false,
+                        const FPTYPE factor = 1.0) const; // in:(nz, ns)  ; out(nplane,nx*ny)
+
+     template <typename FPTYPE, typename Device>
+     void real_to_recip_batched(const Device* ctx,
+                                const std::complex<FPTYPE>* in,
+                                std::complex<FPTYPE>* out,
+                                const int ik,
+                                const int nbands,
+                                const bool add = false,
+                                const FPTYPE factor = 1.0) const;
+     template <typename FPTYPE, typename Device>
+     void recip_to_real_batched(const Device* ctx,
+                                const std::complex<FPTYPE>* in,
+                                std::complex<FPTYPE>* out,
+                                const int ik,
+                                const int nbands,
+                                const bool add = false,
+                                const FPTYPE factor = 1.0) const;
 
 
     template <typename TK,

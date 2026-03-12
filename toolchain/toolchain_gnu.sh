@@ -16,28 +16,28 @@ WITH_AMD="no"
 
 # Math Libraries
 MATH_MODE="openblas"
-WITH_OPENBLAS="install"
+WITH_OPENBLAS="system"
 
 # MPI Implementation (OpenMPI recommended)
 MPI_MODE="openmpi"
-WITH_OPENMPI="install"
+WITH_OPENMPI="system"
 WITH_4TH_OPENMPI="no"  # Set to "yes" for OpenMPI v4, deprecated
 WITH_MPICH="no"
 
 # Core Dependencies
-WITH_CMAKE="install"
-WITH_SCALAPACK="install"
-WITH_LIBXC="install"
+WITH_CMAKE="system"
+WITH_SCALAPACK="system"
+WITH_LIBXC="system"
 WITH_FFTW="install"
-WITH_ELPA="install"
+WITH_ELPA="no"
 
 # Utility Libraries
 WITH_CEREAL="install"
 WITH_RAPIDJSON="install"
 
 # Advanced Features (EXX calculations)
-WITH_LIBRI="install"
-WITH_LIBCOMM="install"
+WITH_LIBRI="no"
+WITH_LIBCOMM="no"
 
 # Optional Features (MLALGO support)
 WITH_LIBTORCH="no"

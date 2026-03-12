@@ -315,6 +315,19 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
     int nspin_fac = PARAM.inp.nspin == 2 ? 2 : 1;
     int ispin = this->ik < (wfcpw->nks / nspin_fac) ? 0 : 1;
 
+    const int npw_ik = wfcpw->npwk[this->ik];
+    T* psi_nk_packed = nullptr;
+    T* psi_nk_real_batched = nullptr;
+    resmem_complex_op()(psi_nk_packed, static_cast<size_t>(nbands) * npw_ik);
+    resmem_complex_op()(psi_nk_real_batched, static_cast<size_t>(nbands) * wfcpw->nrxx);
+
+    for (int n_iband = 0; n_iband < nbands; ++n_iband)
+    {
+        syncmem_complex_op()(psi_nk_packed + static_cast<size_t>(n_iband) * npw_ik,
+                             tmpsi_in + static_cast<size_t>(n_iband) * nbasis,
+                             npw_ik);
+    }
+
     // ik fixed here, select band n
     for (int iq = 0; iq < nqs; iq++)
     {
@@ -347,7 +360,6 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
             {
                 const T* psi_mq = get_pw(m_iband, iq_loc_spin);
                 wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq_loc);
-                // send
             }
 #ifdef __MPI
 #ifdef __CUDA_MPI
@@ -359,7 +371,6 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
             }
             else if (PARAM.inp.device == "gpu")
             {
-                // need to copy to cpu first
                 T* psi_mq_real_cpu = new T[wfcpw->nrxx];
                 syncmem_complex_d2c_op()(psi_mq_real_cpu, psi_mq_real, wfcpw->nrxx);
                 MPI_Bcast(psi_mq_real_cpu, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
@@ -372,15 +383,19 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
             }
 #endif
 #endif
+
+            wfcpw->recip_to_real_batched(ctx,
+                                         psi_nk_packed,
+                                         psi_nk_real_batched,
+                                         this->ik,
+                                         nbands);
+
             for (int n_iband = 0; n_iband < nbands; n_iband++)
             {
-                const T* psi_nk = tmpsi_in + n_iband * nbasis;
-                // retrieve \psi_nk in real space
-                wfcpw->recip_to_real(ctx, psi_nk, psi_nk_real, this->ik);
-
+                const T* psi_nk_real_batch = psi_nk_real_batched + static_cast<size_t>(n_iband) * wfcpw->nrxx;
 
                 // direct multiplication in real space, \psi_nk(r) * \psi_mq(r)
-                cal_density_recip(psi_nk_real, psi_mq_real, ucell->omega);
+                cal_density_recip(psi_nk_real_batch, psi_mq_real, ucell->omega);
 
                 mul_potential_op<T, Device>()(pot, density_recip, rhopw_dev->npw, wfcpw->nks, this->ik, iq);
 
@@ -415,6 +430,9 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
         } // end of iq
 
     }
+
+    delmem_complex_op()(psi_nk_packed);
+    delmem_complex_op()(psi_nk_real_batched);
 
     ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar");
 

@@ -111,6 +111,7 @@ class Sto_EleCond : protected EleCond<FPTYPE, Device>
                      std::complex<lowTYPE>* tmpj,
                      hamilt::Velocity<lowTYPE, Device>& velop,
                      const int& ik,
+                     const int& it,
                      const std::complex<lowTYPE>& factor,
                      const int bandinfo[6]);
 };

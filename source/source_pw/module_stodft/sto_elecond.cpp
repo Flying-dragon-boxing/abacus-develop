@@ -10,7 +10,25 @@
 #include "source_io/module_parameter/parameter.h"
 #include "sto_tool.h"
 
+#include <algorithm>
 #include <chrono>
+#include <fstream>
+
+namespace
+{
+std::string skg_debug_file(const std::string& out_dir)
+{
+    std::ostringstream oss;
+    oss << out_dir << "skg_debug_rank" << GlobalV::MY_RANK << "_pool" << GlobalV::RANK_IN_POOL << ".log";
+    return oss.str();
+}
+
+void append_skg_debug_line(const std::string& filepath, const std::string& line)
+{
+    std::ofstream ofs(filepath, std::ios::app);
+    ofs << line << '\n';
+}
+}
 
 #define TWOSQRT2LN2 2.354820045030949 // FWHM = 2sqrt(2ln2) * \sigma
 #define FACTOR 1.839939223835727e7
@@ -169,6 +187,7 @@ void Sto_EleCond<FPTYPE, Device>::cal_jmatrix(hamilt::HamiltSdftPW<std::complex<
                                               std::complex<lowTYPE>* tmpj,
                                               hamilt::Velocity<lowTYPE, Device>& velop,
                                               const int& ik,
+                                               const int& it,
                                               const std::complex<lowTYPE>& factor,
                                               const int bandinfo[6])
 {
@@ -187,6 +206,39 @@ void Sto_EleCond<FPTYPE, Device>::cal_jmatrix(hamilt::HamiltSdftPW<std::complex<
     const int allbands_sto = bandinfo[4];
     const int allbands = bandinfo[5];
     const int dim_jmatrix = perbands_ks * allbands_sto + perbands_sto * allbands;
+    const std::string debug_file = skg_debug_file(PARAM.globalv.global_out_dir);
+    auto vec_norm2 = [&](const lcomplex* data, const int len) -> double {
+        if (len <= 0)
+        {
+            return 0.0;
+        }
+        return static_cast<double>(ModuleBase::dot_real_op<lcomplex, Device>()(len, data, data, false));
+    };
+    auto dump_jmat_stage = [&](const char* stage) {
+        const int len_ks = perbands_ks * allbands_sto;
+        const int len_cross = perbands_sto * allbands_ks;
+        const int len_sto = perbands_sto * allbands_sto;
+        std::ostringstream oss;
+        oss.setf(std::ios::scientific);
+        oss.precision(12);
+        oss << "[cal_jmatrix] stage=" << stage << " side=" << (leftfact == nullptr ? "L" : "R")
+            << " ik=" << ik << " it=" << it << " rank=" << GlobalV::MY_RANK;
+        for (int id = 0; id < ndim; ++id)
+        {
+            const int off = id * dim_jmatrix;
+            const int off_sto = off + len_ks + len_cross;
+            const int off_tmp = id * len_sto;
+            oss << " d" << id
+                << " j1_ks=" << vec_norm2(j1 + off, len_ks)
+                << " j1_cross=" << vec_norm2(j1 + off + len_ks, len_cross)
+                << " j1_sto=" << vec_norm2(j1 + off_sto, len_sto)
+                << " j2_ks=" << vec_norm2(j2 + off, len_ks)
+                << " j2_cross=" << vec_norm2(j2 + off + len_ks, len_cross)
+                << " j2_sto=" << vec_norm2(j2 + off_sto, len_sto)
+                << " tmpj_sto=" << vec_norm2(tmpj + off_tmp, len_sto);
+        }
+        append_skg_debug_line(debug_file, oss.str());
+    };
 
     hamilt->hPsi(leftchi.get_pointer(), left_hchi.get_pointer(), perbands_sto);
     hamilt->hPsi(rightchi.get_pointer(), right_hchi.get_pointer(), perbands_sto);
@@ -387,6 +439,8 @@ void Sto_EleCond<FPTYPE, Device>::cal_jmatrix(hamilt::HamiltSdftPW<std::complex<
         }
     }
 
+    dump_jmat_stage("raw_gemm");
+
     const lowTYPE half = static_cast<lowTYPE>(0.5);
     const lowTYPE one = static_cast<lowTYPE>(1.0);
     for (int id = 0; id < ndim; ++id)
@@ -461,6 +515,8 @@ void Sto_EleCond<FPTYPE, Device>::cal_jmatrix(hamilt::HamiltSdftPW<std::complex<
         ModuleBase::vector_add_vector_op<lcomplex, Device>()(ed, j2mat, j2mat, half, j1mat, -mu);
     }
 
+    dump_jmat_stage("after_j2_mix");
+
 #ifdef __MPI
     if (GlobalV::NPROC_IN_POOL > 1)
     {
@@ -468,6 +524,8 @@ void Sto_EleCond<FPTYPE, Device>::cal_jmatrix(hamilt::HamiltSdftPW<std::complex<
         Parallel_Common::reduce_data(j2, ndim * dim_jmatrix, POOL_WORLD);
     }
 #endif
+
+    dump_jmat_stage("after_pool_reduce");
     ModuleBase::timer::tick("Sto_EleCond", "cal_jmatrix");
 
     return;
@@ -485,6 +543,9 @@ void Sto_EleCond<FPTYPE, Device>::sKG(const int& smear_type,
     ModuleBase::TITLE("Sto_EleCond", "sKG");
     ModuleBase::timer::tick("Sto_EleCond", "sKG");
     std::cout << "Calculating conductivity...." << std::endl;
+    const std::string debug_file = skg_debug_file(PARAM.globalv.global_out_dir);
+    std::ofstream ofs(debug_file, std::ios::trunc);
+    ofs << "# sKG debug enabled, rank=" << GlobalV::MY_RANK << " pool_rank=" << GlobalV::RANK_IN_POOL << "\n";
     // if (PARAM.inp.bndpar > 1)
     // {
     //     ModuleBase::WARNING_QUIT("ESolver_SDFT_PW", "sKG is not supported in parallel!");
@@ -674,6 +735,15 @@ void Sto_EleCond<FPTYPE, Device>::sKG(const int& smear_type,
         info_gatherv sto_npwx(perbands_sto, PARAM.inp.bndpar, npwx, BP_WORLD);
 #endif
         const int bandsinfo[6]{perbands_ks, perbands_sto, perbands, allbands_ks, allbands_sto, allbands};
+        std::ostringstream oss_kmeta;
+        oss_kmeta.setf(std::ios::scientific);
+        oss_kmeta.precision(12);
+        oss_kmeta << "[sKG_kmeta] ik=" << ik << " rank=" << GlobalV::MY_RANK
+                  << " npw=" << npw
+                  << " perbands_ks=" << perbands_ks << " allbands_ks=" << allbands_ks
+                  << " perbands_sto=" << perbands_sto << " allbands_sto=" << allbands_sto
+                  << " dEcut=" << dEcut << " dt=" << dt;
+        append_skg_debug_line(debug_file, oss_kmeta.str());
         double* en_all = nullptr;
         std::vector<double> en;
         if (allbands_ks > 0)
@@ -990,6 +1060,7 @@ void Sto_EleCond<FPTYPE, Device>::sKG(const int& smear_type,
                         tmpj.data<lcomplex>(),
                         low_velop,
                         ik,
+                        it,
                         imag_one,
                         bandsinfo);
 
@@ -1019,6 +1090,7 @@ void Sto_EleCond<FPTYPE, Device>::sKG(const int& smear_type,
                         tmpj.data<lcomplex>(),
                         low_velop,
                         ik,
+                        it,
                         one,
                         bandsinfo);
 
@@ -1053,16 +1125,71 @@ void Sto_EleCond<FPTYPE, Device>::sKG(const int& smear_type,
                                                                                         j2r.data<lcomplex>() + st_per,
                                                                                         false)
                                             * this->p_kv->wk[ik] / 2.0);
+            std::ostringstream oss;
+            oss.setf(std::ios::scientific);
+            oss.precision(12);
+            oss << "[sKG_step] ik=" << ik << " it=" << it << " rank=" << GlobalV::MY_RANK
+                << " wk=" << this->p_kv->wk[ik]
+                << " num_per=" << num_per << " st_per=" << st_per
+                << " tmp12=" << tmp12 << " tmp21=" << tmp21
+                << " ct11=" << ct11[it] << " ct12=" << ct12[it] << " ct22=" << ct22[it];
+            const int jlen = ndim * dim_jmatrix;
+            const double n1l = static_cast<double>(ModuleBase::dot_real_op<lcomplex, Device>()(jlen,
+                                                                                                j1l.data<lcomplex>(),
+                                                                                                j1l.data<lcomplex>(),
+                                                                                                false));
+            const double n1r = static_cast<double>(ModuleBase::dot_real_op<lcomplex, Device>()(jlen,
+                                                                                                j1r.data<lcomplex>(),
+                                                                                                j1r.data<lcomplex>(),
+                                                                                                false));
+            const double n2l = static_cast<double>(ModuleBase::dot_real_op<lcomplex, Device>()(jlen,
+                                                                                                j2l.data<lcomplex>(),
+                                                                                                j2l.data<lcomplex>(),
+                                                                                                false));
+            const double n2r = static_cast<double>(ModuleBase::dot_real_op<lcomplex, Device>()(jlen,
+                                                                                                j2r.data<lcomplex>(),
+                                                                                                j2r.data<lcomplex>(),
+                                                                                                false));
+            oss << " norm_j1l=" << n1l << " norm_j1r=" << n1r << " norm_j2l=" << n2l << " norm_j2r=" << n2r;
+            append_skg_debug_line(debug_file, oss.str());
             ModuleBase::timer::tick("Sto_EleCond", "ddot_real");
         }
         std::cout << std::endl;
     } // ik loop
     ModuleBase::timer::tick("Sto_EleCond", "kloop");
+    std::ostringstream oss_pre_reduce;
+    oss_pre_reduce.setf(std::ios::scientific);
+    oss_pre_reduce.precision(12);
+    oss_pre_reduce << "[sKG_pre_reduce] rank=" << GlobalV::MY_RANK
+                   << " ct11_t1=" << (nt > 1 ? ct11[1] : 0.0)
+                   << " ct12_t1=" << (nt > 1 ? ct12[1] : 0.0)
+                   << " ct22_t1=" << (nt > 1 ? ct22[1] : 0.0)
+                   << " ct11_tmid=" << ct11[nt / 2]
+                   << " ct12_tmid=" << ct12[nt / 2]
+                   << " ct22_tmid=" << ct22[nt / 2]
+                   << " ct11_tend=" << ct11[nt - 1]
+                   << " ct12_tend=" << ct12[nt - 1]
+                   << " ct22_tend=" << ct22[nt - 1];
+    append_skg_debug_line(debug_file, oss_pre_reduce.str());
 #ifdef __MPI
     Parallel_Reduce::reduce_all(ct11.data(), nt);
     Parallel_Reduce::reduce_all(ct12.data(), nt);
     Parallel_Reduce::reduce_all(ct22.data(), nt);
 #endif
+    std::ostringstream oss_post_reduce;
+    oss_post_reduce.setf(std::ios::scientific);
+    oss_post_reduce.precision(12);
+    oss_post_reduce << "[sKG_post_reduce] rank=" << GlobalV::MY_RANK
+                    << " ct11_t1=" << (nt > 1 ? ct11[1] : 0.0)
+                    << " ct12_t1=" << (nt > 1 ? ct12[1] : 0.0)
+                    << " ct22_t1=" << (nt > 1 ? ct22[1] : 0.0)
+                    << " ct11_tmid=" << ct11[nt / 2]
+                    << " ct12_tmid=" << ct12[nt / 2]
+                    << " ct22_tmid=" << ct22[nt / 2]
+                    << " ct11_tend=" << ct11[nt - 1]
+                    << " ct12_tend=" << ct12[nt - 1]
+                    << " ct22_tend=" << ct22[nt - 1];
+    append_skg_debug_line(debug_file, oss_post_reduce.str());
 
     //------------------------------------------------------------------
     //                    Output

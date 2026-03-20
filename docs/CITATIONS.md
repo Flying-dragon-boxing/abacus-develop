@@ -1,49 +1,121 @@
-# How to Cite
+import numpy as np
 
-The following references are required to be cited when using ABACUS. Specifically:
 
-- **For general purpose:**
+class ClusterBase:
+    def get_layer_distance(self, miller, layers=1, tol=1e-9, new=True):
+        """Returns the distance between planes defined by the given miller
+        index.
+        """
+        if new:
+            # Create lattice sample
+            size = np.zeros(3, int)
+            for i, m in enumerate(miller):
+                size[i] = np.abs(m) + 2
 
-    *For LCAO basis:*
+            m = len(self.atomic_basis)
+            p = np.zeros((size.prod() * m, 3))
+            for h in range(size[0]):
+                for k in range(size[1]):
+                    for l_ in range(size[2]):
+                        i = h * (size[1] * size[2]) + k * size[2] + l_
+                        p[m * i:m * (i + 1)] = np.dot([h, k, l_] +
+                                                      self.atomic_basis,
+                                                      self.lattice_basis)
 
-    Mohan Chen, G. C. Guo, and Lixin He. "Systematically improvable optimized atomic basis sets for ab initio calculations." Journal of Physics: Condensed Matter 22.44 (2010): 445501.
+            # Project lattice positions on the miller direction.
+            n = self.miller_to_direction(miller)
+            d = np.sum(n * p, axis=1)
+            if np.all(d < tol):
+                # All negative incl. zero
+                d = np.sort(np.abs(d))
+                reverse = True
+            else:
+                # Some or all positive
+                d = np.sort(d[d > -tol])
+                reverse = False
+            d = d[np.concatenate((d[1:] - d[:-1] > tol, [True]))]
+            d = d[1:] - d[:-1]
 
-    Pengfei Li, et al. "Large-scale ab initio simulations based on systematically improvable atomic basis." Computational Materials Science 112 (2016): 503-517.
+            # Look for a pattern in the distances between layers. A pattern is
+            # accepted if more than 50 % of the distances obeys it.
+            pattern = None
+            for i in range(len(d)):
+                for n in range(1, (len(d) - i) // 2 + 1):
+                    if np.all(np.abs(d[i:i + n] - d[i + n:i + 2 * n]) < tol):
+                        counts = 2
+                        for j in range(i + 2 * n, len(d), n):
+                            if np.all(np.abs(d[j:j + n] - d[i:i + n]) < tol):
+                                counts += 1
+                        if counts * n * 1.0 / len(d) > 0.5:
+                            pattern = d[i:i + n].copy()
+                            break
+                if pattern is not None:
+                    break
 
-    Peize Lin, Xinguo Ren, Xiaohui Liu, Lixin He. Ab initio electronic structure calculations based on numerical atomic orbitals: Basic fomalisms and recent progresses. Wiley Interdisciplinary Reviews: Computational Molecular Science, 2024, 14(1): e1687.
+            if pattern is None:
+                raise RuntimeError('Could not find layer distance for the ' +
+                                   '(%i,%i,%i) surface.' % miller)
+            if reverse:
+                pattern = pattern[::-1]
 
-    *For LCAO and PW basis:*
+            if layers < 0:
+                pattern = -1 * pattern[::-1]
+                layers *= -1
 
-    Weiqing Zhou, Daye Zheng, Qianrui Liu, et al. ABACUS: An Electronic Structure Analysis Package for the AI Era. arXiv preprint arXiv:2501.08697, 2025.
+            map = np.arange(layers - layers % 1 + 1, dtype=int) % len(pattern)
+            return pattern[map][:-1].sum() + layers % 1 * pattern[map][-1]
 
-- **If Stochastic DFT is used:**
+        n = self.miller_to_direction(miller)
+        d1 = d2 = 0.0
 
-    Qianrui Liu, and Mohan Chen. "Plane-Wave-Based Stochastic-Deterministic Density Functional Theory for Extended Systems." <https://arxiv.org/abs/2204.05662>.
+        d = np.abs(np.sum(n * self.lattice_basis, axis=1))
+        mask = np.greater(d, 1e-10)
+        if mask.sum() > 0:
+            d1 = np.min(d[mask])
 
-- **If DFT+U is used:**
+        if len(self.atomic_basis) > 1:
+            atomic_basis = np.dot(self.atomic_basis, self.lattice_basis)
+            d = np.sum(n * atomic_basis, axis=1)
+            s = np.sign(d)
+            d = np.abs(d)
+            mask = np.greater(d, 1e-10)
+            if mask.sum() > 0:
+                d2 = np.min(d[mask])
+                s2 = s[mask][np.argmin(d[mask])]
 
-    Xin Qu, et al. "DFT+ U within the framework of linear combination of numerical atomic orbitals." The Journal of Chemical Physics (2022).
+        if d2 > 1e-10:
+            if s2 < 0 and d1 - d2 > 1e-10:
+                d2 = d1 - d2
+            elif s2 < 0 and d2 - d1 > 1e-10:
+                d2 = 2 * d1 - d2
+            elif s2 > 0 and d2 - d1 > 1e-10:
+                d2 = d2 - d1
 
-- **If second generation numerical orbital basis is used:**
+            if np.abs(d1 - d2) < 1e-10:
+                ld = np.array([d1])
+            elif np.abs(d1 - 2 * d2) < 1e-10:
+                ld = np.array([d2])
+            else:
+                assert d1 > d2, 'Something is wrong with the layer distance.'
+                ld = np.array([d2, d1 - d2])
+        else:
+            ld = np.array([d1])
 
-    Peize Lin, Xinguo Ren, and Lixin He. "Strategy for constructing compact numerical atomic orbital basis sets by incorporating the gradients of reference wavefunctions." Physical Review B 103.23 (2021): 235131.
+        if len(ld) > 1:
+            if layers < 0:
+                ld = np.array([-ld[1], -ld[0]])
+                layers *= -1
 
-- **If berry curvature calculation is used in LCAO base:**
+            map = np.arange(layers - (layers % 1), dtype=int) % len(ld)
+            r = ld[map].sum() + (layers % 1) * ld[np.abs(map[-1] - 1)]
+        else:
+            r = ld[0] * layers
 
-    Gan Jin, Daye Zheng, and Lixin He. "Calculation of Berry curvature using non-orthogonal atomic orbitals." Journal of Physics: Condensed Matter 33.32 (2021): 325503.
+        return r
 
-- **If DeePKS is used:**
-
-    Wenfei Li, Qi Ou, et al. "DeePKS+ABACUS as a Bridge between Expensive Quantum Mechanical Models and Machine Learning Potentials." J. Phys. Chem. A 126.49 (2022): 9154-9164.
-
-- **If hybrid functional is used:**
-
-    Peize Lin, Xinguo Ren, and Lixin He. "Efficient Hybrid Density Functional Calculations for Large Periodic Systems Using Numerical Atomic Orbitals." Journal of Chemical Theory and Computation 2021, 17(1), 222–239.
-
-    Peize Lin, Xinguo Ren, and Lixin He. "Accuracy of Localized Resolution of the Identity in Periodic Hybrid Functional Calculations with Numerical Atomic Orbitals." Journal of Physical Chemistry Letters 2020, 11, 3082-3088.
-
-- **If ML-KEDF is used:**
-
-    Sun, Liang, and Mohan Chen. "Machine learning based nonlocal kinetic energy density functional for simple metals and alloys." Physical Review B 109.11 (2024): 115135.
-
-    Sun, Liang, and Mohan Chen. "Multi-channel machine learning based nonlocal kinetic energy density functional for semiconductors." Electronic Structure 6.4 (2024): 045006.
+    def miller_to_direction(self, miller, norm=True):
+        """Returns the direction corresponding to a given Miller index."""
+        d = np.dot(miller, self.resiproc_basis)
+        if norm:
+            d = d / np.linalg.norm(d)
+        return d

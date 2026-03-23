@@ -44,6 +44,8 @@ PW_Basis:: ~PW_Basis()
     {
         delmem_int_op()(this->d_is2fftixy);
         delmem_int_op()(this->ig2ixyz_gpu);
+        base_device::memory::delete_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(this->batched_auxr_double_);
+        base_device::memory::delete_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(this->batched_auxr_float_);
     }
 #endif
 }

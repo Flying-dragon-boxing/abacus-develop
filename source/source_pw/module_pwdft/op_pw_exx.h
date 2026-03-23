@@ -126,6 +126,11 @@ class OperatorEXXPW : public OperatorPW<T, Device>
     // h_psi recip space memory
     T *h_psi_recip = nullptr;
     Real *pot = nullptr;
+    
+    mutable Real* h_pot_cache = nullptr;
+    mutable Real* d_pot_cache = nullptr;
+    mutable int pot_cache_nqs = 0;
+    mutable int pot_cache_npw = 0;
 
     // Lin Lin's ACE memory, 10.1021/acs.jctc.6b00092
     mutable T* h_psi_ace = nullptr; // H \Psi, W in the paper

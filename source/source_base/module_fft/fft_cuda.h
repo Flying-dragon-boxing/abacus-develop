@@ -100,9 +100,15 @@ class FFT_CUDA : public FFT_BASE<FPTYPE>
         cufftHandle z_handle = {};
         cufftHandle c_handle_batch = {};  // batched plan for float
         cufftHandle z_handle_batch = {};  // batched plan for double
-       
+        
         std::complex<float>* c_auxr_3d = nullptr;  // fft space
         std::complex<double>* z_auxr_3d = nullptr; // fft space
+
+        // Workspace for optimized FFT performance
+        void* c_workspace = nullptr;  // workspace for single precision
+        void* z_workspace = nullptr;  // workspace for double precision
+        size_t c_workspace_size = 0;
+        size_t z_workspace_size = 0;
 
         int planned_batch_size = 0;
         bool batch_initialized = false;

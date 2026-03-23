@@ -130,7 +130,26 @@ void PW_Basis::real2recip_batched_gpu(const std::complex<FPTYPE>* in,
     const size_t total = static_cast<size_t>(batch_size) * nxyz;
 
     std::complex<FPTYPE>* auxr_batched = nullptr;
-    base_device::memory::resize_memory_op<std::complex<FPTYPE>, base_device::DEVICE_GPU>()(auxr_batched, total);
+    if constexpr (std::is_same<FPTYPE, double>::value)
+    {
+        if (this->batched_auxr_double_size_ < total)
+        {
+            base_device::memory::delete_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(this->batched_auxr_double_);
+            base_device::memory::resize_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(this->batched_auxr_double_, total);
+            this->batched_auxr_double_size_ = total;
+        }
+        auxr_batched = reinterpret_cast<std::complex<FPTYPE>*>(this->batched_auxr_double_);
+    }
+    else
+    {
+        if (this->batched_auxr_float_size_ < total)
+        {
+            base_device::memory::delete_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(this->batched_auxr_float_);
+            base_device::memory::resize_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(this->batched_auxr_float_, total);
+            this->batched_auxr_float_size_ = total;
+        }
+        auxr_batched = reinterpret_cast<std::complex<FPTYPE>*>(this->batched_auxr_float_);
+    }
 
     for (int ib = 0; ib < batch_size; ++ib)
     {
@@ -154,7 +173,6 @@ void PW_Basis::real2recip_batched_gpu(const std::complex<FPTYPE>* in,
                                                                         out + static_cast<size_t>(ib) * npw);
     }
 
-    base_device::memory::delete_memory_op<std::complex<FPTYPE>, base_device::DEVICE_GPU>()(auxr_batched);
     ModuleBase::timer::tick(this->classname, "real_to_recip batched gpu");
 }
 
@@ -180,7 +198,26 @@ void PW_Basis::recip2real_batched_gpu(const std::complex<FPTYPE>* in,
     const size_t total = static_cast<size_t>(batch_size) * nxyz;
 
     std::complex<FPTYPE>* auxr_batched = nullptr;
-    base_device::memory::resize_memory_op<std::complex<FPTYPE>, base_device::DEVICE_GPU>()(auxr_batched, total);
+    if constexpr (std::is_same<FPTYPE, double>::value)
+    {
+        if (this->batched_auxr_double_size_ < total)
+        {
+            base_device::memory::delete_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(this->batched_auxr_double_);
+            base_device::memory::resize_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(this->batched_auxr_double_, total);
+            this->batched_auxr_double_size_ = total;
+        }
+        auxr_batched = reinterpret_cast<std::complex<FPTYPE>*>(this->batched_auxr_double_);
+    }
+    else
+    {
+        if (this->batched_auxr_float_size_ < total)
+        {
+            base_device::memory::delete_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(this->batched_auxr_float_);
+            base_device::memory::resize_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(this->batched_auxr_float_, total);
+            this->batched_auxr_float_size_ = total;
+        }
+        auxr_batched = reinterpret_cast<std::complex<FPTYPE>*>(this->batched_auxr_float_);
+    }
     base_device::memory::set_memory_op<std::complex<FPTYPE>, base_device::DEVICE_GPU>()(auxr_batched, 0, total);
 
     for (int ib = 0; ib < batch_size; ++ib)
@@ -202,7 +239,6 @@ void PW_Basis::recip2real_batched_gpu(const std::complex<FPTYPE>* in,
                                                                         out + static_cast<size_t>(ib) * nrxx);
     }
 
-    base_device::memory::delete_memory_op<std::complex<FPTYPE>, base_device::DEVICE_GPU>()(auxr_batched);
     ModuleBase::timer::tick(this->classname, "recip_to_real batched gpu");
 }
 template void PW_Basis::real2recip_gpu<double>(const double* in,

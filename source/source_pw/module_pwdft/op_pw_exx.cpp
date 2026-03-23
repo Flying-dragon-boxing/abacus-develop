@@ -102,25 +102,42 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
     for (auto param: param_fock)
     {
         fock_div.push_back(exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type::Fock,
-                                          0.0,
-                                          kv,
-                                          wfcpw,
-                                          rhopw_dev,
-                                          tpiba,
-                                          gamma_extrapolation,
-                                          ucell->omega));
+                                           0.0,
+                                           kv,
+                                           wfcpw,
+                                           rhopw_dev,
+                                           tpiba,
+                                           gamma_extrapolation,
+                                           ucell->omega));
     }
     auto param_erfc = GlobalC::exx_info.info_global.coulomb_param[Conv_Coulomb_Pot_K::Coulomb_Type::Erfc];
     for (auto param: param_erfc)
     {
         erfc_div.push_back(exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type::Erfc,
-                                          std::stod(param["omega"]),
-                                          kv,
-                                          wfcpw,
-                                          rhopw_dev,
-                                          tpiba,
-                                          gamma_extrapolation,
-                                          ucell->omega));
+                                           std::stod(param["omega"]),
+                                           kv,
+                                           wfcpw,
+                                           rhopw_dev,
+                                           tpiba,
+                                           gamma_extrapolation,
+                                           ucell->omega));
+    }
+
+    int nqs = kv->get_nkstot_full();
+    int npw = rhopw_dev->npw;
+    pot_cache_nqs = nqs;
+    pot_cache_npw = npw;
+#ifdef __CUDA
+    if (PARAM.inp.device == "gpu")
+    {
+        cudaMallocHost(&h_pot_cache, nqs * npw * sizeof(Real));
+        cudaMalloc(&d_pot_cache, nqs * npw * sizeof(Real));
+    }
+    else
+#endif
+    {
+        h_pot_cache = new Real[nqs * npw];
+        d_pot_cache = h_pot_cache;
     }
 
 }   // end of constructor
@@ -128,7 +145,6 @@ OperatorEXXPW<T, Device>::OperatorEXXPW(const int* isk_in,
 template <typename T, typename Device>
 OperatorEXXPW<T, Device>::~OperatorEXXPW()
 {
-    // use delete_memory_op to delete the allocated pws
     delmem_complex_op()(psi_nk_real);
     delmem_complex_op()(psi_mq_real);
     delmem_complex_op()(density_real);
@@ -147,6 +163,23 @@ OperatorEXXPW<T, Device>::~OperatorEXXPW()
     }
     Xi_ace_k.clear();
     delete rhopw_dev;
+
+#ifdef __CUDA
+    if (h_pot_cache != nullptr)
+    {
+        if (PARAM.inp.device == "gpu")
+        {
+            cudaFreeHost(h_pot_cache);
+            cudaFree(d_pot_cache);
+        }
+        else
+#endif
+        {
+            delete[] h_pot_cache;
+        }
+#ifdef __CUDA
+    }
+#endif
 }
 
 template <typename T>
@@ -332,10 +365,12 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
     T* psi_nk_real_batched = nullptr;
     T* density_real_batched = nullptr;
     T* density_recip_batched = nullptr;
+    T* h_psi_recip_batched = nullptr;
     resmem_complex_op()(psi_nk_packed, static_cast<size_t>(nbands) * npw_ik);
     resmem_complex_op()(psi_nk_real_batched, static_cast<size_t>(fft_batch_size) * wfcpw->nrxx);
     resmem_complex_op()(density_real_batched, static_cast<size_t>(fft_batch_size) * nrxx_rho);
     resmem_complex_op()(density_recip_batched, static_cast<size_t>(fft_batch_size) * npw_rho);
+    resmem_complex_op()(h_psi_recip_batched, static_cast<size_t>(fft_batch_size) * npw_ik);
 
     for (int n_iband = 0; n_iband < nbands; ++n_iband)
     {
@@ -344,12 +379,25 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
                              npw_ik);
     }
 
-    // ik fixed here, select band n
+    ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar pot_prepare");
     for (int iq = 0; iq < nqs; iq++)
     {
-        // for \psi_nk, get the pw of iq and band m
-        get_exx_potential<Real,  Device>(kv, wfcpw, rhopw_dev, pot, tpiba, gamma_extrapolation, ucell->omega, this->ik, iq);
-
+        Real* pot_cache_iq = h_pot_cache + iq * pot_cache_npw;
+        get_exx_potential<Real, Device>(kv, wfcpw, rhopw_dev, pot_cache_iq, tpiba, gamma_extrapolation, ucell->omega, this->ik, iq);
+    }
+    ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar pot_prepare");
+    
+#ifdef __CUDA
+    if (PARAM.inp.device == "gpu")
+    {
+        cudaMemcpy(d_pot_cache, h_pot_cache, nqs * pot_cache_npw * sizeof(Real), cudaMemcpyHostToDevice);
+    }
+#endif
+    
+    for (int iq = 0; iq < nqs; iq++)
+    {
+        Real* pot_cache_iq = h_pot_cache + iq * pot_cache_npw;
+        
         // decide which pool does the iq belong to
         int iq_pool = kv->para_k.whichpool[iq];
         int iq_loc  = iq - kv->para_k.startk_pool[iq_pool];
@@ -361,6 +409,7 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
 
         for (int m_iband = 0; m_iband < psi.get_nbands(); m_iband++)
         {
+            ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar wg_bcast");
             double wg_mqb = 0;
             if (iq_pool == GlobalV::MY_POOL)
             {
@@ -369,47 +418,53 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
 #ifdef __MPI
             MPI_Bcast(&wg_mqb, 1, MPI_DOUBLE, kv->para_k.get_startpro_pool(iq_pool), MPI_COMM_WORLD);
 #endif
+            ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar wg_bcast");
             if (wg_mqb < 1e-12)
                 continue;
 
+            ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar psi_mq_prepare");
             if (iq_pool == GlobalV::MY_POOL)
             {
                 const T* psi_mq = get_pw(m_iband, iq_loc_spin);
                 wfcpw->recip_to_real(ctx, psi_mq, psi_mq_real, iq_loc);
             }
-#ifdef __MPI
-#ifdef __CUDA_MPI
-            MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
-#else
-            if (PARAM.inp.device == "cpu")
-            {
-                MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
-            }
-            else if (PARAM.inp.device == "gpu")
-            {
-                T* psi_mq_real_cpu = new T[wfcpw->nrxx];
-                syncmem_complex_d2c_op()(psi_mq_real_cpu, psi_mq_real, wfcpw->nrxx);
-                MPI_Bcast(psi_mq_real_cpu, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
-                syncmem_complex_c2d_op()(psi_mq_real, psi_mq_real_cpu, wfcpw->nrxx);
-                delete[] psi_mq_real_cpu;
-            }
-            else
-            {
-                ModuleBase::WARNING_QUIT("OperatorEXXPW", "construct_ace: unknown device");
-            }
-#endif
-#endif
+// #ifdef __MPI
+// #ifdef __CUDA_MPI
+//             MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
+// #else
+//             if (PARAM.inp.device == "cpu")
+//             {
+//                 MPI_Bcast(psi_mq_real, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
+//             }
+//             else if (PARAM.inp.device == "gpu")
+//             {
+//                 T* psi_mq_real_cpu = new T[wfcpw->nrxx];
+//                 syncmem_complex_d2c_op()(psi_mq_real_cpu, psi_mq_real, wfcpw->nrxx);
+//                 MPI_Bcast(psi_mq_real_cpu, wfcpw->nrxx, MPI_DOUBLE_COMPLEX, iq_pool, KP_WORLD);
+//                 syncmem_complex_c2d_op()(psi_mq_real, psi_mq_real_cpu, wfcpw->nrxx);
+//                 delete[] psi_mq_real_cpu;
+//             }
+//             else
+//             {
+//                 ModuleBase::WARNING_QUIT("OperatorEXXPW", "construct_ace: unknown device");
+//             }
+// #endif
+// #endif
+            ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar psi_mq_prepare");
 
             for (int n_begin = 0; n_begin < nbands; n_begin += fft_batch_size)
             {
                 const int batch_n = std::min(fft_batch_size, nbands - n_begin);
 
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar nk_recip2real_batched");
                 wfcpw->recip_to_real_batched(ctx,
                                              psi_nk_packed + static_cast<size_t>(n_begin) * npw_ik,
                                              psi_nk_real_batched,
                                              this->ik,
                                              batch_n);
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar nk_recip2real_batched");
 
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar density_build");
                 for (int ib = 0; ib < batch_n; ++ib)
                 {
                     const T* psi_nk_real_batch = psi_nk_real_batched + static_cast<size_t>(ib) * wfcpw->nrxx;
@@ -420,7 +475,9 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
                                                      ucell->omega,
                                                      wfcpw->nrxx);
                 }
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar density_build");
 
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar rho_real2recip");
 #if ((defined __CUDA) || (defined __ROCM))
                 if (PARAM.inp.device == "gpu" && batch_n > 1)
                 {
@@ -441,13 +498,18 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
                                                                static_cast<Real>(1.0));
                     }
                 }
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar rho_real2recip");
 
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar mul_potential");
                 for (int ib = 0; ib < batch_n; ++ib)
                 {
                     T* density_recip_batch = density_recip_batched + static_cast<size_t>(ib) * npw_rho;
-                    mul_potential_op<T, Device>()(pot, density_recip_batch, npw_rho, wfcpw->nks, this->ik, iq);
+                    Real* pot_iq = (PARAM.inp.device == "gpu") ? (d_pot_cache + iq * pot_cache_npw) : pot_cache_iq;
+                    mul_potential_op<T, Device>()(pot_iq, density_recip_batch, npw_rho, wfcpw->nks, this->ik, iq);
                 }
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar mul_potential");
 
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar rho_recip2real");
 #if ((defined __CUDA) || (defined __ROCM))
                 if (PARAM.inp.device == "gpu" && batch_n > 1)
                 {
@@ -468,12 +530,12 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
                                                                static_cast<Real>(1.0));
                     }
                 }
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar rho_recip2real");
 
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar apply_psi_mq");
                 for (int ib = 0; ib < batch_n; ++ib)
                 {
-                    const int n_iband = n_begin + ib;
                     T* density_real_batch = density_real_batched + static_cast<size_t>(ib) * nrxx_rho;
-
                     if (false)
                     {
                         // do nothing
@@ -485,15 +547,41 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
                                                             density_real_batch,
                                                             wfcpw->nrxx);
                     }
-
-                    Real wk_iq = kv->wk[iq];
-                    Real wk_ik = kv->wk[this->ik];
-                    Real tmp_scalar = wg_mqb / wk_ik / nqs; // wk_ik works for now, but wrong for symmetry.
-
-                    T* h_psi_nk = tmhpsi + static_cast<size_t>(n_iband) * nbasis;
-                    Real hybrid_alpha = GlobalC::exx_info.info_global.hybrid_alpha;
-                    wfcpw->real_to_recip(ctx, density_real_batch, h_psi_nk, this->ik, true, hybrid_alpha * tmp_scalar);
                 }
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar apply_psi_mq");
+
+                const Real wk_iq = kv->wk[iq];
+                const Real wk_ik = kv->wk[this->ik];
+                (void)wk_iq;
+                const Real tmp_scalar = wg_mqb / wk_ik / nqs; // wk_ik works for now, but wrong for symmetry.
+                const Real hybrid_alpha = GlobalC::exx_info.info_global.hybrid_alpha;
+                const Real scale = hybrid_alpha * tmp_scalar;
+
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar hpsi_real2recip_batched");
+                wfcpw->real_to_recip_batched(ctx,
+                                             density_real_batched,
+                                             h_psi_recip_batched,
+                                             this->ik,
+                                             batch_n,
+                                             false,
+                                             static_cast<Real>(1.0));
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar hpsi_real2recip_batched");
+
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar hpsi_accumulate");
+                const T scale_t = static_cast<Real>(scale);
+                for (int ib = 0; ib < batch_n; ++ib)
+                {
+                    const int n_iband = n_begin + ib;
+                    T* h_psi_nk = tmhpsi + static_cast<size_t>(n_iband) * nbasis;
+                    const T* h_psi_nk_batch = h_psi_recip_batched + static_cast<size_t>(ib) * npw_ik;
+                    axpy_complex_op()(npw_ik,
+                                      &scale_t,
+                                      h_psi_nk_batch,
+                                      1,
+                                      h_psi_nk,
+                                      1);
+                }
+                ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar hpsi_accumulate");
             }
 
             setmem_complex_op()(density_real, 0, rhopw_dev->nrxx);
@@ -510,6 +598,7 @@ void OperatorEXXPW<T, Device>::act_op_kpar(const int nbands,
     delmem_complex_op()(psi_nk_real_batched);
     delmem_complex_op()(density_real_batched);
     delmem_complex_op()(density_recip_batched);
+    delmem_complex_op()(h_psi_recip_batched);
 
     ModuleBase::timer::tick("OperatorEXXPW", "act_op_kpar");
 

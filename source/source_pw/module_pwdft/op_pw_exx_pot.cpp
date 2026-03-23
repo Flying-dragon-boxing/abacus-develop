@@ -17,18 +17,15 @@ void get_exx_potential(const K_Vectors* kv,
                        bool is_stress)
 {
     using setmem_real_cpu_op = base_device::memory::set_memory_op<Real, base_device::DEVICE_CPU>;
-    using syncmem_real_c2d_op = base_device::memory::synchronize_memory_op<Real, base_device::DEVICE_CPU, Device>;
 
     Real nqs_half1 = 0.5 * kv->nmp[0];
     Real nqs_half2 = 0.5 * kv->nmp[1];
     Real nqs_half3 = 0.5 * kv->nmp[2];
 
-    Real* pot_cpu = nullptr;
     int nks = wfcpw->nks, npw = rhopw_dev->npw;
     double tpiba2 = tpiba * tpiba;
-    pot_cpu = new Real[npw];
     // fill zero
-    setmem_real_cpu_op()(pot_cpu, 0, npw);
+    setmem_real_cpu_op()(pot, 0, npw);
 
     std::vector<ModuleBase::Vector3<double>> qvec_c, qvec_d;
 #ifdef __MPI
@@ -93,12 +90,12 @@ void get_exx_potential(const K_Vectors* kv,
             if (gg >= 1e-8)
             {
                 Real fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg;
-                pot_cpu[ig] += fac * grid_factor * alpha;
+                pot[ig] += fac * grid_factor * alpha;
             }
             // }
             else
             {
-                pot_cpu[ig] += exx_div * alpha;
+                pot[ig] += exx_div * alpha;
             }
             // assert(is_finite(density_recip[ig]));
         }
@@ -168,7 +165,7 @@ void get_exx_potential(const K_Vectors* kv,
             if (gg >= 1e-8)
             {
                 Real fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg;
-                pot_cpu[ig] += fac * (1.0 - std::exp(-gg / 4.0 / erfc_omega2)) * grid_factor * alpha;
+                pot[ig] += fac * (1.0 - std::exp(-gg / 4.0 / erfc_omega2)) * grid_factor * alpha;
             }
             // }
             else
@@ -177,32 +174,18 @@ void get_exx_potential(const K_Vectors* kv,
                 if (!gamma_extrapolation)
                 {
                     if (is_stress)
-                        pot_cpu[ig] += (- ModuleBase::PI * ModuleBase::e2 / erfc_omega2) * alpha;
+                        pot[ig] += (- ModuleBase::PI * ModuleBase::e2 / erfc_omega2) * alpha;
                     else
-                        pot_cpu[ig] += (exx_div - ModuleBase::PI * ModuleBase::e2 / erfc_omega2) * alpha;
+                        pot[ig] += (exx_div - ModuleBase::PI * ModuleBase::e2 / erfc_omega2) * alpha;
                 }
                 else
                 {
-                    pot_cpu[ig] += exx_div * alpha;
+                    pot[ig] += exx_div * alpha;
                 }
             }
             // assert(is_finite(density_recip[ig]));
         }
     }
-
-    // copy the potential to the device memory
-#ifdef __CUDA
-    cudaError_t err = cudaHostRegister(pot_cpu, sizeof(Real) * npw, cudaHostRegisterPortable);
-    if (err != cudaSuccess) {
-        throw std::runtime_error("failed to register potential CPU memory operations");
-    }
-#endif
-    syncmem_real_c2d_op()(pot, pot_cpu, rhopw_dev->npw);
-#ifdef __CUDA
-    cudaHostUnregister(pot_cpu);
-#endif
-
-    delete pot_cpu;
 }
 
 template <typename Real, typename Device>
@@ -223,12 +206,10 @@ void get_exx_stress_potential(const K_Vectors* kv,
     Real nqs_half2 = 0.5 * kv->nmp[1];
     Real nqs_half3 = 0.5 * kv->nmp[2];
 
-    Real* pot_cpu = nullptr;
     int nks = wfcpw->nks, npw = rhopw_dev->npw;
     double tpiba2 = tpiba * tpiba;
-    pot_cpu = new Real[npw];
     // fill zero
-    setmem_real_cpu_op()(pot_cpu, 0, npw);
+    setmem_real_cpu_op()(pot, 0, npw);
 
     // calculate Fock pot
     auto param_fock = GlobalC::exx_info.info_global.coulomb_param[Conv_Coulomb_Pot_K::Coulomb_Type::Fock];
@@ -287,7 +268,7 @@ void get_exx_stress_potential(const K_Vectors* kv,
             if (gg >= 1e-8)
             {
                 Real fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg;
-                pot_cpu[ig] += 1.0 / gg * grid_factor * alpha;
+                pot[ig] += 1.0 / gg * grid_factor * alpha;
             }
         }
     }
@@ -351,7 +332,7 @@ void get_exx_stress_potential(const K_Vectors* kv,
             if (gg >= 1e-8)
             {
                 Real fac = -ModuleBase::FOUR_PI * ModuleBase::e2 / gg;
-                pot_cpu[ig] += (1.0 - (1.0 + gg / 4.0 / erfc_omega2) * std::exp(-gg / 4.0 / erfc_omega2))
+                pot[ig] += (1.0 - (1.0 + gg / 4.0 / erfc_omega2) * std::exp(-gg / 4.0 / erfc_omega2))
                                / (1.0 - std::exp(-gg / 4.0 / erfc_omega2)) / gg * grid_factor * alpha;
             }
             // }
@@ -360,26 +341,12 @@ void get_exx_stress_potential(const K_Vectors* kv,
                 // if (PARAM.inp.dft_functional == "hse")
                 if (!gamma_extrapolation)
                 {
-                    pot_cpu[ig] += 1.0 / 4.0 / erfc_omega2 * alpha;
+                    pot[ig] += 1.0 / 4.0 / erfc_omega2 * alpha;
                 }
             }
             // assert(is_finite(density_recip[ig]));
         }
     }
-
-    // copy the potential to the device memory
-#ifdef __CUDA
-    cudaError_t err = cudaHostRegister(pot_cpu, sizeof(Real) * npw, cudaHostRegisterPortable);
-    if (err != cudaSuccess) {
-        throw std::runtime_error("failed to register potential CPU memory operations");
-    }
-#endif
-    syncmem_real_c2d_op()(pot, pot_cpu, rhopw_dev->npw);
-#ifdef __CUDA
-    cudaHostUnregister(pot_cpu);
-#endif
-
-    delete pot_cpu;
 }
 
 double exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type coulomb_type,

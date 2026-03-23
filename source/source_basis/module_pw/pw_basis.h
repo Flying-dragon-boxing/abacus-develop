@@ -455,6 +455,12 @@ protected:
   std::string precision = "double"; ///< single, double, mixing
   bool double_data_ = true;         ///<  if has double data
   bool float_data_ = false;         ///< if has float data
+#if (defined(__CUDA) || defined(__ROCM))
+  mutable std::complex<double>* batched_auxr_double_ = nullptr;
+  mutable std::complex<float>* batched_auxr_float_ = nullptr;
+  mutable size_t batched_auxr_double_size_ = 0;
+  mutable size_t batched_auxr_float_size_ = 0;
+#endif
 };
 }
 #endif // PWBASIS_H

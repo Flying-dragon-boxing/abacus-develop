@@ -479,7 +479,17 @@ void PW_Basis_K::real_to_recip_batched(const base_device::DEVICE_GPU* ctx,
     const size_t total = static_cast<size_t>(nbands) * nxyz;
 
     std::complex<float>* auxr_batched = nullptr;
+#if (defined(__CUDA) || defined(__ROCM))
+    if (this->batched_auxr_float_size_ < total)
+    {
+        base_device::memory::delete_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(this->batched_auxr_float_);
+        base_device::memory::resize_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(this->batched_auxr_float_, total);
+        this->batched_auxr_float_size_ = total;
+    }
+    auxr_batched = this->batched_auxr_float_;
+#else
     base_device::memory::resize_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(auxr_batched, total);
+#endif
 
     for (int ib = 0; ib < nbands; ++ib)
     {
@@ -503,7 +513,9 @@ void PW_Basis_K::real_to_recip_batched(const base_device::DEVICE_GPU* ctx,
                                                                        out + static_cast<size_t>(ib) * npw_k);
     }
 
+#if !(defined(__CUDA) || defined(__ROCM))
     base_device::memory::delete_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(auxr_batched);
+#endif
     ModuleBase::timer::tick(this->classname, "real_to_recip batched gpu");
 }
 
@@ -528,7 +540,17 @@ void PW_Basis_K::real_to_recip_batched(const base_device::DEVICE_GPU* ctx,
     const size_t total = static_cast<size_t>(nbands) * nxyz;
 
     std::complex<double>* auxr_batched = nullptr;
+#if (defined(__CUDA) || defined(__ROCM))
+    if (this->batched_auxr_double_size_ < total)
+    {
+        base_device::memory::delete_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(this->batched_auxr_double_);
+        base_device::memory::resize_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(this->batched_auxr_double_, total);
+        this->batched_auxr_double_size_ = total;
+    }
+    auxr_batched = this->batched_auxr_double_;
+#else
     base_device::memory::resize_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(auxr_batched, total);
+#endif
 
     for (int ib = 0; ib < nbands; ++ib)
     {
@@ -552,7 +574,9 @@ void PW_Basis_K::real_to_recip_batched(const base_device::DEVICE_GPU* ctx,
                                                                         out + static_cast<size_t>(ib) * npw_k);
     }
 
+#if !(defined(__CUDA) || defined(__ROCM))
     base_device::memory::delete_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(auxr_batched);
+#endif
     ModuleBase::timer::tick(this->classname, "real_to_recip batched gpu");
 }
 template <>
@@ -677,7 +701,17 @@ void PW_Basis_K::recip_to_real_batched(const base_device::DEVICE_GPU* ctx,
     const size_t total = static_cast<size_t>(nbands) * nxyz;
 
     std::complex<float>* auxr_batched = nullptr;
+#if (defined(__CUDA) || defined(__ROCM))
+    if (this->batched_auxr_float_size_ < total)
+    {
+        base_device::memory::delete_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(this->batched_auxr_float_);
+        base_device::memory::resize_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(this->batched_auxr_float_, total);
+        this->batched_auxr_float_size_ = total;
+    }
+    auxr_batched = this->batched_auxr_float_;
+#else
     base_device::memory::resize_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(auxr_batched, total);
+#endif
     base_device::memory::set_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(auxr_batched, 0, total);
 
     for (int ib = 0; ib < nbands; ++ib)
@@ -699,7 +733,9 @@ void PW_Basis_K::recip_to_real_batched(const base_device::DEVICE_GPU* ctx,
                                                                        out + static_cast<size_t>(ib) * nrxx);
     }
 
+#if !(defined(__CUDA) || defined(__ROCM))
     base_device::memory::delete_memory_op<std::complex<float>, base_device::DEVICE_GPU>()(auxr_batched);
+#endif
     ModuleBase::timer::tick(this->classname, "recip_to_real batched gpu");
 }
 
@@ -724,7 +760,17 @@ void PW_Basis_K::recip_to_real_batched(const base_device::DEVICE_GPU* ctx,
     const size_t total = static_cast<size_t>(nbands) * nxyz;
 
     std::complex<double>* auxr_batched = nullptr;
+#if (defined(__CUDA) || defined(__ROCM))
+    if (this->batched_auxr_double_size_ < total)
+    {
+        base_device::memory::delete_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(this->batched_auxr_double_);
+        base_device::memory::resize_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(this->batched_auxr_double_, total);
+        this->batched_auxr_double_size_ = total;
+    }
+    auxr_batched = this->batched_auxr_double_;
+#else
     base_device::memory::resize_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(auxr_batched, total);
+#endif
     base_device::memory::set_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(auxr_batched, 0, total);
 
     for (int ib = 0; ib < nbands; ++ib)
@@ -746,7 +792,9 @@ void PW_Basis_K::recip_to_real_batched(const base_device::DEVICE_GPU* ctx,
                                                                         out + static_cast<size_t>(ib) * nrxx);
     }
 
+#if !(defined(__CUDA) || defined(__ROCM))
     base_device::memory::delete_memory_op<std::complex<double>, base_device::DEVICE_GPU>()(auxr_batched);
+#endif
     ModuleBase::timer::tick(this->classname, "recip_to_real batched gpu");
 }
 

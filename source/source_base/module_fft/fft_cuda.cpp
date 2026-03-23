@@ -15,12 +15,32 @@ template <>
 void FFT_CUDA<float>::setupFFT()
 {
     cufftPlan3d(&c_handle, this->nx, this->ny, this->nz, CUFFT_C2C);
+    
+    size_t workspace_size = 0;
+    CHECK_CUFFT(cufftEstimate3d(this->nx, this->ny, this->nz, CUFFT_C2C, &workspace_size));
+    if (workspace_size > 0 && c_workspace == nullptr)
+    {
+        cudaMalloc(&c_workspace, workspace_size);
+        c_workspace_size = workspace_size;
+        CHECK_CUFFT(cufftSetWorkArea(c_handle, c_workspace));
+    }
+    
     resmem_cd_op()(this->c_auxr_3d, this->nx * this->ny * this->nz);
 }
 template <>
 void FFT_CUDA<double>::setupFFT()
 {
     cufftPlan3d(&z_handle, this->nx, this->ny, this->nz, CUFFT_Z2Z);
+    
+    size_t workspace_size = 0;
+    CHECK_CUFFT(cufftEstimate3d(this->nx, this->ny, this->nz, CUFFT_Z2Z, &workspace_size));
+    if (workspace_size > 0 && z_workspace == nullptr)
+    {
+        cudaMalloc(&z_workspace, workspace_size);
+        z_workspace_size = workspace_size;
+        CHECK_CUFFT(cufftSetWorkArea(z_handle, z_workspace));
+    }
+    
     resmem_zd_op()(this->z_auxr_3d, this->nx * this->ny * this->nz);
 }
 template <>
@@ -31,6 +51,12 @@ void FFT_CUDA<float>::cleanFFT()
         cufftDestroy(c_handle);
         c_handle = {};
     }
+    if (c_workspace)
+    {
+        cudaFree(c_workspace);
+        c_workspace = nullptr;
+        c_workspace_size = 0;
+    }
 }
 template <>
 void FFT_CUDA<double>::cleanFFT()
@@ -39,6 +65,12 @@ void FFT_CUDA<double>::cleanFFT()
     {
         cufftDestroy(z_handle);
         z_handle = {};
+    }
+    if (z_workspace)
+    {
+        cudaFree(z_workspace);
+        z_workspace = nullptr;
+        z_workspace_size = 0;
     }
 }
 template <>

@@ -391,7 +391,7 @@ void get_exx_stress_potential(const K_Vectors* kv,
     }
 #endif
 
-    delete pot_cpu;
+    delete[] pot_cpu;
 }
 
 double exx_divergence(Conv_Coulomb_Pot_K::Coulomb_Type coulomb_type,

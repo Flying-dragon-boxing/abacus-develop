@@ -192,14 +192,20 @@ void get_exx_potential(const K_Vectors* kv,
 
     // copy the potential to the device memory
 #ifdef __CUDA
-    cudaError_t err = cudaHostRegister(pot_cpu, sizeof(Real) * npw, cudaHostRegisterPortable);
-    if (err != cudaSuccess) {
-        throw std::runtime_error("failed to register potential CPU memory operations");
+    if (PARAM.inp.device == "gpu")
+    {
+        cudaError_t err = cudaHostRegister(pot_cpu, sizeof(Real) * npw, cudaHostRegisterPortable);
+        if (err != cudaSuccess) {
+            throw std::runtime_error("failed to register potential CPU memory operations");
+        }
     }
 #endif
     syncmem_real_c2d_op()(pot, pot_cpu, rhopw_dev->npw);
 #ifdef __CUDA
-    cudaHostUnregister(pot_cpu);
+    if (PARAM.inp.device == "gpu")
+    {
+        cudaHostUnregister(pot_cpu);
+    }
 #endif
 
     delete pot_cpu;
@@ -369,14 +375,20 @@ void get_exx_stress_potential(const K_Vectors* kv,
 
     // copy the potential to the device memory
 #ifdef __CUDA
-    cudaError_t err = cudaHostRegister(pot_cpu, sizeof(Real) * npw, cudaHostRegisterPortable);
-    if (err != cudaSuccess) {
-        throw std::runtime_error("failed to register potential CPU memory operations");
+    if (PARAM.inp.device == "gpu")
+    {
+        cudaError_t err = cudaHostRegister(pot_cpu, sizeof(Real) * npw, cudaHostRegisterPortable);
+        if (err != cudaSuccess) {
+            throw std::runtime_error("failed to register potential CPU memory operations");
+        }
     }
 #endif
     syncmem_real_c2d_op()(pot, pot_cpu, rhopw_dev->npw);
 #ifdef __CUDA
-    cudaHostUnregister(pot_cpu);
+    if (PARAM.inp.device == "gpu")
+    {
+        cudaHostUnregister(pot_cpu);
+    }
 #endif
 
     delete pot_cpu;

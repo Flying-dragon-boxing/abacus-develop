@@ -208,7 +208,7 @@ void get_exx_potential(const K_Vectors* kv,
     }
 #endif
 
-    delete pot_cpu;
+    delete[] pot_cpu;
 }
 
 template <typename Real, typename Device>

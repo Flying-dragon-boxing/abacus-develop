@@ -123,11 +123,7 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
             tmpsi_in += max_npw;
         }
     }
-    if (this->ppcell->nkb <= 0 || !this->nonlocal)
-    {
-        ModuleBase::timer::tick("Operator", "Velocity");
-        return;
-    }
+
     // ---------------------------------------------
     // meta-GGA velocity correction: i[V_tau, r]
     // V_tau implemented in ABACUS as -∇·(v_tau ∇),
@@ -192,8 +188,7 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
             }
         }
     }
-    ModuleBase::timer::tick("Operator", "Velocity");
-    return;
+
     // ---------------------------------------------
     // i[V_NL, r] = (\nabla_q+\nabla_q')V_{NL}(q,q')
     // |\beta><\beta|\psi>

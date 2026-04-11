@@ -126,15 +126,18 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
 
     // ---------------------------------------------
     // meta-GGA velocity correction: i[V_tau, r]
-    // V_tau implemented in ABACUS as -∇·(v_tau ∇),
-    // so [V_tau, r]_j = -[ ∂_j(v_tau ψ) + v_tau ∂_j ψ ].
+    // Libxc returns d(exc)/d(tau) with tau = |∇ψ|^2 / 2, while the PW path
+    // applies the operator through the unscaled |∇ψ|^2 channel. Restrict the
+    // fix to the velocity path by adding the missing 1/2 here:
+    // V_tau = -(1/2) ∇·(v_tau ∇), so
+    // [V_tau, r]_j = -(1/2) [ ∂_j(v_tau ψ) + v_tau ∂_j ψ ].
     // The contribution to velocity is -i times the bracket.
     // ---------------------------------------------
     if (this->vtau_ != nullptr && this->vtau_col_ > 0 && XC_Functional::get_func_type() == 3)
     {
         const int current_spin = (this->vtau_row_ > 1 && psi_in->get_npol() == 2) ? this->isk[this->ik] : 0;
         const Real* vtau_spin = this->vtau_ + current_spin * this->vtau_col_;
-        Complex minus_i(0.0, -1.0);
+        Complex minus_half_i(0.0, -0.5);
         for (int ib = 0; ib < n_npwx; ++ib)
         {
             const Complex* bandpsi = psi0 + ib * max_npw;
@@ -172,14 +175,14 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
                 ModuleBase::vector_mul_vector_op<Complex, Device>()(this->vtau_col_, this->porter1_, this->porter1_, vtau_spin);
                 this->wfcpw->real_to_recip(this->ctx, this->porter1_, this->porter1_, this->ik);
 
-                // sum and apply -i
+                // sum and apply -(i/2)
                 ModuleBase::vector_add_vector_op<Complex, Device>()(npw,
                                                                     this->porter1_,
                                                                     this->porter1_,
                                                                     static_cast<Real>(1.0),
                                                                     this->porter2_,
                                                                     static_cast<Real>(1.0));
-                ModuleBase::scal_op<Real, Device>()(npw, &minus_i, this->porter1_, 1);
+                ModuleBase::scal_op<Real, Device>()(npw, &minus_half_i, this->porter1_, 1);
 
                 // accumulate to vpsi (component id, band ib)
                 Complex* vpsi_slice = vpsi + id * n_npwx * max_npw + ib * max_npw;

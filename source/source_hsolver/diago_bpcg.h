@@ -109,6 +109,7 @@ class DiagoBPCG
     ct::Tensor psi = {}, hpsi = {};
     
     ct::Tensor hsub = {};
+    ct::Tensor hsub_inv = {};
 
     /// H|psi> - epsilo * psi, grad of the given problem.
     /// Dim: n_basis * n_band, column major, lda = n_basis_max.

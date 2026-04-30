@@ -221,6 +221,25 @@ struct blas_gemm_batched_strided<T, DEVICE_GPU> {
     }
 };
 
+template <typename T>
+struct blas_trsm<T, DEVICE_GPU> {
+    void operator()(
+        const char& side,
+        const char& uplo,
+        const char& transa,
+        const char& diag,
+        const int& m,
+        const int& n,
+        const T* alpha,
+        const T* A,
+        const int& lda,
+        T* B,
+        const int& ldb)
+    {
+        cuBlasConnector::trsm(cublas_handle, side, uplo, transa, diag, m, n, *alpha, A, lda, B, ldb);
+    }
+};
+
 // Explicitly instantiate functors for the types of functor registered.
 
 
@@ -279,6 +298,11 @@ template struct blas_gemm_batched_strided<float , DEVICE_GPU>;
 template struct blas_gemm_batched_strided<double, DEVICE_GPU>;
 template struct blas_gemm_batched_strided<std::complex<float >, DEVICE_GPU>;
 template struct blas_gemm_batched_strided<std::complex<double>, DEVICE_GPU>;
+
+template struct blas_trsm<float , DEVICE_GPU>;
+template struct blas_trsm<double, DEVICE_GPU>;
+template struct blas_trsm<std::complex<float >, DEVICE_GPU>;
+template struct blas_trsm<std::complex<double>, DEVICE_GPU>;
 
 } // namespace kernels
 } // namespace container

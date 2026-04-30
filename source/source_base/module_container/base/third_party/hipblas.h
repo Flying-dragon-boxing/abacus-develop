@@ -4,9 +4,24 @@
 #include <hip/hip_runtime.h>
 #include <hipblas/hipblas.h>
 #include <base/macros/rocm.h>
+#include <stdexcept>
 
 namespace container {
 namespace hipBlasConnector {
+
+static inline
+hipblasSideMode_t hipblas_side_mode(const char& side)
+{
+    if (side == 'L' || side == 'l')
+    {
+        return HIPBLAS_SIDE_LEFT;
+    }
+    if (side == 'R' || side == 'r')
+    {
+        return HIPBLAS_SIDE_RIGHT;
+    }
+    throw std::runtime_error("hipblas_side_mode: unknown side");
+}
 
 static inline
 void dot(hipblasHandle_t& handle, const int& n, const float *x, const int& incx, const float *y, const int& incy, float* result)
@@ -167,6 +182,46 @@ void gemm(hipblasHandle_t& handle, const char& transa, const char& transb, const
                 reinterpret_cast<const hipblasDoubleComplex*>(B), ldb, 
                 reinterpret_cast<const hipblasDoubleComplex*>(&beta), 
                 reinterpret_cast<hipblasDoubleComplex*>(C), ldc));
+}
+
+static inline
+void trsm(hipblasHandle_t& handle, const char& side, const char& uplo, const char& transa, const char& diag,
+          const int& m, const int& n,
+          const float& alpha, const float* A, const int& lda, float* B, const int& ldb)
+{
+    hipblasErrcheck(hipblasStrsm(handle, hipblas_side_mode(side), hipblas_fill_mode(uplo), GetHipblasOperation(transa),
+                                 hipblas_diag_type(diag), m, n, &alpha, A, lda, B, ldb));
+}
+
+static inline
+void trsm(hipblasHandle_t& handle, const char& side, const char& uplo, const char& transa, const char& diag,
+          const int& m, const int& n,
+          const double& alpha, const double* A, const int& lda, double* B, const int& ldb)
+{
+    hipblasErrcheck(hipblasDtrsm(handle, hipblas_side_mode(side), hipblas_fill_mode(uplo), GetHipblasOperation(transa),
+                                 hipblas_diag_type(diag), m, n, &alpha, A, lda, B, ldb));
+}
+
+static inline
+void trsm(hipblasHandle_t& handle, const char& side, const char& uplo, const char& transa, const char& diag,
+          const int& m, const int& n,
+          const std::complex<float>& alpha, const std::complex<float>* A, const int& lda,
+          std::complex<float>* B, const int& ldb)
+{
+    hipblasErrcheck(hipblasCtrsm(handle, hipblas_side_mode(side), hipblas_fill_mode(uplo), GetHipblasOperation(transa),
+                                 hipblas_diag_type(diag), m, n, reinterpret_cast<const hipblasComplex*>(&alpha),
+                                 reinterpret_cast<const hipblasComplex*>(A), lda, reinterpret_cast<hipblasComplex*>(B), ldb));
+}
+
+static inline
+void trsm(hipblasHandle_t& handle, const char& side, const char& uplo, const char& transa, const char& diag,
+          const int& m, const int& n,
+          const std::complex<double>& alpha, const std::complex<double>* A, const int& lda,
+          std::complex<double>* B, const int& ldb)
+{
+    hipblasErrcheck(hipblasZtrsm(handle, hipblas_side_mode(side), hipblas_fill_mode(uplo), GetHipblasOperation(transa),
+                                 hipblas_diag_type(diag), m, n, reinterpret_cast<const hipblasDoubleComplex*>(&alpha),
+                                 reinterpret_cast<const hipblasDoubleComplex*>(A), lda, reinterpret_cast<hipblasDoubleComplex*>(B), ldb));
 }
 
 template <typename T>

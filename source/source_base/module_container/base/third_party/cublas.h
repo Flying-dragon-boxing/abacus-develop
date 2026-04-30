@@ -4,9 +4,24 @@
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 #include <base/macros/cuda.h>
+#include <stdexcept>
 
 namespace container {
 namespace cuBlasConnector {
+
+static inline
+cublasSideMode_t cublas_side_mode(const char& side)
+{
+    if (side == 'L' || side == 'l')
+    {
+        return CUBLAS_SIDE_LEFT;
+    }
+    if (side == 'R' || side == 'r')
+    {
+        return CUBLAS_SIDE_RIGHT;
+    }
+    throw std::runtime_error("cublas_side_mode: unknown side");
+}
 
 static inline
 void copy(cublasHandle_t& handle, const int& n, const float *x, const int& incx, float *y, const int& incy)
@@ -209,6 +224,46 @@ void gemm(cublasHandle_t& handle, const char& transa, const char& transb, const 
                 reinterpret_cast<const cuDoubleComplex*>(B), ldb,
                 reinterpret_cast<const cuDoubleComplex*>(&beta),
                 reinterpret_cast<cuDoubleComplex*>(C), ldc));
+}
+
+static inline
+void trsm(cublasHandle_t& handle, const char& side, const char& uplo, const char& transa, const char& diag,
+          const int& m, const int& n,
+          const float& alpha, const float* A, const int& lda, float* B, const int& ldb)
+{
+    CHECK_CUBLAS(cublasStrsm(handle, cublas_side_mode(side), cublas_fill_mode(uplo), GetCublasOperation(transa),
+                             cublas_diag_type(diag), m, n, &alpha, A, lda, B, ldb));
+}
+
+static inline
+void trsm(cublasHandle_t& handle, const char& side, const char& uplo, const char& transa, const char& diag,
+          const int& m, const int& n,
+          const double& alpha, const double* A, const int& lda, double* B, const int& ldb)
+{
+    CHECK_CUBLAS(cublasDtrsm(handle, cublas_side_mode(side), cublas_fill_mode(uplo), GetCublasOperation(transa),
+                             cublas_diag_type(diag), m, n, &alpha, A, lda, B, ldb));
+}
+
+static inline
+void trsm(cublasHandle_t& handle, const char& side, const char& uplo, const char& transa, const char& diag,
+          const int& m, const int& n,
+          const std::complex<float>& alpha, const std::complex<float>* A, const int& lda,
+          std::complex<float>* B, const int& ldb)
+{
+    CHECK_CUBLAS(cublasCtrsm(handle, cublas_side_mode(side), cublas_fill_mode(uplo), GetCublasOperation(transa),
+                             cublas_diag_type(diag), m, n, reinterpret_cast<const cuComplex*>(&alpha),
+                             reinterpret_cast<const cuComplex*>(A), lda, reinterpret_cast<cuComplex*>(B), ldb));
+}
+
+static inline
+void trsm(cublasHandle_t& handle, const char& side, const char& uplo, const char& transa, const char& diag,
+          const int& m, const int& n,
+          const std::complex<double>& alpha, const std::complex<double>* A, const int& lda,
+          std::complex<double>* B, const int& ldb)
+{
+    CHECK_CUBLAS(cublasZtrsm(handle, cublas_side_mode(side), cublas_fill_mode(uplo), GetCublasOperation(transa),
+                             cublas_diag_type(diag), m, n, reinterpret_cast<const cuDoubleComplex*>(&alpha),
+                             reinterpret_cast<const cuDoubleComplex*>(A), lda, reinterpret_cast<cuDoubleComplex*>(B), ldb));
 }
 
 template <typename T>

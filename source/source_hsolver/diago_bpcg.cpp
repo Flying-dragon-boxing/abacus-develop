@@ -9,6 +9,7 @@
 
 #include <ATen/kernels/blas.h>
 #include <ATen/kernels/lapack.h>
+#include <ATen/kernels/memory.h>
 #include <ATen/ops/einsum_op.h>
 #include <limits>
 
@@ -48,6 +49,7 @@ void DiagoBPCG<T, Device>::init_iter(const int nband, const int nband_l, const i
     this->err_st        = std::move(ct::Tensor(r_type, device_type, {this->n_band_l}));
 
     this->hsub          = std::move(ct::Tensor(t_type, device_type, {this->n_band, this->n_band}));
+    this->hsub_inv      = std::move(ct::Tensor(t_type, device_type, {this->n_band, this->n_band}));
 
     this->hpsi          = std::move(ct::Tensor(t_type, device_type, {this->n_band_l, this->n_basis}));
     this->work          = std::move(ct::Tensor(t_type, device_type, {this->n_band_l, this->n_basis}));
@@ -126,11 +128,23 @@ void DiagoBPCG<T, Device>::orth_cholesky(
 
     ct::kernels::lapack_potrf<T, ct_Device>()(
         'U', this->n_band, hsub_out.data<T>(), this->n_band);
-    ct::kernels::lapack_trtri<T, ct_Device>()(
-        'U', 'N', this->n_band, hsub_out.data<T>(), this->n_band);
 
-    this->rotate_wf(hsub_out, psi_out, workspace_in);
-    this->rotate_wf(hsub_out, hpsi_out, workspace_in);
+    std::vector<T> identity(this->n_band * this->n_band, this->zero_);
+    for (int i = 0; i < this->n_band; ++i)
+    {
+        identity[i * this->n_band + i] = this->one_;
+    }
+    ct::kernels::synchronize_memory<T, ct_Device, ct::DEVICE_CPU>()(
+        this->hsub_inv.data<T>(), identity.data(), identity.size());
+    ct::kernels::blas_trsm<T, ct_Device>()(
+        'R', 'U', 'N', 'N',
+        this->n_band, this->n_band,
+        this->one,
+        hsub_out.data<T>(), this->n_band,
+        this->hsub_inv.data<T>(), this->n_band);
+
+    this->rotate_wf(this->hsub_inv, psi_out, workspace_in);
+    this->rotate_wf(this->hsub_inv, hpsi_out, workspace_in);
 }
 
 template<typename T, typename Device>

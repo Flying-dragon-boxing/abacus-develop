@@ -120,11 +120,23 @@ void zhemm_(const char *side, const char *uplo,
             std::complex<double> *c, const int *ldc);
 
 //solving triangular matrix with multiple right hand sides
+void strsm_(const char *side, const char *uplo, const char *transa, const char *diag,
+            const int *m, const int *n,
+            const float *alpha,
+            const float *a, const int *lda,
+            float *b, const int *ldb);
+
 void dtrsm_(const char *side, const char *uplo, const char *transa, const char *diag,
             const int *m, const int *n,
             const double *alpha,
             const double *a, const int *lda,
             double *b, const int *ldb);
+
+void ctrsm_(const char *side, const char *uplo, const char *transa, const char *diag,
+            const int *m, const int *n,
+            const std::complex<float> *alpha,
+            const std::complex<float> *a, const int *lda,
+            std::complex<float> *b, const int *ldb);
 
 void ztrsm_(const char *side, const char *uplo, const char *transa, const char *diag,
             const int *m, const int *n,
@@ -256,6 +268,46 @@ void gemm(const char& transa, const char& transb, const int& m, const int& n, co
     zgemm_(&transa, &transb, &m, &n, &k,
            &alpha, A, &lda, B, &ldb,
            &beta, C, &ldc);
+}
+
+static inline
+void trsm(const char& side, const char& uplo, const char& transa, const char& diag,
+          const int& m, const int& n,
+          const float& alpha,
+          const float* A, const int& lda,
+          float* B, const int& ldb)
+{
+    strsm_(&side, &uplo, &transa, &diag, &m, &n, &alpha, A, &lda, B, &ldb);
+}
+
+static inline
+void trsm(const char& side, const char& uplo, const char& transa, const char& diag,
+          const int& m, const int& n,
+          const double& alpha,
+          const double* A, const int& lda,
+          double* B, const int& ldb)
+{
+    dtrsm_(&side, &uplo, &transa, &diag, &m, &n, &alpha, A, &lda, B, &ldb);
+}
+
+static inline
+void trsm(const char& side, const char& uplo, const char& transa, const char& diag,
+          const int& m, const int& n,
+          const std::complex<float>& alpha,
+          const std::complex<float>* A, const int& lda,
+          std::complex<float>* B, const int& ldb)
+{
+    ctrsm_(&side, &uplo, &transa, &diag, &m, &n, &alpha, A, &lda, B, &ldb);
+}
+
+static inline
+void trsm(const char& side, const char& uplo, const char& transa, const char& diag,
+          const int& m, const int& n,
+          const std::complex<double>& alpha,
+          const std::complex<double>* A, const int& lda,
+          std::complex<double>* B, const int& ldb)
+{
+    ztrsm_(&side, &uplo, &transa, &diag, &m, &n, &alpha, A, &lda, B, &ldb);
 }
 
 template <typename T>

@@ -180,6 +180,22 @@ struct blas_gemm_batched_strided {
         const int& batch_size);
 };
 
+template <typename T, typename Device>
+struct blas_trsm {
+    void operator()(
+        const char& side,
+        const char& uplo,
+        const char& transa,
+        const char& diag,
+        const int& m,
+        const int& n,
+        const T* alpha,
+        const T* A,
+        const int& lda,
+        T* B,
+        const int& ldb);
+};
+
 #if __CUDA || __ROCM
 void createGpuBlasHandle();  // create blas handle
 void destroyGpuBlasHandle(); // destory blas handle

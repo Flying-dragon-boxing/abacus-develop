@@ -4,8 +4,27 @@
 #include "source_base/module_device/device_check.h"
 
 #include <cuda_runtime.h>
+#include <nccl.h>
+
 #include <map>
 #include <mutex>
+
+#include <cstdio>
+#include <cstdlib>
+
+#ifndef CHECK_NCCL
+#define CHECK_NCCL(func)                                                                                               \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        ncclResult_t status = (func);                                                                                  \
+        if (status != ncclSuccess)                                                                                     \
+        {                                                                                                              \
+            fprintf(stderr, "In File %s : NCCL API failed at line %d with error: %s (%d)\n", __FILE__, __LINE__,       \
+                    ncclGetErrorString(status), status);                                                               \
+            exit(EXIT_FAILURE);                                                                                        \
+        }                                                                                                              \
+    } while (0)
+#endif
 #endif
 
 #ifdef __MPI

@@ -11,6 +11,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <stdexcept>
 
 #ifndef CHECK_NCCL
 #define CHECK_NCCL(func)                                                                                               \
@@ -47,10 +48,6 @@ class NcclCommRegistry
     {
         for (std::map<MPI_Fint, NcclCommContext>::iterator it = contexts_.begin(); it != contexts_.end(); ++it)
         {
-            if (it->second.stream != nullptr)
-            {
-                cudaStreamDestroy(it->second.stream);
-            }
             if (it->second.comm != nullptr)
             {
                 ncclCommDestroy(it->second.comm);
@@ -84,7 +81,6 @@ class NcclCommRegistry
             }
             MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, comm);
             CHECK_NCCL(ncclCommInitRank(&ctx.comm, size, id, rank));
-            CHECK_CUDA(cudaStreamCreateWithFlags(&ctx.stream, cudaStreamNonBlocking));
         }
 
         std::pair<std::map<MPI_Fint, NcclCommContext>::iterator, bool> inserted = contexts_.insert(std::make_pair(key, ctx));
@@ -145,12 +141,18 @@ void nccl_gatherv_impl(const T* sendbuf,
     }
 
     int chunk_count = 0;
+    int rank = 0;
+    MPI_Comm_rank(comm, &rank);
     for (int i = 0; i < ctx.size; ++i)
     {
         if (recvcounts[i] > chunk_count)
         {
             chunk_count = recvcounts[i];
         }
+    }
+    if (recvcounts[rank] != sendcount)
+    {
+        throw std::runtime_error("nccl_gatherv_data: sendcount does not match recvcounts[rank]");
     }
     if (chunk_count <= 0)
     {
@@ -164,6 +166,7 @@ void nccl_gatherv_impl(const T* sendbuf,
 
     CHECK_CUDA(cudaMalloc(&staged_send, chunk_bytes));
     CHECK_CUDA(cudaMalloc(&staged_recv, recv_bytes));
+    CHECK_CUDA(cudaMemsetAsync(staged_send, 0, chunk_bytes, ctx.stream));
     if (sendcount > 0)
     {
         CHECK_CUDA(cudaMemcpyAsync(staged_send,

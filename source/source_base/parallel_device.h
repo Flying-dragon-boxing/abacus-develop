@@ -5,6 +5,7 @@
 #include "source_base/module_device/device.h"
 #include "source_base/module_device/memory_op.h"
 #include <complex>
+#include <type_traits>
 namespace Parallel_Common
 {
 void isend_data(const double* buf, int count, int dest, int tag, MPI_Comm& comm, MPI_Request* request);
@@ -31,6 +32,21 @@ void gatherv_data(const double* sendbuf, int sendcount, double* recvbuf, const i
 void gatherv_data(const std::complex<double>* sendbuf, int sendcount, std::complex<double>* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm);
 void gatherv_data(const float* sendbuf, int sendcount, float* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm);
 void gatherv_data(const std::complex<float>* sendbuf, int sendcount, std::complex<float>* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm);
+
+#if defined(__CUDA_MPI) && defined(__NCCL_PARALLEL_DEVICE)
+void nccl_bcast_data(double* object, const int& n, MPI_Comm& comm);
+void nccl_bcast_data(std::complex<double>* object, const int& n, MPI_Comm& comm);
+void nccl_bcast_data(float* object, const int& n, MPI_Comm& comm);
+void nccl_bcast_data(std::complex<float>* object, const int& n, MPI_Comm& comm);
+void nccl_reduce_data(double* object, const int& n, MPI_Comm& comm);
+void nccl_reduce_data(std::complex<double>* object, const int& n, MPI_Comm& comm);
+void nccl_reduce_data(float* object, const int& n, MPI_Comm& comm);
+void nccl_reduce_data(std::complex<float>* object, const int& n, MPI_Comm& comm);
+void nccl_gatherv_data(const double* sendbuf, int sendcount, double* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm);
+void nccl_gatherv_data(const std::complex<double>* sendbuf, int sendcount, std::complex<double>* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm);
+void nccl_gatherv_data(const float* sendbuf, int sendcount, float* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm);
+void nccl_gatherv_data(const std::complex<float>* sendbuf, int sendcount, std::complex<float>* recvbuf, const int* recvcounts, const int* displs, MPI_Comm& comm);
+#endif
 
 #ifndef __CUDA_MPI
 template<typename T, typename Device>
@@ -116,6 +132,13 @@ template <typename T, typename Device>
 void bcast_dev(T* object, const int& n, const MPI_Comm& comm, T* tmp_space = nullptr)
 {
 #ifdef __CUDA_MPI
+#if defined(__NCCL_PARALLEL_DEVICE)
+    if (std::is_same<Device, base_device::DEVICE_GPU>::value)
+    {
+        nccl_bcast_data(object, n, const_cast<MPI_Comm&>(comm));
+        return;
+    }
+#endif
     bcast_data(object, n, comm);
 #else
     object_cpu_point<T,Device> o;
@@ -136,6 +159,13 @@ template <typename T, typename Device>
 void reduce_dev(T* object, const int& n, const MPI_Comm& comm, T* tmp_space = nullptr)
 {
 #ifdef __CUDA_MPI
+#if defined(__NCCL_PARALLEL_DEVICE)
+    if (std::is_same<Device, base_device::DEVICE_GPU>::value)
+    {
+        nccl_reduce_data(object, n, const_cast<MPI_Comm&>(comm));
+        return;
+    }
+#endif
     reduce_data(object, n, comm);
 #else
     object_cpu_point<T,Device> o;
@@ -158,6 +188,13 @@ void gatherv_dev(const T* sendbuf,
                  T* tmp_rspace = nullptr)
 {
 #ifdef __CUDA_MPI
+#if defined(__NCCL_PARALLEL_DEVICE)
+    if (std::is_same<Device, base_device::DEVICE_GPU>::value)
+    {
+        nccl_gatherv_data(sendbuf, sendcount, recvbuf, recvcounts, displs, comm);
+        return;
+    }
+#endif
     gatherv_data(sendbuf, sendcount, recvbuf, recvcounts, displs, comm);
 #else
     object_cpu_point<T,Device> o1, o2;

@@ -105,7 +105,7 @@ void PGemmCN<T, Device>::set_dimension(
             if (std::is_same<Device, base_device::DEVICE_GPU>::value)
             {
                 resmem_dev_op()(A_tmp_device_, max_colA * LDA);
-#ifndef __CUDA_MPI
+#if !defined(__CUDA_MPI) || defined(__NCCL_PARALLEL_DEVICE)
                 isend_tmp_.resize(max_colA * LDA);
 #endif
             }
@@ -133,7 +133,7 @@ void PGemmCN<T, Device>::set_dimension(
             if (std::is_same<Device, base_device::DEVICE_GPU>::value)
             {
                 resmem_dev_op()(C_local_tmp_, size_C_local);
-#ifndef __CUDA_MPI
+#if !defined(__CUDA_MPI) || defined(__NCCL_PARALLEL_DEVICE)
                 C_global_tmp_.resize(size_C_global);
 #endif
             }
@@ -279,7 +279,7 @@ void PGemmCN<T, Device>::multiply_col(const T alpha, const T* A, const T* B, con
     {
         T* reduce_tmp = nullptr;
         T* gather_tmp = nullptr;
-#ifndef __CUDA_MPI
+#if !defined(__CUDA_MPI) || defined(__NCCL_PARALLEL_DEVICE)
         if (std::is_same<Device, base_device::DEVICE_GPU>::value)
         {
             reduce_tmp = C_tmp_.data();

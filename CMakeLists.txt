@@ -457,10 +457,6 @@ if(USE_CUDA)
         message(FATAL_ERROR
           "ENABLE_NCCL_PARALLEL_DEVICE requires ENABLE_MPI=ON.")
       endif()
-      if (NOT USE_CUDA_MPI)
-        message(FATAL_ERROR
-          "ENABLE_NCCL_PARALLEL_DEVICE requires USE_CUDA_MPI=ON.")
-      endif()
       add_compile_definitions(__NCCL_PARALLEL_DEVICE)
       include(cmake/SetupNccl.cmake)
       abacus_setup_nccl(${ABACUS_BIN_NAME})

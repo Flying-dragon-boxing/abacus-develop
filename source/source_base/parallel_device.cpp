@@ -1,6 +1,6 @@
 #include "parallel_device.h"
 
-#if defined(__MPI) && defined(__CUDA_MPI) && defined(__NCCL_PARALLEL_DEVICE)
+#if defined(__MPI) && defined(__NCCL_PARALLEL_DEVICE)
 #include "source_base/module_device/device_check.h"
 
 #include <cuda_runtime.h>
@@ -31,7 +31,7 @@
 #ifdef __MPI
 namespace Parallel_Common
 {
-#if defined(__CUDA_MPI) && defined(__NCCL_PARALLEL_DEVICE)
+#if defined(__NCCL_PARALLEL_DEVICE)
 namespace
 {
 struct NcclCommContext

@@ -104,7 +104,7 @@ template <typename T>
 struct object_cpu_point<T, base_device::DEVICE_GPU>
 {
     bool alloc = false;
-    T* get(const T* object, const int& n, T* tmp_space = nullptr)
+    T* get_buffer(const T* object, const int& n, T* tmp_space = nullptr)
     {
         T* object_cpu = nullptr;
         alloc = false;
@@ -118,6 +118,11 @@ struct object_cpu_point<T, base_device::DEVICE_GPU>
         {
             object_cpu = tmp_space;
         }
+        return object_cpu;
+    }
+    T* get(const T* object, const int& n, T* tmp_space = nullptr)
+    {
+        T* object_cpu = get_buffer(object, n, tmp_space);
         base_device::memory::synchronize_memory_op<T, base_device::DEVICE_CPU, base_device::DEVICE_GPU>()(object_cpu,
                                                                                                           object,
                                                                                                           n);
@@ -149,6 +154,10 @@ template <typename T>
 struct object_cpu_point<T, base_device::DEVICE_CPU>
 {
     bool alloc = false;
+    T* get_buffer(const T* object, const int& n, T* tmp_space = nullptr)
+    {
+        return const_cast<T*>(object);
+    }
     T* get(const T* object, const int& n, T* tmp_space = nullptr)
     {
         return const_cast<T*>(object);

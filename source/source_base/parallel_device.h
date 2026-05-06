@@ -117,15 +117,15 @@ void recv_dev(T* object, int count, int source, int tag, MPI_Comm& comm, MPI_Sta
 }
 
 /**
- * @brief bcast data in Device
+ * @brief broadcast data in Device
  * 
  * @tparam T: float, double, std::complex<float>, std::complex<double>
  * @tparam Device 
- * @param ctx Device ctx
- * @param object complex arrays in Device
- * @param n the size of complex arrays
+ * @param object arrays in Device
+ * @param n the size of array
  * @param comm MPI_Comm
- * @param tmp_space tmp space in CPU
+ * @param root root rank (default 0)
+ * @param tmp_space optional tmp space in CPU (default nullptr)
  */
 template <typename T, typename Device>
 void bcast_dev(T* object, const int& n, const MPI_Comm& comm, int root = 0, T* tmp_space = nullptr)

@@ -4,6 +4,7 @@
 #include "mpi.h"
 #include <complex>
 #include <type_traits>
+#include "source_base/module_device/types.h"
 namespace Parallel_Common
 {
 void isend_data(const double* buf, int count, int dest, int tag, MPI_Comm& comm, MPI_Request* request);

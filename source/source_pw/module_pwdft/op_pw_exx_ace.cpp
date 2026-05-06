@@ -47,7 +47,9 @@ void OperatorEXXPW<T, Device>::act_op_ace(const int nbands,
                       nbands_tot
     );
 
+#ifdef __MPI
     Parallel_Common::reduce_dev<T, Device>(Xi_psi, nbands_tot * nbands, POOL_WORLD);
+#endif
 
     // Xi^\dagger * (Xi * psi)
     gemm_complex_op()(trans_C,
@@ -210,7 +212,9 @@ void OperatorEXXPW<T, Device>::construct_ace() const
                                   nbands);
 
                 // reduction of psi_h_psi_ace, due to distributed memory
+#ifdef __MPI
                 Parallel_Common::reduce_dev<T, Device>(psi_h_psi_ace, nbands * nbands, POOL_WORLD);
+#endif
 
                 T intermediate_minus_one = -1.0;
                 axpy_complex_op()(nbands * nbands,

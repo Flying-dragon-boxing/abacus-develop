@@ -123,13 +123,13 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
 
     // ---------------------------------------------
     // meta-GGA velocity correction
-    // Libxc returns d(exc)/d(tau) with tau = |∇ψ|^2 / 2, while the PW path
-    // applies the operator through the unscaled |∇ψ|^2 channel. Restrict the
-    // fix to the velocity path by adding the missing 1/2 here:
-    // V_tau = -(1/2) ∇·(v_tau ∇), so
-    // [V_tau, r]_j = -(1/2) [ ∂_j(v_tau ψ) + v_tau ∂_j ψ ].
-    // With the velocity convention used here, the contribution added below is
-    // -i/2 times the bracketed sum.
+    // V_tau = -(1/2) div(v_tau grad), whose plane-wave matrix element is
+    // <k+G|V_tau|k+G'> = (1/2) v_tau(G-G') (k+G)·(k+G').
+    // Therefore
+    // i[V_tau, r_alpha]_{G,G'} =
+    // (1/2) v_tau(G-G') [2k_alpha + G_alpha + G'_alpha].
+    // In real space this is implemented as
+    // -i/2 [d_alpha(v_tau psi) + v_tau d_alpha psi].
     // ---------------------------------------------
     if (this->vtau_ != nullptr && this->vtau_col_ > 0 && XC_Functional::get_func_type() == 3)
     {

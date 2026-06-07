@@ -619,18 +619,12 @@ void Sto_EleCond<FPTYPE, Device>::sKG(const int& smear_type,
     ModuleBase::timer::start("Sto_EleCond", "kloop");
     using Real = typename GetTypeReal<FPTYPE>::type;
     using LowReal = typename GetTypeReal<lowTYPE>::type;
-    const Real* vtau_ptr = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
-                               ? this->p_elec->pot->template get_vofk_smooth_data<Real>()
-                               : nullptr;
-    const LowReal* vtau_ptr_low = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
-                                      ? this->p_elec->pot->template get_vofk_smooth_data<LowReal>()
-                                      : nullptr;
-    const int vtau_col = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
-                             ? this->p_elec->pot->get_vofk_smooth().nc
-                             : 0;
-    const int vtau_row = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
-                             ? this->p_elec->pot->get_vofk_smooth().nr
-                             : 0;
+    // STO meta-GGA/SCAN is not implemented yet, so keep the meta-GGA velocity
+    // correction disabled for stochastic conductivity for now.
+    const Real* vtau_ptr = nullptr;
+    const LowReal* vtau_ptr_low = nullptr;
+    const int vtau_col = 0;
+    const int vtau_row = 0;
 
     hamilt::Velocity<FPTYPE, Device> velop(this->p_wfcpw,
                                            this->p_kv->isk.data(),

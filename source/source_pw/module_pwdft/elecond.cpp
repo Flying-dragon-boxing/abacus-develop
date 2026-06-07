@@ -53,6 +53,7 @@ void EleCond<FPTYPE, Device>::KG(const int& smear_type,
                                  const double& dw_in,
                                  const double& dt_in,
                                  const bool& nonlocal,
+                                 const bool& mgga_vel,
                                  ModuleBase::matrix& wg)
 {
     //-----------------------------------------------------------
@@ -89,13 +90,13 @@ void EleCond<FPTYPE, Device>::KG(const int& smear_type,
     std::vector<double> ct22(nt, 0);
 
     using Real = typename GetTypeReal<FPTYPE>::type;
-    const Real* vtau_ptr = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
+    const Real* vtau_ptr = (mgga_vel && this->p_elec != nullptr && this->p_elec->pot != nullptr)
                                ? this->p_elec->pot->template get_vofk_smooth_data<Real>()
                                : nullptr;
-    const int vtau_col = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
+    const int vtau_col = (mgga_vel && this->p_elec != nullptr && this->p_elec->pot != nullptr)
                              ? this->p_elec->pot->get_vofk_smooth().nc
                              : 0;
-    const int vtau_row = (this->p_elec != nullptr && this->p_elec->pot != nullptr)
+    const int vtau_row = (mgga_vel && this->p_elec != nullptr && this->p_elec->pot != nullptr)
                              ? this->p_elec->pot->get_vofk_smooth().nr
                              : 0;
     hamilt::Velocity<FPTYPE, Device> velop(this->p_wfcpw,

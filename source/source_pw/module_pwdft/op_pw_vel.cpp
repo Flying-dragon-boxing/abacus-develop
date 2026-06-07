@@ -35,9 +35,6 @@ Velocity<FPTYPE, Device>::Velocity(const ModulePW::PW_Basis_K* wfcpw_in,
     {
         this->ppcell->initgradq_vnl(*this->ucell);
     }
-    // workspace for meta-GGA correction (size follows wfcpw grids)
-    resmem_complex_op()(porter1_, this->wfcpw->nmaxgr);
-    resmem_complex_op()(porter2_, this->wfcpw->nmaxgr);
 }
 
 template <typename FPTYPE, typename Device>
@@ -125,28 +122,48 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
     }
 
     // ---------------------------------------------
-    // meta-GGA velocity correction: i[V_tau, r]
+    // meta-GGA velocity correction
     // Libxc returns d(exc)/d(tau) with tau = |∇ψ|^2 / 2, while the PW path
     // applies the operator through the unscaled |∇ψ|^2 channel. Restrict the
     // fix to the velocity path by adding the missing 1/2 here:
     // V_tau = -(1/2) ∇·(v_tau ∇), so
     // [V_tau, r]_j = -(1/2) [ ∂_j(v_tau ψ) + v_tau ∂_j ψ ].
-    // The contribution to velocity is -i times the bracket.
+    // With the velocity convention used here, the contribution added below is
+    // -i/2 times the bracketed sum.
     // ---------------------------------------------
     if (this->vtau_ != nullptr && this->vtau_col_ > 0 && XC_Functional::get_func_type() == 3)
     {
-        const int current_spin = (this->vtau_row_ > 1 && psi_in->get_npol() == 2) ? this->isk[this->ik] : 0;
+        if (this->porter1_ == nullptr)
+        {
+            resmem_complex_op()(this->porter1_, this->wfcpw->nmaxgr);
+        }
+        if (this->porter2_ == nullptr)
+        {
+            resmem_complex_op()(this->porter2_, this->wfcpw->nmaxgr);
+        }
+        int current_spin = 0;
+        if (this->vtau_row_ > 1)
+        {
+            current_spin = this->isk[this->ik];
+            if (current_spin < 0 || current_spin >= this->vtau_row_)
+            {
+                ModuleBase::WARNING_QUIT("Velocity", "invalid spin index for meta-GGA velocity correction");
+            }
+        }
         const Real* vtau_spin = this->vtau_ + current_spin * this->vtau_col_;
         Complex minus_half_i(0.0, -0.5);
         for (int ib = 0; ib < n_npwx; ++ib)
         {
             const Complex* bandpsi = psi0 + ib * max_npw;
+            this->wfcpw->recip_to_real(this->ctx, bandpsi, this->porter1_, this->ik);
+            ModuleBase::vector_mul_vector_op<Complex, Device>()(this->vtau_col_,
+                                                                this->porter1_,
+                                                                this->porter1_,
+                                                                vtau_spin);
+            this->wfcpw->real_to_recip(this->ctx, this->porter1_, this->porter1_, this->ik);
             for (int id = 0; id < 3; ++id)
             {
                 // term1: ∂_id (v_tau * psi)
-                this->wfcpw->recip_to_real(this->ctx, bandpsi, this->porter1_, this->ik);
-                ModuleBase::vector_mul_vector_op<Complex, Device>()(this->vtau_col_, this->porter1_, this->porter1_, vtau_spin);
-                this->wfcpw->real_to_recip(this->ctx, this->porter1_, this->porter1_, this->ik);
                 meta_pw_op<Real, Device>()(this->ctx,
                                            this->ik,
                                            id,
@@ -158,8 +175,12 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
                                            this->porter1_,
                                            this->porter2_,
                                            false);
+                ModuleBase::scal_op<Real, Device>()(npw, &minus_half_i, this->porter2_, 1);
+                Complex* vpsi_slice = vpsi + id * n_npwx * max_npw + ib * max_npw;
+                Complex one = 1.0;
+                ModuleBase::axpy_op<Complex, Device>()(npw, &one, this->porter2_, 1, vpsi_slice, 1);
 
-                // term2: v_tau * ∂_id psi  (reuse porter1_)
+                // term2: v_tau * ∂_id psi
                 meta_pw_op<Real, Device>()(this->ctx,
                                            this->ik,
                                            id,
@@ -169,25 +190,16 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
                                            this->wfcpw->template get_gcar_data<Real>(),
                                            this->wfcpw->template get_kvec_c_data<Real>(),
                                            bandpsi,
-                                           this->porter1_,
+                                           this->porter2_,
                                            false);
-                this->wfcpw->recip_to_real(this->ctx, this->porter1_, this->porter1_, this->ik);
-                ModuleBase::vector_mul_vector_op<Complex, Device>()(this->vtau_col_, this->porter1_, this->porter1_, vtau_spin);
-                this->wfcpw->real_to_recip(this->ctx, this->porter1_, this->porter1_, this->ik);
-
-                // sum and apply -(i/2)
-                ModuleBase::vector_add_vector_op<Complex, Device>()(npw,
-                                                                    this->porter1_,
-                                                                    this->porter1_,
-                                                                    static_cast<Real>(1.0),
+                this->wfcpw->recip_to_real(this->ctx, this->porter2_, this->porter2_, this->ik);
+                ModuleBase::vector_mul_vector_op<Complex, Device>()(this->vtau_col_,
                                                                     this->porter2_,
-                                                                    static_cast<Real>(1.0));
-                ModuleBase::scal_op<Real, Device>()(npw, &minus_half_i, this->porter1_, 1);
-
-                // accumulate to vpsi (component id, band ib)
-                Complex* vpsi_slice = vpsi + id * n_npwx * max_npw + ib * max_npw;
-                Complex one = 1.0;
-                ModuleBase::axpy_op<Complex, Device>()(npw, &one, this->porter1_, 1, vpsi_slice, 1);
+                                                                    this->porter2_,
+                                                                    vtau_spin);
+                this->wfcpw->real_to_recip(this->ctx, this->porter2_, this->porter2_, this->ik);
+                ModuleBase::scal_op<Real, Device>()(npw, &minus_half_i, this->porter2_, 1);
+                ModuleBase::axpy_op<Complex, Device>()(npw, &one, this->porter2_, 1, vpsi_slice, 1);
             }
         }
     }

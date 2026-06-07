@@ -61,9 +61,9 @@ class Velocity
     const typename GetTypeReal<FPTYPE>::type* vtau_ = nullptr; ///< [CPU] meta-GGA vtau on real grid (nspin x nrxx_smooth)
     int vtau_col_ = 0; ///< number of grid points per spin for vtau
     int vtau_row_ = 0; ///< number of spin channels stored in vtau_
-    std::complex<FPTYPE>* porter1_ = nullptr; ///< workspace on real grid
-    std::complex<FPTYPE>* porter2_ = nullptr; ///< workspace on real grid / recip grid
-    base_device::DEVICE_CPU* ctx = {};
+    mutable std::complex<FPTYPE>* porter1_ = nullptr; ///< workspace on real grid / recip grid
+    mutable std::complex<FPTYPE>* porter2_ = nullptr; ///< workspace on real grid / recip grid
+    Device* ctx = {};
 
   private:
     FPTYPE* gx_ = nullptr; ///<[Device, npwx] x component of G+K

@@ -8,6 +8,7 @@
 #include "source_base/parallel_reduce.h"
 #include "source_estate/occupy.h"
 #include "source_estate/module_pot/potential_new.h"
+#include "source_hamilt/module_xc/xc_functional.h"
 #include "source_base/module_device/types.h"
 #include "source_io/module_output/binstream.h"
 #include "source_io/module_parameter/parameter.h"
@@ -99,6 +100,11 @@ void EleCond<FPTYPE, Device>::KG(const int& smear_type,
     const int vtau_row = (mgga_vel && this->p_elec != nullptr && this->p_elec->pot != nullptr)
                              ? this->p_elec->pot->get_vofk_smooth().nr
                              : 0;
+    if (mgga_vel && XC_Functional::get_ked_flag() && (vtau_ptr == nullptr || vtau_col <= 0 || vtau_row <= 0))
+    {
+        ModuleBase::WARNING_QUIT("EleCond::KG",
+                                 "meta-GGA velocity correction is requested, but v_tau data is unavailable");
+    }
     hamilt::Velocity<FPTYPE, Device> velop(this->p_wfcpw,
                                            this->p_kv->isk.data(),
                                            this->p_ppcell,

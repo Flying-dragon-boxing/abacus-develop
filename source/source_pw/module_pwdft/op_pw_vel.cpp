@@ -131,7 +131,7 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
     // In real space this is implemented as
     // -i/2 [d_alpha(v_tau psi) + v_tau d_alpha psi].
     // ---------------------------------------------
-    if (this->vtau_ != nullptr && this->vtau_col_ > 0 && XC_Functional::get_func_type() == 3)
+    if (this->vtau_ != nullptr && this->vtau_col_ > 0 && XC_Functional::get_ked_flag())
     {
         if (this->porter1_ == nullptr)
         {

@@ -124,12 +124,12 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
     // ---------------------------------------------
     // meta-GGA velocity correction
     // V_tau = -(1/2) div(v_tau grad), whose plane-wave matrix element is
-    // <k+G|V_tau|k+G'> = (1/2) v_tau(G-G') (k+G)·(k+G').
+    // <k+G|V_tau|k+G'> = (1/2) v_tau(G-G') (k+G) dot (k+G').
     // Therefore
-    // i[V_tau, r_alpha]_{G,G'} =
+    // i[V_tau, r_\alpha]_{G,G'} =
     // (1/2) v_tau(G-G') [2k_alpha + G_alpha + G'_alpha].
     // In real space this is implemented as
-    // -i/2 [d_alpha(v_tau psi) + v_tau d_alpha psi].
+    // -i/2 [\partial_\alpha(v_tau psi) + v_tau \partial_\alpha psi].
     // ---------------------------------------------
     if (this->vtau_ != nullptr && this->vtau_col_ > 0 && XC_Functional::get_ked_flag())
     {
@@ -163,7 +163,7 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
             this->wfcpw->real_to_recip(this->ctx, this->porter1_, this->porter1_, this->ik);
             for (int id = 0; id < 3; ++id)
             {
-                // term1: ∂_id (v_tau * psi)
+                // term1: partial_id (v_tau * psi)
                 meta_pw_op<Real, Device>()(this->ctx,
                                            this->ik,
                                            id,
@@ -180,7 +180,7 @@ void Velocity<FPTYPE, Device>::act(const psi::Psi<std::complex<FPTYPE>, Device>*
                 Complex one = 1.0;
                 ModuleBase::axpy_op<Complex, Device>()(npw, &one, this->porter2_, 1, vpsi_slice, 1);
 
-                // term2: v_tau * ∂_id psi
+                // term2: v_tau * partial_id psi
                 meta_pw_op<Real, Device>()(this->ctx,
                                            this->ik,
                                            id,

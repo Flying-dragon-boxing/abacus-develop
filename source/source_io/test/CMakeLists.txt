@@ -292,6 +292,7 @@ AddTest(
   ../module_hs/write_HS_R.cpp
   ../module_hs/write_HS_sparse.cpp
   ../module_hs/single_R_io.cpp
+  ../module_hs/rr_sparse_writer.cpp
   ../module_dm/write_dmr.cpp
   ../module_output/ucell_io.cpp
   ../module_output/sparse_matrix.cpp
@@ -299,6 +300,16 @@ AddTest(
   ../module_output/file_reader.cpp
   ../../source_basis/module_ao/parallel_orbitals.cpp
   ../../source_lcao/module_hcontainer/test/tmp_mocks.cpp
+)
+endif()
+
+if(ENABLE_LIBRI)
+AddTest(
+  TARGET MODULE_IO_restart_exx_csr_test
+  LIBS parameter base ${math_libs} device
+  SOURCES
+  restart_exx_csr_test.cpp
+  tmp_mocks.cpp
 )
 endif()
 

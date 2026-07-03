@@ -2428,7 +2428,7 @@
   - tf: Thomas-Fermi (TF) functional
   - vw: von Weizsacker (vW) functional
   - tf+: TF + vW functional
-  - wt: Wang-Teter (WT) functional
+  - wt: Wang-Teter (WT) functional (supports GPU acceleration when device=gpu)
   - ext-wt: Extended Wang-Teter (ext-WT) functional
   - xwm: Xu-Wang-Ma (XWM) functional
   - lkt: Luo-Karasiev-Trickey (LKT) functional

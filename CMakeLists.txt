@@ -93,6 +93,12 @@ endfunction()
 # enable json support
 if(ENABLE_RAPIDJSON)
   find_package(RapidJSON CONFIG REQUIRED)
+  if(NOT TARGET RapidJSON)
+    message(
+      FATAL_ERROR
+      "RapidJSON was found, but target RapidJSON is missing. Check if your RapidJSON installation provides a complete exported CMake configuration."
+    )
+  endif()
   abacus_add_feature_definitions(__RAPIDJSON)
 endif()
 
